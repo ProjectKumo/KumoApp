@@ -7,6 +7,9 @@ The first test suite covers:
 - Runtime config generation.
 - Core state persistence.
 - System proxy command construction in dry-run mode.
+- Mihomo controller response mapping with mocked URL loading.
+- Backup export/import round trips.
+- Service request signing.
 
 These tests target `KumoCoreKit` because that layer carries the most important shared behavior.
 
@@ -35,11 +38,12 @@ Prioritize tests that do not mutate real system state:
 
 - CLI argument parsing.
 - JSON output stability.
-- Mihomo controller response mapping.
 - Profile import and remote refresh errors.
 - Missing core path errors.
 - UI store behavior.
 - Future Unix socket transport.
+- Exact system proxy restore from snapshots.
+- App update manifest and checksum flows.
 
 ## Quality Rules
 
@@ -58,3 +62,5 @@ Prioritize tests that do not mutate real system state:
 - SwiftUI window opens with Overview selected.
 - Settings opens with Cmd+,.
 - MenuBarExtra exposes start, stop, refresh, and system proxy controls.
+- `kumo doctor --json` reports status, profile, and core candidate information.
+- `kumo backup export <path> --json` creates a manifest-backed backup directory.

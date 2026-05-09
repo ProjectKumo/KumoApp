@@ -2,30 +2,59 @@ import XCTest
 @testable import KumoCoreKit
 
 final class SystemProxyControllerTests: XCTestCase {
-    func testSystemProxyEnableCommandsUseMixedPort() throws {
+    func testSystemProxyEnableCommandsUseMixedPort() async throws {
         let paths = KumoPaths(applicationSupportDirectory: temporaryDirectory())
         let controller = SystemProxyController(paths: paths)
 
-        let commands = try controller.setEnabled(
+        let commands = try await controller.setEnabled(
             true,
             configuration: SystemProxyConfiguration(networkService: "Wi-Fi", host: "127.0.0.1", port: 17890),
             dryRun: true
         )
 
-        XCTAssertEqual(commands.count, 3)
         XCTAssertTrue(commands.allSatisfy { $0.executable == "/usr/sbin/networksetup" })
         XCTAssertTrue(commands.contains { $0.arguments.contains("-setwebproxy") })
         XCTAssertTrue(commands.contains { $0.arguments.contains("17890") })
+        XCTAssertTrue(commands.contains { $0.arguments.contains("-setproxybypassdomains") })
+        // Manual mode should also assert PAC mode is off.
+        XCTAssertTrue(commands.contains { $0.arguments.contains("-setautoproxystate") })
     }
 
-    func testSystemProxyDisableCommandsTurnServicesOff() throws {
+    func testSystemProxyDisableCommandsTurnServicesOff() async throws {
         let paths = KumoPaths(applicationSupportDirectory: temporaryDirectory())
         let controller = SystemProxyController(paths: paths)
 
-        let commands = try controller.setEnabled(false, dryRun: true)
+        let commands = try await controller.setEnabled(false, dryRun: true)
 
-        XCTAssertEqual(commands.count, 3)
         XCTAssertTrue(commands.allSatisfy { $0.arguments.last == "off" })
+        XCTAssertTrue(commands.contains { $0.arguments.contains("-setwebproxystate") })
+        XCTAssertTrue(commands.contains { $0.arguments.contains("-setautoproxystate") })
+    }
+
+    func testSystemProxyPACModeUsesAutoProxyURL() async throws {
+        let paths = KumoPaths(applicationSupportDirectory: temporaryDirectory())
+        let controller = SystemProxyController(paths: paths)
+
+        let commands = try await controller.setEnabled(
+            true,
+            configuration: SystemProxyConfiguration(
+                networkService: "Wi-Fi",
+                host: "127.0.0.1",
+                port: 17890,
+                mode: .pac,
+                pacScript: "function FindProxyForURL() { return 'DIRECT'; }"
+            ),
+            dryRun: true
+        )
+
+        XCTAssertTrue(commands.contains { $0.arguments.contains("-setautoproxyurl") })
+        XCTAssertTrue(commands.contains { args in
+            args.arguments.contains("-setautoproxystate") && args.arguments.last == "on"
+        })
+        // PAC mode should also turn manual proxies off.
+        XCTAssertTrue(commands.contains { args in
+            args.arguments.contains("-setwebproxystate") && args.arguments.last == "off"
+        })
     }
 
     private func temporaryDirectory() -> URL {

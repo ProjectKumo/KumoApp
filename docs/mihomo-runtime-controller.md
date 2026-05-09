@@ -19,10 +19,11 @@ The current implementation starts Mihomo with a generated work directory. The ge
 - Writing the runtime configuration.
 - Starting Mihomo with `Process`.
 - Recording the process identifier in state.
-- Stopping a running process with `SIGTERM`.
+- Stopping a running process with a graceful signal escalation path.
 - Detecting stale process identifiers.
+- Recording runtime lifecycle events.
 
-This is a first-version supervisor. It does not yet implement automatic restart, service takeover, or privileged TUN setup.
+This is still a local-process supervisor. It does not yet implement automatic restart, service takeover, or privileged TUN setup.
 
 ## Controller Client
 
@@ -33,8 +34,27 @@ This is a first-version supervisor. It does not yet implement automatic restart,
 - `PATCH /configs`
 - `GET /proxies`
 - `PUT /proxies/{group}`
+- `GET /proxies/{proxy}/delay`
+- `GET /rules`
+- `GET /connections`
+- `DELETE /connections`
+- `DELETE /connections/{id}`
+- `GET /traffic` over WebSocket
+- `GET /memory` over WebSocket
 
-It maps proxy groups into `ProxyGroup` and proxy names into `ProxyNode`.
+It maps proxy groups into `ProxyGroup`, proxy names into `ProxyNode`, rules into `RuleEntry`, and connections into `ConnectionEntry`.
+
+## Sparkle-Parity Controller Surface
+
+The following external-controller endpoints are planned for the Configure and Inspect pages:
+
+- `PATCH /rules/disable`
+- `GET /providers/proxies`
+- `PUT /providers/proxies/{name}`
+- `GET /providers/rules`
+- `PUT /providers/rules/{name}`
+- `POST /upgrade/geo`
+- `GET /logs` over WebSocket or an equivalent streaming transport
 
 ## Current Transport
 
@@ -47,7 +67,8 @@ Controller failures are surfaced as `KumoError.controllerResponse(status, body)`
 ## Future Work
 
 - Add Unix socket controller transport.
-- Add event streams for logs, traffic, and core lifecycle.
-- Add startup readiness detection.
+- Add resilient reconnect policies for event streams.
 - Add restart policies.
 - Add provider initialization progress.
+- Add provider update and preview APIs.
+- Add structured log streaming and cache limits.

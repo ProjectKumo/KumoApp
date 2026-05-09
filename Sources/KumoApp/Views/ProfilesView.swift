@@ -7,9 +7,9 @@ struct ProfilesView: View {
     @State private var remoteURL = ""
     @State private var usesProxyForImport = false
     @State private var isImportingFile = false
-    @State private var searchText = ""
     @State private var editingProfile: ProfileEditDraft?
     @State private var deletingProfile: ProfileSummary?
+    @FocusState private var urlFieldFocused: Bool
 
     var body: some View {
         KumoPage(title: "Profiles") {
@@ -17,6 +17,7 @@ struct ProfilesView: View {
                 HStack(spacing: 8) {
                     TextField("Subscription URL", text: $remoteURL)
                         .textFieldStyle(.roundedBorder)
+                        .focused($urlFieldFocused)
                         .onSubmit { importRemoteProfile() }
 
                     PasteButton(payloadType: String.self) { values in
@@ -27,41 +28,37 @@ struct ProfilesView: View {
                     .labelStyle(.iconOnly)
                     .help("Paste subscription URL")
 
-                    Toggle("Proxy", isOn: $usesProxyForImport)
+                    Toggle("Use Kumo to fetch", isOn: $usesProxyForImport)
                         .toggleStyle(.checkbox)
-                        .help("Fetch this subscription through Kumo's local mixed-port proxy.")
 
-                    Button("Import") {
+                    Button("Import URL") {
                         importRemoteProfile()
                     }
                     .disabled(remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isImportingProfile)
 
-                    Button {
+                    Button("Import File…") {
                         isImportingFile = true
-                    } label: {
-                        Label("File", systemImage: "doc.badge.plus")
                     }
                 }
 
-                if filteredProfiles.isEmpty {
+                if store.profiles.isEmpty {
                     KumoEmptyState(
-                        title: store.profiles.isEmpty ? "Import a profile to start" : "No matching profiles",
+                        title: "Import a profile to start",
                         systemImage: "rectangle.stack.badge.plus",
-                        message: store.profiles.isEmpty ? "Use a subscription URL or local YAML." : "Try another search term."
+                        message: "Use a subscription URL or local YAML."
                     ) {
                         Button("Choose File") {
                             isImportingFile = true
                         }
                     }
                 } else {
-                    List(filteredProfiles) { profile in
+                    List(store.profiles) { profile in
                         ProfileRow(
                             profile: profile,
                             onEdit: { openEditor(for: profile) },
                             onDelete: { deletingProfile = profile }
                         )
                     }
-                    .searchable(text: $searchText, placement: .toolbar, prompt: "Search profiles")
                     .scrollEdgeEffectStyleIfAvailable()
                 }
             }
@@ -128,18 +125,8 @@ struct ProfilesView: View {
         .task {
             store.refreshProfiles()
         }
-    }
-
-    private var filteredProfiles: [ProfileSummary] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else {
-            return store.profiles
-        }
-
-        return store.profiles.filter { profile in
-            profile.name.localizedCaseInsensitiveContains(query)
-                || profile.sourceDescription.localizedCaseInsensitiveContains(query)
-                || (profile.remoteURL?.absoluteString.localizedCaseInsensitiveContains(query) ?? false)
+        .onAppear {
+            urlFieldFocused = true
         }
     }
 
@@ -175,11 +162,13 @@ private struct ProfileRow: View {
     let profile: ProfileSummary
     let onEdit: () -> Void
     let onDelete: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: profile.isCurrent ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(profile.isCurrent ? Color.accentColor : Color.secondary)
+                .contentTransition(.symbolEffect(.replace))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(profile.name)
@@ -207,11 +196,12 @@ private struct ProfileRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if !profile.isCurrent {
+            if !profile.isCurrent && isHovered {
                 Button("Use") {
                     Task { await store.selectProfile(profile) }
                 }
                 .disabled(store.isLoading)
+                .transition(.opacity)
             }
             Menu {
                 Button("Edit") {
@@ -232,6 +222,8 @@ private struct ProfileRow: View {
             .buttonStyle(.borderless)
         }
         .padding(.vertical, 4)
+        .onHover { isHovered = $0 }
+        .animation(.snappy(duration: 0.15), value: isHovered)
         .contextMenu {
             Button("Use Profile") {
                 Task { await store.selectProfile(profile) }
@@ -301,6 +293,11 @@ private struct ProfileEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("Edit Profile")
+                .font(.title2.weight(.semibold))
+                .padding(.horizontal)
+                .padding(.top)
+
             Form {
                 Section("Profile Info") {
                     TextField("Name", text: $draft.name)
@@ -324,9 +321,16 @@ private struct ProfileEditorSheet: View {
                 Button("Cancel", role: .cancel) {
                     onCancel()
                 }
-                Button("Save") {
+                Button {
                     Task {
                         await onSave(draft)
+                    }
+                } label: {
+                    if isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Save")
                     }
                 }
                 .keyboardShortcut(.defaultAction)

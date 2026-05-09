@@ -2,29 +2,39 @@
 
 ## Scope
 
-`KumoApp` is the native macOS frontend. It owns windows, menus, Settings, MenuBarExtra, and SwiftUI state coordination. It does not own Mihomo lifecycle or profile generation; those responsibilities live in `KumoCoreKit`.
+`KumoApp` is the native macOS frontend. It owns windows, menus, Settings, MenuBarExtra, App Intents, and SwiftUI state coordination. It does not own Mihomo lifecycle or profile generation; those responsibilities live in `KumoCoreKit`.
 
 ## App Scene Structure
 
 The app uses:
 
-- `WindowGroup` for the primary resizable Mac window.
-- `Settings` for preferences reachable through the standard app menu.
-- `MenuBarExtra` for lightweight status and quick actions.
-- `CommandMenu` for keyboard-accessible Kumo commands.
+- `WindowGroup(id: "main")` for the primary resizable Mac window.
+- `Settings` for preferences reachable through the standard app menu (General / Preferences / Updates tabs).
+- `MenuBarExtra` for lightweight status and quick actions, with a state-driven `systemImage` (`cloud.fill` / `cloud.bolt` / `cloud.slash` / `cloud`).
+- `CommandMenu("Control")` for keyboard-accessible Kumo commands.
+- `CommandGroup(after: .toolbar)` to expose `Toggle Sidebar` (Cmd+Ctrl+S).
+- `@NSApplicationDelegateAdaptor(KumoAppDelegate.self)` to bridge AppKit-only behaviour (Services menu, Spotlight handoff, Dock badge timer, `SMAppService.mainApp` synchronisation, `applicationShouldTerminateAfterLastWindowClosed`).
+
+`KumoAppContext.shared` is a tiny `@MainActor` singleton that exposes the live `KumoAppStore` to the AppDelegate, App Intents, and Services callbacks (none of which sit inside the SwiftUI view tree).
 
 The main window keeps standard macOS chrome, a unified toolbar, and a sensible minimum size.
 
 ## View Structure
 
-`ContentView` uses `NavigationSplitView` with four destinations:
+`ContentView` uses `NavigationSplitView` with a source-list sidebar grouped into three sections:
 
-- `OverviewView`
-- `ProxiesView`
-- `ProfilesView`
-- `AdvancedView`
+- Daily: `OverviewView`, `ProfilesView`, `ProxiesView`
+- Inspect: `ConnectionsView`, `LogsView`, `RulesView`
+- Configure: `CoreView`, `SystemProxyView`, `DNSView`, `TunView`, `SnifferView`, `ResourcesView`, `OverridesView`, `SubStoreView`
 
 `KumoAppStore` is an `@Observable` object that bridges SwiftUI state to `KumoCoreKit`. Views should call store methods instead of directly constructing controller clients.
+
+The Overview metric cards are interactive summaries. They use native `Button`
+controls to navigate into the relevant sidebar destinations and expose focused
+context-menu actions such as refresh, proxy toggle, or opening the matching
+settings page.
+
+The Configure views may begin as small setting surfaces, but user-visible controls must correspond to shared `KumoCoreKit` behavior. Do not add a SwiftUI-only setting that bypasses the runtime builder, state store, or controller facade.
 
 ## Liquid Glass Usage
 
@@ -36,13 +46,38 @@ Liquid Glass is used sparingly:
 
 The implementation provides fallback material backgrounds for older macOS versions. Interactive glass is only used on controls that perform actions.
 
+`KumoGlassSurfaceModifier` always passes a `tint: Color` (default `.clear`) so SwiftUI can interpolate hover / selection tints across state changes without rebuilding the modifier chain.
+
+## Settings Surface
+
+`SettingsView` is a three-tab `TabView`:
+
+- **General** — read-only status (profile, mode, system proxy) plus About (version + build).
+- **Preferences** — `Open at Login` (driven by `SMAppService.mainApp`) and `Quit when last window closes` (read by `applicationShouldTerminateAfterLastWindowClosed`).
+- **Updates** — channel picker, manifest URL field, and "Check for Updates Now" backed by `AppUpdateManager`.
+
+Preferences persist to `~/Library/Application Support/Kumo/preferences.json` via `UserPreferencesStore`. See `docs/persistence-logging.md` for fields.
+
 ## Accessibility
 
-All icon-only controls should have meaningful labels. The toolbar uses `Label` so VoiceOver and tooltips have clear names. The app should also preserve keyboard access for start, stop, refresh, and mode switching.
+All icon-only controls should have meaningful labels. The toolbar uses `Label` so VoiceOver and tooltips have clear names. The app should also preserve keyboard access for start, stop, refresh, mode switching, list navigation, filtering, and destructive confirmation.
+
+`KumoUIComponents.swift` exposes `kumoSubtleBackground(in:)` and `kumoAdaptiveTextWeight(...)` helpers that read `colorSchemeContrast` and `legibilityWeight` from the environment so custom hairlines / pill backgrounds / non-standard font weights still respond to the user's Increase Contrast and Bold Text preferences.
 
 ## Design Constraints
 
 - Avoid dense dashboards.
-- Keep advanced panels secondary.
+- Keep Inspect and Configure panels secondary to Daily workflow.
+- Keep destination titles in the unified toolbar / navigation chrome; do not repeat the same title as a large in-page heading.
 - Prefer system fonts, semantic colors, and standard controls.
 - Preserve window resizing and standard traffic light buttons.
+- Prefer native SwiftUI `Form`, `List`, `Table`, `Menu`, `Picker`, `Toggle`, `PasteButton`, and `fileImporter` before custom controls.
+
+## System Integration Hooks
+
+These integration points all rely on the `.app` bundle generated by `make app`, not on `swift run`:
+
+- **Services menu** — `Info.plist` `NSServices` registers "Import Profile to Kumo"; `KumoAppDelegate.importProfileURL(_:userData:error:)` consumes the pasteboard string and calls `KumoAppStore.importRemoteProfile(...)`.
+- **Spotlight** — `SpotlightIndexer` indexes profile summaries on launch and after profile mutations. Tapping a Spotlight result handoff calls `KumoAppContext.handleUserActivity(_:)` which selects the matching profile.
+- **App Intents** — `KumoIntents.swift` exposes Start / Stop / Refresh / SetMode / ToggleSystemProxy intents, surfaced via `KumoShortcutsProvider`. `KumoModeChoice` is a local mirror of `OutboundMode` because AppIntents metadata extraction cannot see enums declared in another SPM module.
+- **Dock badge** — A 1 s timer in the AppDelegate writes connection count into `NSApp.dockTile.badgeLabel`.

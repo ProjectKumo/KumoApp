@@ -4,22 +4,28 @@ import Foundation
 public struct CoreLaunchConfiguration: Sendable {
     public var corePath: String?
     public var profile: Profile
+    public var overrideYAMLs: [String]
     public var endpoint: ControllerEndpoint
     public var proxyPorts: ProxyPortConfiguration
     public var mode: OutboundMode
+    public var runtimeSettings: CoreRuntimeSettings
 
     public init(
         corePath: String? = nil,
         profile: Profile,
+        overrideYAMLs: [String] = [],
         endpoint: ControllerEndpoint = ControllerEndpoint(),
         proxyPorts: ProxyPortConfiguration = ProxyPortConfiguration(),
-        mode: OutboundMode = .rule
+        mode: OutboundMode = .rule,
+        runtimeSettings: CoreRuntimeSettings = CoreRuntimeSettings()
     ) {
         self.corePath = corePath
         self.profile = profile
+        self.overrideYAMLs = overrideYAMLs
         self.endpoint = endpoint
         self.proxyPorts = proxyPorts
         self.mode = mode
+        self.runtimeSettings = runtimeSettings
     }
 }
 
@@ -42,18 +48,31 @@ public struct CoreSupervisor: Sendable {
         }
 
         let corePath = try resolveCorePath(configuration.corePath)
+        try appendRuntimeEvent(kind: "core.starting", message: "Starting Mihomo core at \(corePath).")
         let runtime = try RuntimeConfigBuilder(
             endpoint: configuration.endpoint,
             proxyPorts: configuration.proxyPorts,
-            mode: configuration.mode
-        ).write(profile: configuration.profile, to: paths.runtimeConfigFile)
+            mode: configuration.mode,
+            runtimeSettings: configuration.runtimeSettings
+        ).write(profile: configuration.profile, overrideYAMLs: configuration.overrideYAMLs, to: paths.runtimeConfigFile)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: corePath)
         process.arguments = ["-d", paths.workDirectory.path]
         process.standardOutput = try logFileHandle()
         process.standardError = try logFileHandle()
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            var failedStatus = currentStatus
+            failedStatus.state = .failed
+            failedStatus.pid = nil
+            failedStatus.readiness = nil
+            failedStatus.message = "Failed to start Mihomo core: \(error.localizedDescription)"
+            try stateStore.save(failedStatus)
+            try appendRuntimeEvent(kind: "core.failed", message: failedStatus.message ?? "Failed to start Mihomo core.")
+            throw error
+        }
 
         let status = CoreStatus(
             state: .running,
@@ -63,9 +82,13 @@ public struct CoreSupervisor: Sendable {
             endpoint: runtime.endpoint,
             proxyPorts: runtime.proxyPorts,
             systemProxyEnabled: currentStatus.systemProxyEnabled,
+            runtimeSettings: configuration.runtimeSettings,
+            systemProxySettings: currentStatus.systemProxySettings,
+            readiness: .processLaunched,
             message: "Mihomo core started."
         )
         try stateStore.save(status)
+        try appendRuntimeEvent(kind: "core.started", message: "Mihomo core started with pid \(process.processIdentifier).")
         return status
     }
 
@@ -74,18 +97,26 @@ public struct CoreSupervisor: Sendable {
         var status = try stateStore.load()
         guard let pid = status.pid else {
             status.state = .stopped
+            status.readiness = nil
             try stateStore.save(status)
+            try appendRuntimeEvent(kind: "core.stopped", message: "Mihomo core was already stopped.")
             return status
         }
 
-        if isProcessAlive(pid) {
-            Darwin.kill(pid, SIGTERM)
+        if isProcessAlive(pid), !terminateProcess(pid) {
+            status.state = .failed
+            status.message = "Failed to stop Mihomo core with pid \(pid)."
+            try stateStore.save(status)
+            try appendRuntimeEvent(kind: "core.stop_failed", message: status.message ?? "Failed to stop Mihomo core.")
+            return status
         }
 
         status.state = .stopped
         status.pid = nil
+        status.readiness = nil
         status.message = "Mihomo core stopped."
         try stateStore.save(status)
+        try appendRuntimeEvent(kind: "core.stopped", message: "Mihomo core stopped.")
         return status
     }
 
@@ -94,10 +125,40 @@ public struct CoreSupervisor: Sendable {
         if let pid = status.pid, !isProcessAlive(pid) {
             status.state = .stopped
             status.pid = nil
+            status.readiness = nil
             status.message = "Mihomo core is not running."
             try stateStore.save(status)
+            try appendRuntimeEvent(kind: "core.stale_pid", message: "Cleared stale Mihomo pid \(pid).")
         }
         return status
+    }
+
+    public func updateReadiness(_ readiness: CoreReadiness, message: String? = nil) throws -> CoreStatus {
+        var status = try stateStore.load()
+        status.readiness = readiness
+        status.message = message ?? status.message
+        try stateStore.save(status)
+        try appendRuntimeEvent(kind: "core.readiness", message: message ?? "Core readiness changed to \(readiness.rawValue).")
+        return status
+    }
+
+    public func recentRuntimeEvents(limit: Int = 200) throws -> [RuntimeEventEntry] {
+        guard FileManager.default.fileExists(atPath: paths.runtimeEventsFile.path) else {
+            return []
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let content = try String(contentsOf: paths.runtimeEventsFile, encoding: .utf8)
+        return content
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .suffix(limit)
+            .compactMap { line -> RuntimeEventEntry? in
+                guard let data = String(line).data(using: .utf8) else {
+                    return nil
+                }
+                return try? decoder.decode(RuntimeEventEntry.self, from: data)
+            }
     }
 
     public func discoverCoreCandidates(configuredPath: String? = nil) -> [CoreCandidate] {
@@ -153,6 +214,34 @@ public struct CoreSupervisor: Sendable {
         Darwin.kill(pid, 0) == 0
     }
 
+    private func terminateProcess(_ pid: Int32) -> Bool {
+        let steps: [(signal: Int32, timeout: TimeInterval)] = [
+            (SIGINT, 1.0),
+            (SIGTERM, 2.0),
+            (SIGKILL, 1.0)
+        ]
+
+        for step in steps {
+            Darwin.kill(pid, step.signal)
+            if waitForExit(pid, timeout: step.timeout) {
+                return true
+            }
+        }
+
+        return !isProcessAlive(pid)
+    }
+
+    private func waitForExit(_ pid: Int32, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !isProcessAlive(pid) {
+                return true
+            }
+            usleep(100_000)
+        }
+        return !isProcessAlive(pid)
+    }
+
     private func logFileHandle() throws -> FileHandle {
         if !FileManager.default.fileExists(atPath: paths.coreLogFile.path) {
             FileManager.default.createFile(atPath: paths.coreLogFile.path, contents: nil)
@@ -160,6 +249,24 @@ public struct CoreSupervisor: Sendable {
         let handle = try FileHandle(forWritingTo: paths.coreLogFile)
         try handle.seekToEnd()
         return handle
+    }
+
+    private func appendRuntimeEvent(kind: String, message: String) throws {
+        try FileManager.default.createDirectory(at: paths.logsDirectory, withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(RuntimeEventEntry(kind: kind, message: message))
+        var line = data
+        line.append(0x0A)
+
+        if !FileManager.default.fileExists(atPath: paths.runtimeEventsFile.path) {
+            FileManager.default.createFile(atPath: paths.runtimeEventsFile.path, contents: nil)
+        }
+
+        let handle = try FileHandle(forWritingTo: paths.runtimeEventsFile)
+        defer { try? handle.close() }
+        try handle.seekToEnd()
+        try handle.write(contentsOf: line)
     }
 
     private func searchDirectories() -> [String] {

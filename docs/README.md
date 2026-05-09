@@ -13,7 +13,9 @@ Kumo is a native macOS client for Mihomo. The first version focuses on a calm da
 - [System Integration and Permissions](system-integration-permissions.md)
 - [Persistence and Logging](persistence-logging.md)
 - [Service Mode Roadmap](service-mode-roadmap.md)
+- [Sparkle Parity Roadmap](sparkle-parity-roadmap.md)
 - [Testing and Quality](testing-quality.md)
+- [Implementation Standards](standards/README.md)
 
 ## Current Source Layout
 
