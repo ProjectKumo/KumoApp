@@ -17,6 +17,10 @@ DerivedData/
 *.dSYM.zip
 *.dSYM
 
+# XcodeGen — project.yml is the source of truth, generated project is local
+Kumo.xcodeproj/
+build/
+
 # Editors
 .idea/
 .vscode/

@@ -46,9 +46,29 @@ Agent workflows need predictable behavior:
 - Exit code `1` means the command failed and `error` explains why.
 - Command names should remain stable even if implementation moves to a service later.
 
+## App Intents (GUI surface)
+
+The macOS app additionally exposes the following App Intents (via
+`KumoIntents.swift`) so Shortcuts, Siri, and Spotlight can drive Kumo
+without spawning a CLI process:
+
+- `Start Kumo`
+- `Stop Kumo`
+- `Refresh Kumo`
+- `Set Kumo Mode` (parameter: `KumoModeChoice` ↔ `OutboundMode`)
+- `Toggle Kumo System Proxy` (parameter: `enable: Bool`)
+
+App Intents call back into the live `KumoAppStore`, so their effects are
+identical to triggering the same flow from the GUI. They require the
+`Kumo.app` bundle (not `swift run`).
+
 ## Shared Control Layer
 
 The CLI must not bypass `KumoCoreKit`. If the app later introduces `KumoService`, the CLI should switch to service-backed calls while keeping command names and JSON schemas compatible.
+
+App Intents follow the same rule: when service mode lands, intents should
+hit service endpoints rather than `KumoAppStore` directly so they keep
+working when the GUI is closed.
 
 ## Future Work
 

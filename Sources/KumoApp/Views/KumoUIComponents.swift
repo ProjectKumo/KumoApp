@@ -7,13 +7,9 @@ struct KumoPage<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.largeTitle.bold())
-                if let subtitle {
-                    Text(subtitle)
-                        .foregroundStyle(.secondary)
-                }
+            if let subtitle {
+                Text(subtitle)
+                    .foregroundStyle(.secondary)
             }
 
             content
@@ -37,6 +33,7 @@ struct KumoEmptyState<Action: View>: View {
         } actions: {
             action
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 }
 
@@ -68,6 +65,7 @@ struct KumoInlineState<Action: View>: View {
 }
 
 struct StatusPill: View {
+    @Environment(\.legibilityWeight) private var legibilityWeight
     let title: String
     let value: String
     var systemImage: String?
@@ -83,7 +81,8 @@ struct StatusPill: View {
             Text(title)
                 .foregroundStyle(.secondary)
             Text(value)
-                .fontWeight(.medium)
+                .fontWeight(legibilityWeight == .bold ? .bold : .medium)
+                .contentTransition(.numericText())
             if showsMenuIndicator {
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.semibold))
@@ -93,6 +92,7 @@ struct StatusPill: View {
         .font(.callout)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
+        .fixedSize(horizontal: false, vertical: true)
         .modifier(StatusPillSurfaceModifier(isInteractive: showsMenuIndicator, showsSurface: showsSurface))
     }
 }
@@ -141,5 +141,69 @@ struct CompactSettingRow<Trailing: View>: View {
 extension Int {
     var kumoByteCount: String {
         ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .binary)
+    }
+}
+
+// MARK: - Accessibility helpers
+
+/// Apply a heavier font weight when Bold Text is enabled in System Settings.
+struct AdaptiveTextWeightModifier: ViewModifier {
+    @Environment(\.legibilityWeight) private var legibilityWeight
+    let regular: Font.Weight
+    let bold: Font.Weight
+
+    func body(content: Content) -> some View {
+        content.fontWeight(legibilityWeight == .bold ? bold : regular)
+    }
+}
+
+extension View {
+    /// Pick a font weight that respects the user's Bold Text accessibility
+    /// preference. Standard SwiftUI text styles handle this automatically;
+    /// use this on any text where a custom weight is applied.
+    func kumoAdaptiveTextWeight(regular: Font.Weight = .regular, bold: Font.Weight = .semibold) -> some View {
+        modifier(AdaptiveTextWeightModifier(regular: regular, bold: bold))
+    }
+}
+
+/// A pair of colors picked based on the user's Increase Contrast preference.
+struct AdaptiveContrastColor {
+    let standard: Color
+    let increased: Color
+
+    func resolve(contrast: ColorSchemeContrast) -> Color {
+        contrast == .increased ? increased : standard
+    }
+}
+
+/// Apply a translucent secondary fill that becomes more opaque when the
+/// user has Increase Contrast enabled, so subtle pill / divider surfaces
+/// remain visible to users who need higher contrast.
+struct KumoSubtleBackgroundModifier<S: Shape>: ViewModifier {
+    @Environment(\.colorSchemeContrast) private var contrast
+    let shape: S
+    let standardOpacity: Double
+    let increasedOpacity: Double
+
+    func body(content: Content) -> some View {
+        content.background(
+            Color.secondary.opacity(contrast == .increased ? increasedOpacity : standardOpacity),
+            in: shape
+        )
+    }
+}
+
+extension View {
+    /// A subtle secondary-tinted background that adapts to Increase Contrast.
+    func kumoSubtleBackground<S: Shape>(
+        in shape: S,
+        standardOpacity: Double = 0.10,
+        increasedOpacity: Double = 0.24
+    ) -> some View {
+        modifier(KumoSubtleBackgroundModifier(
+            shape: shape,
+            standardOpacity: standardOpacity,
+            increasedOpacity: increasedOpacity
+        ))
     }
 }

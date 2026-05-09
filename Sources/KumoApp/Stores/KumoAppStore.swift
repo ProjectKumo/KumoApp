@@ -13,15 +13,24 @@ final class KumoAppStore {
     var rules: [RuleEntry] = []
     var connections: [ConnectionEntry] = []
     var logs: [LogEntry] = []
+    var proxyProviders: [ProxyProviderEntry] = []
+    var ruleProviders: [RuleProviderEntry] = []
+    var overrides: [OverrideItem] = []
+    var subStoreStatus = SubStoreStatus()
     var coreCandidates: [CoreCandidate] = []
+    var preferences = UserPreferences()
     var errorMessage: String?
     var isLoading = false
     var isImportingProfile = false
     var isInstallingCore = false
     var isTestingDelay = false
+    var isStreamingLogs = false
+    var isCheckingForUpdates = false
+    var lastUpdateCheckResult: AppUpdateCheckResult?
 
     private let controller = KumoController()
     private var loadingTaskCount = 0
+    private var logStreamTask: Task<Void, Never>?
 
     func refreshAll() async {
         refreshStatus()
@@ -29,9 +38,12 @@ final class KumoAppStore {
         await refreshDueProfiles()
         refreshCoreCandidates()
         refreshProfiles()
+        loadPreferences()
         await loadProxyGroups()
         await loadCoreConfiguration()
         await loadInspectData()
+        await loadResources()
+        refreshOverrides()
     }
 
     func refreshStatus() {
@@ -61,6 +73,17 @@ final class KumoAppStore {
     func setCorePath(_ path: String) {
         do {
             try controller.setCorePath(path)
+            refreshStatus()
+            refreshCoreCandidates()
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func clearCorePath() {
+        do {
+            try controller.clearCorePath()
             refreshStatus()
             refreshCoreCandidates()
             errorMessage = nil
@@ -111,6 +134,8 @@ final class KumoAppStore {
             self.refreshProfiles()
             await self.loadProxyGroups()
             await self.loadCoreConfiguration()
+            await self.loadResources()
+            self.refreshOverrides()
             if let installResult {
                 self.status.message = "Installed Mihomo core \(installResult.version) and started."
             }
@@ -119,6 +144,7 @@ final class KumoAppStore {
 
     func stopCore() {
         do {
+            stopLogStream()
             status = try controller.stop()
             proxyGroups = []
             errorMessage = nil
@@ -151,9 +177,14 @@ final class KumoAppStore {
 
     func loadCoreConfiguration() async {
         guard status.state == .running else {
+            let settings = status.runtimeSettings ?? CoreRuntimeSettings(mixedPort: status.proxyPorts.mixedPort)
             coreConfiguration = CoreConfigurationSnapshot(
                 mode: status.mode,
-                mixedPort: status.proxyPorts.mixedPort
+                mixedPort: settings.mixedPort,
+                logLevel: settings.logLevel,
+                allowLAN: settings.allowLAN,
+                ipv6: settings.ipv6,
+                geoData: settings.geoData
             )
             return
         }
@@ -187,6 +218,88 @@ final class KumoAppStore {
             errorMessage = nil
         } catch {
             errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func loadResources() async {
+        guard status.state == .running else {
+            proxyProviders = []
+            ruleProviders = []
+            return
+        }
+
+        do {
+            async let nextProxyProviders = controller.proxyProviders()
+            async let nextRuleProviders = controller.ruleProviders()
+            proxyProviders = try await nextProxyProviders
+            ruleProviders = try await nextRuleProviders
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func updateRuntimeSettings(_ settings: CoreRuntimeSettings) async {
+        await performLoadingTask { [self] in
+            try await controller.updateRuntimeSettings(settings)
+            status.runtimeSettings = settings
+            status.proxyPorts.mixedPort = settings.mixedPort
+            coreConfiguration.mixedPort = settings.mixedPort
+            coreConfiguration.logLevel = settings.logLevel
+            coreConfiguration.allowLAN = settings.allowLAN
+            coreConfiguration.ipv6 = settings.ipv6
+            coreConfiguration.geoData = settings.geoData
+        }
+    }
+
+    func setControllerSecret(_ secret: String) {
+        do {
+            try controller.setControllerSecret(secret)
+            status.endpoint.secret = secret
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func setRuleEnabled(_ rule: RuleEntry, isEnabled: Bool) async {
+        await performLoadingTask { [self] in
+            try await controller.setRuleEnabled(index: rule.index, isEnabled: isEnabled)
+            if let index = rules.firstIndex(where: { $0.id == rule.id }) {
+                rules[index].isEnabled = isEnabled
+            }
+        }
+    }
+
+    func updateProxyProvider(_ provider: ProxyProviderEntry) async {
+        await performLoadingTask { [self] in
+            try await controller.updateProxyProvider(name: provider.name)
+            await loadResources()
+        }
+    }
+
+    func updateRuleProvider(_ provider: RuleProviderEntry) async {
+        await performLoadingTask { [self] in
+            try await controller.updateRuleProvider(name: provider.name)
+            await loadResources()
+        }
+    }
+
+    func updateAllProviders() async {
+        await performLoadingTask { [self] in
+            for provider in proxyProviders {
+                try await controller.updateProxyProvider(name: provider.name)
+            }
+            for provider in ruleProviders {
+                try await controller.updateRuleProvider(name: provider.name)
+            }
+            await loadResources()
+        }
+    }
+
+    func upgradeGeoData() async {
+        await performLoadingTask { [self] in
+            try await controller.upgradeGeoData()
         }
     }
 
@@ -242,6 +355,109 @@ final class KumoAppStore {
         } catch {
             errorMessage = displayMessage(for: error)
             return nil
+        }
+    }
+
+    func refreshOverrides() {
+        do {
+            overrides = try controller.overrides()
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func refreshSubStoreStatus() {
+        do {
+            subStoreStatus = try controller.subStoreStatus()
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func setSubStoreEnabled(_ isEnabled: Bool) async {
+        await performLoadingTask { [self] in
+            subStoreStatus = try await controller.setSubStoreEnabled(isEnabled)
+        }
+    }
+
+    func restartSubStoreService() async {
+        await performLoadingTask { [self] in
+            try await controller.restartSubStoreService()
+        }
+    }
+
+    func stopSubStoreService() async {
+        await controller.stopSubStoreService()
+    }
+
+    func updateSubStoreStatus(_ status: SubStoreStatus) {
+        do {
+            try controller.updateSubStoreStatus(status)
+            subStoreStatus = status
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func downloadSubStoreBundle(kind: SubStoreBundleKind, urlString: String) async {
+        guard let url = URL(string: urlString) else {
+            errorMessage = "Enter a valid Sub-Store bundle URL."
+            return
+        }
+
+        await performLoadingTask { [self] in
+            subStoreStatus = try await controller.downloadSubStoreBundle(kind: kind, from: url)
+        }
+    }
+
+    func overrideContent(id: String) -> String? {
+        do {
+            return try controller.overrideContent(id: id)
+        } catch {
+            errorMessage = displayMessage(for: error)
+            return nil
+        }
+    }
+
+    func addLocalOverride(name: String, format: OverrideFormat, content: String, isGlobal: Bool) {
+        do {
+            _ = try controller.addLocalOverride(name: name, format: format, content: content, isGlobal: isGlobal)
+            refreshOverrides()
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func addRemoteOverride(urlString: String, format: OverrideFormat, isGlobal: Bool) async {
+        guard let url = URL(string: urlString) else {
+            errorMessage = "Enter a valid override URL."
+            return
+        }
+
+        await performLoadingTask { [self] in
+            _ = try await controller.addRemoteOverride(url: url, format: format, isGlobal: isGlobal)
+            refreshOverrides()
+        }
+    }
+
+    func updateOverride(_ item: OverrideItem, content: String?) {
+        do {
+            try controller.updateOverride(item, content: content)
+            refreshOverrides()
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func deleteOverride(_ item: OverrideItem) {
+        do {
+            try controller.deleteOverride(id: item.id)
+            refreshOverrides()
+        } catch {
+            errorMessage = displayMessage(for: error)
         }
     }
 
@@ -309,13 +525,129 @@ final class KumoAppStore {
             return
         }
 
+        Task { @MainActor in
+            do {
+                _ = try await controller.setSystemProxy(isEnabled)
+                status.systemProxyEnabled = isEnabled
+                errorMessage = nil
+            } catch {
+                errorMessage = displayMessage(for: error)
+            }
+        }
+    }
+
+    func updateSystemProxySettings(_ settings: SystemProxySettings) {
         do {
-            _ = try controller.setSystemProxy(isEnabled)
-            status.systemProxyEnabled = isEnabled
+            try controller.updateSystemProxySettings(settings)
+            status.systemProxySettings = settings
             errorMessage = nil
         } catch {
             errorMessage = displayMessage(for: error)
         }
+    }
+
+    func startLogStream(level: String? = nil) {
+        guard status.state == .running else { return }
+        logStreamTask?.cancel()
+        isStreamingLogs = true
+        let selectedLevel = level ?? coreConfiguration.logLevel
+        logStreamTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let stream = try self.controller.logStream(level: selectedLevel)
+                for try await log in stream {
+                    await MainActor.run {
+                        self.appendLog(log)
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.isStreamingLogs = false
+                }
+            }
+        }
+    }
+
+    func stopLogStream() {
+        logStreamTask?.cancel()
+        logStreamTask = nil
+        isStreamingLogs = false
+    }
+
+    func clearLogs() {
+        logs = []
+    }
+
+    func loadPreferences() {
+        preferences = controller.userPreferences()
+    }
+
+    func updatePreferences(_ next: UserPreferences) {
+        do {
+            try controller.updateUserPreferences(next)
+            preferences = next
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func checkForUpdate() async {
+        guard let manifestURL = preferences.updateManifestURL else {
+            errorMessage = "Set an update manifest URL in Settings."
+            return
+        }
+
+        isCheckingForUpdates = true
+        defer { isCheckingForUpdates = false }
+
+        do {
+            let result = try await controller.checkAppUpdate(
+                manifestURL: manifestURL,
+                currentVersion: bundleShortVersion,
+                channel: preferences.updateChannel
+            )
+            lastUpdateCheckResult = result
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func closeConnection(id: String) async {
+        await performLoadingTask { [self] in
+            try await controller.closeConnection(id: id)
+            await loadInspectData()
+        }
+    }
+
+    func closeConnections(ids: Set<String>) async {
+        guard !ids.isEmpty else { return }
+        await performLoadingTask { [self] in
+            for id in ids {
+                try await controller.closeConnection(id: id)
+            }
+            await loadInspectData()
+        }
+    }
+
+    func closeAllConnections() async {
+        await performLoadingTask { [self] in
+            try await controller.closeConnections(matchingProxy: nil)
+            await loadInspectData()
+        }
+    }
+
+    var subStoreLogURL: URL {
+        controller.paths.subStoreLogFile
+    }
+
+    var coreLogURL: URL {
+        controller.paths.coreLogFile
+    }
+
+    private var bundleShortVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
     }
 
     private func performLoadingTask(_ operation: @MainActor () async throws -> Void) async {
@@ -415,6 +747,13 @@ final class KumoAppStore {
     private func endLoading() {
         loadingTaskCount = max(0, loadingTaskCount - 1)
         isLoading = loadingTaskCount > 0
+    }
+
+    private func appendLog(_ log: LogEntry) {
+        logs.append(log)
+        if logs.count > 500 {
+            logs.removeFirst(logs.count - 500)
+        }
     }
 
     private func displayMessage(for error: Error) -> String {

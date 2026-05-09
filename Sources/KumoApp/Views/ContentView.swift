@@ -61,6 +61,17 @@ struct ContentView: View {
     var body: some View {
         navigationRoot
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Picker("Mode", selection: modeBinding) {
+                        ForEach(OutboundMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(store.isLoading || store.status.state != .running)
+                    .help("Switch outbound mode")
+                }
+
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
                         if store.status.state == .running {
@@ -73,6 +84,7 @@ struct ContentView: View {
                     }
                     .disabled(store.isLoading)
                     .accessibilityLabel(coreActionTitle)
+                    .help(coreActionTitle)
 
                     Button {
                         Task { await store.refreshAll() }
@@ -81,6 +93,7 @@ struct ContentView: View {
                     }
                     .keyboardShortcut("r", modifiers: .command)
                     .accessibilityLabel("Refresh status and proxies")
+                    .help("Refresh status and proxies")
                 }
             }
             .alert(errorAlertTitle, isPresented: errorAlertBinding) {
@@ -113,9 +126,11 @@ struct ContentView: View {
         } detail: {
             detailView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle(selection.rawValue)
         }
         .navigationDestination(for: SidebarDestination.self) { destination in
             detailView(for: destination)
+                .navigationTitle(destination.rawValue)
         }
     }
 
@@ -161,6 +176,14 @@ struct ContentView: View {
         store.status.state == .running ? "stop.fill" : "play.fill"
     }
 
+    private var modeBinding: Binding<OutboundMode> {
+        Binding {
+            store.status.mode
+        } set: { mode in
+            Task { await store.setMode(mode) }
+        }
+    }
+
     @ViewBuilder
     private var detailView: some View {
         detailView(for: selection)
@@ -170,7 +193,7 @@ struct ContentView: View {
     private func detailView(for destination: SidebarDestination) -> some View {
         switch destination {
         case .overview:
-            OverviewView()
+            OverviewView(onNavigate: navigateAction)
         case .profiles:
             ProfilesView()
         case .proxies:
@@ -186,11 +209,11 @@ struct ContentView: View {
         case .systemProxy:
             SystemProxyView()
         case .dns:
-            DNSView()
+            DNSView(onNavigate: navigateAction)
         case .tun:
-            TunView()
+            TunView(onNavigate: navigateAction)
         case .sniffer:
-            SnifferView()
+            SnifferView(onNavigate: navigateAction)
         case .resources:
             ResourcesView()
         case .overrides:
@@ -200,19 +223,10 @@ struct ContentView: View {
         }
     }
 
-}
-
-struct FlowLayout<Item: Identifiable, Content: View>: View {
-    let items: [Item]
-    @ViewBuilder let content: (Item) -> Content
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], alignment: .leading, spacing: 8) {
-            ForEach(items) { item in
-                content(item)
-            }
-        }
+    private var navigateAction: (SidebarDestination) -> Void {
+        { destination in selection = destination }
     }
+
 }
 
 extension View {

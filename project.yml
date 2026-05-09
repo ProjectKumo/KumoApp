@@ -1,0 +1,93 @@
+name: Kumo
+
+options:
+  bundleIdPrefix: io.kumo
+  developmentLanguage: en
+  deploymentTarget:
+    macOS: "15.0"
+  generateEmptyDirectories: true
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    GCC_TREAT_WARNINGS_AS_ERRORS: NO
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+
+packages:
+  Kumo:
+    path: .
+
+targets:
+  KumoApp:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources/KumoApp
+    info:
+      path: Resources/KumoApp/Info.plist
+    entitlements:
+      path: Resources/KumoApp/KumoApp.entitlements
+    dependencies:
+      - package: Kumo
+        product: KumoCoreKit
+    settings:
+      base:
+        PRODUCT_NAME: Kumo
+        PRODUCT_BUNDLE_IDENTIFIER: io.kumo.KumoApp
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        INFOPLIST_FILE: Resources/KumoApp/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Resources/KumoApp/KumoApp.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        COMBINE_HIDPI_IMAGES: YES
+
+  kumo:
+    type: tool
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources/KumoCLI
+    dependencies:
+      - package: Kumo
+        product: KumoCoreKit
+    settings:
+      base:
+        PRODUCT_NAME: kumo
+        SWIFT_VERSION: "6.0"
+
+schemes:
+  KumoApp:
+    build:
+      targets:
+        KumoApp: all
+      parallelizeBuild: true
+      buildImplicitDependencies: true
+    run:
+      executable: KumoApp
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  kumo:
+    build:
+      targets:
+        kumo: all
+    run:
+      executable: kumo
+      config: Debug

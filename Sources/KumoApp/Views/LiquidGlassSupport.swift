@@ -6,44 +6,48 @@ private struct KumoGlassSurfaceModifier: ViewModifier {
     let cornerRadius: CGFloat
     let fallbackMaterial: Material
     let isInteractive: Bool
-    let tint: Color?
+    let tint: Color
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if reduceTransparency {
-            content.background(reducedTransparencyColor, in: .rect(cornerRadius: cornerRadius))
+            content
+                .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: cornerRadius))
+                .background(tint, in: .rect(cornerRadius: cornerRadius))
         } else if #available(macOS 26.0, *) {
+            // Always pass through `.tint(...)` so SwiftUI can interpolate
+            // tint changes (e.g. hover, selection) instead of swapping
+            // modifier branches and rebuilding the glass effect chain.
             if isInteractive {
-                if let tint {
-                    content.glassEffect(.regular.tint(tint).interactive(), in: .rect(cornerRadius: cornerRadius))
-                } else {
-                    content.glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
-                }
+                content.glassEffect(.regular.tint(tint).interactive(), in: .rect(cornerRadius: cornerRadius))
             } else {
-                if let tint {
-                    content.glassEffect(.regular.tint(tint), in: .rect(cornerRadius: cornerRadius))
-                } else {
-                    content.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
-                }
+                content.glassEffect(.regular.tint(tint), in: .rect(cornerRadius: cornerRadius))
             }
         } else {
-            content.background(fallbackMaterial, in: .rect(cornerRadius: cornerRadius))
-                .background(tint.opacityOrClear, in: .rect(cornerRadius: cornerRadius))
+            content
+                .background(fallbackMaterial, in: .rect(cornerRadius: cornerRadius))
+                .background(tint, in: .rect(cornerRadius: cornerRadius))
         }
-    }
-
-    private var reducedTransparencyColor: Color {
-        tint ?? Color(nsColor: .controlBackgroundColor)
     }
 }
 
 extension View {
-    func kumoGlassCard(cornerRadius: CGFloat = 20, tint: Color? = nil) -> some View {
-        modifier(KumoGlassSurfaceModifier(cornerRadius: cornerRadius, fallbackMaterial: .ultraThinMaterial, isInteractive: false, tint: tint))
+    func kumoGlassCard(cornerRadius: CGFloat = 20, tint: Color = .clear) -> some View {
+        modifier(KumoGlassSurfaceModifier(
+            cornerRadius: cornerRadius,
+            fallbackMaterial: .ultraThinMaterial,
+            isInteractive: false,
+            tint: tint
+        ))
     }
 
-    func kumoInteractiveGlass(cornerRadius: CGFloat = 14, tint: Color? = nil) -> some View {
-        modifier(KumoGlassSurfaceModifier(cornerRadius: cornerRadius, fallbackMaterial: .thinMaterial, isInteractive: true, tint: tint))
+    func kumoInteractiveGlass(cornerRadius: CGFloat = 14, tint: Color = .clear) -> some View {
+        modifier(KumoGlassSurfaceModifier(
+            cornerRadius: cornerRadius,
+            fallbackMaterial: .thinMaterial,
+            isInteractive: true,
+            tint: tint
+        ))
     }
 
     @ViewBuilder
@@ -54,7 +58,7 @@ extension View {
                 .buttonStyle(.glass)
         } else {
             self
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .kumoInteractiveGlass(cornerRadius: cornerRadius)
         }
     }
@@ -65,7 +69,7 @@ extension View {
             self.buttonStyle(.glass)
         } else {
             self
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .kumoInteractiveGlass(cornerRadius: cornerRadius)
         }
     }
@@ -85,17 +89,6 @@ extension View {
             self.glassEffectID(id, in: namespace)
         } else {
             self
-        }
-    }
-}
-
-private extension Optional where Wrapped == Color {
-    var opacityOrClear: Color {
-        switch self {
-        case .some(let color):
-            color.opacity(0.14)
-        case .none:
-            .clear
         }
     }
 }

@@ -27,6 +27,18 @@ public struct KumoPaths: Sendable {
         applicationSupportDirectory.appendingPathComponent("logs", isDirectory: true)
     }
 
+    public var overridesDirectory: URL {
+        applicationSupportDirectory.appendingPathComponent("overrides", isDirectory: true)
+    }
+
+    public var overrideFilesDirectory: URL {
+        overridesDirectory.appendingPathComponent("files", isDirectory: true)
+    }
+
+    public var subStoreDirectory: URL {
+        applicationSupportDirectory.appendingPathComponent("substore", isDirectory: true)
+    }
+
     public var managedCoreDirectory: URL {
         applicationSupportDirectory.appendingPathComponent("cores", isDirectory: true)
     }
@@ -47,6 +59,18 @@ public struct KumoPaths: Sendable {
         logsDirectory.appendingPathComponent("core.log")
     }
 
+    public var runtimeEventsFile: URL {
+        logsDirectory.appendingPathComponent("runtime-events.jsonl")
+    }
+
+    public var subStoreLogFile: URL {
+        logsDirectory.appendingPathComponent("substore.log")
+    }
+
+    public var overridesMetadataFile: URL {
+        overridesDirectory.appendingPathComponent("overrides.json")
+    }
+
     public func prepare() throws {
         try FileManager.default.createDirectory(
             at: applicationSupportDirectory,
@@ -62,6 +86,18 @@ public struct KumoPaths: Sendable {
         )
         try FileManager.default.createDirectory(
             at: logsDirectory,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: overridesDirectory,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: overrideFilesDirectory,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: subStoreDirectory,
             withIntermediateDirectories: true
         )
         try FileManager.default.createDirectory(

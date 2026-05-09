@@ -72,8 +72,50 @@ enum KumoCLI {
             }
         case "profile":
             try await runProfileCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
+        case "logs":
+            let limit = value(after: "--limit", in: arguments).flatMap(Int.init) ?? 100
+            let logs = try controller.recentLogs(limit: limit)
+            write(logs, asJSON: wantsJSON) { logs in
+                logs.map { "[\($0.level)] \($0.message)" }.joined(separator: "\n")
+            }
+        case "connections":
+            try await runConnectionsCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
+        case "providers":
+            let report = ProviderReport(
+                proxies: try await controller.proxyProviders(),
+                rules: try await controller.ruleProviders()
+            )
+            write(report, asJSON: wantsJSON) { report in
+                [
+                    "Proxy providers: \(report.proxies.count)",
+                    "Rule providers: \(report.rules.count)"
+                ].joined(separator: "\n")
+            }
+        case "runtime-events":
+            let limit = value(after: "--limit", in: arguments).flatMap(Int.init) ?? 100
+            let events = try controller.runtimeEvents(limit: limit)
+            write(events, asJSON: wantsJSON) { events in
+                events.map { "\($0.time): \($0.kind) \($0.message)" }.joined(separator: "\n")
+            }
+        case "doctor":
+            let report = try DoctorReport(
+                status: controller.status(),
+                currentProfile: controller.currentProfile(),
+                coreCandidates: controller.coreCandidates()
+            )
+            write(report, asJSON: wantsJSON) { report in
+                [
+                    "State: \(report.status.state.rawValue)",
+                    "Profile: \(report.currentProfile.name)",
+                    "Core candidates: \(report.coreCandidates.count)"
+                ].joined(separator: "\n")
+            }
+        case "config":
+            try runConfigCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
+        case "backup":
+            try runBackupCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
         case "sysproxy":
-            try runSystemProxyCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
+            try await runSystemProxyCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
         case "core":
             try await runCoreCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
         default:
@@ -125,11 +167,73 @@ enum KumoCLI {
         write(profile, asJSON: wantsJSON) { profile in "refreshed \(profile.name)" }
     }
 
-    private static func runSystemProxyCommand(
+    private static func runConnectionsCommand(
+        arguments: [String],
+        controller: KumoController,
+        wantsJSON: Bool
+    ) async throws {
+        if arguments.contains("--close-all") {
+            try await controller.closeConnections()
+            write(["closed": "all"], asJSON: wantsJSON) { _ in "closed all connections" }
+            return
+        }
+
+        if let id = value(after: "--close", in: arguments) {
+            try await controller.closeConnection(id: id)
+            write(["closed": id], asJSON: wantsJSON) { _ in "closed \(id)" }
+            return
+        }
+
+        let connections = try await controller.connections()
+        write(connections, asJSON: wantsJSON) { connections in
+            connections.map { connection in
+                "\(connection.host) \(connection.chain.joined(separator: " > "))"
+            }.joined(separator: "\n")
+        }
+    }
+
+    private static func runConfigCommand(
         arguments: [String],
         controller: KumoController,
         wantsJSON: Bool
     ) throws {
+        guard arguments.count >= 2, arguments[1] == "path" else {
+            throw KumoError.invalidArguments("Usage: kumo config path [--json]")
+        }
+
+        let paths = CLIPaths(paths: controller.paths)
+        write(paths, asJSON: wantsJSON) { paths in
+            paths.applicationSupportDirectory
+        }
+    }
+
+    private static func runBackupCommand(
+        arguments: [String],
+        controller: KumoController,
+        wantsJSON: Bool
+    ) throws {
+        guard arguments.count >= 3 else {
+            throw KumoError.invalidArguments("Usage: kumo backup <export|import> <path> [--json]")
+        }
+
+        let url = URL(fileURLWithPath: arguments[2])
+        switch arguments[1] {
+        case "export":
+            let result = try controller.exportBackup(to: url)
+            write(result, asJSON: wantsJSON) { "exported backup to \($0.destinationPath)" }
+        case "import":
+            let manifest = try controller.importBackup(from: url)
+            write(manifest, asJSON: wantsJSON) { manifest in "imported backup from \(manifest.createdAt)" }
+        default:
+            throw KumoError.invalidArguments("Usage: kumo backup <export|import> <path> [--json]")
+        }
+    }
+
+    private static func runSystemProxyCommand(
+        arguments: [String],
+        controller: KumoController,
+        wantsJSON: Bool
+    ) async throws {
         guard arguments.count >= 2 else {
             throw KumoError.invalidArguments("Usage: kumo sysproxy <on|off> [--dry-run]")
         }
@@ -145,7 +249,7 @@ enum KumoCLI {
             throw KumoError.invalidArguments("Usage: kumo sysproxy <on|off> [--dry-run]")
         }
 
-        let commands = try controller.setSystemProxy(isEnabled, dryRun: dryRun)
+        let commands = try await controller.setSystemProxy(isEnabled, dryRun: dryRun)
         write(commands, asJSON: wantsJSON) { commands in
             commands.map { ([ $0.executable ] + $0.arguments).joined(separator: " ") }.joined(separator: "\n")
         }
@@ -200,10 +304,47 @@ enum KumoCLI {
               kumo mode <rule|global|direct> [--json]
               kumo proxies [--json]
               kumo select <group> <proxy> [--json]
+              kumo logs [--limit <count>] [--json]
+              kumo connections [--close <id>|--close-all] [--json]
+              kumo providers [--json]
+              kumo runtime-events [--limit <count>] [--json]
+              kumo doctor [--json]
+              kumo config path [--json]
+              kumo backup export <path> [--json]
+              kumo backup import <path> [--json]
               kumo core install [--json]
               kumo profile refresh <url> [--json]
               kumo sysproxy <on|off> [--dry-run] [--json]
             """
         )
+    }
+}
+
+private struct ProviderReport: Encodable {
+    var proxies: [ProxyProviderEntry]
+    var rules: [RuleProviderEntry]
+}
+
+private struct DoctorReport: Encodable {
+    var status: CoreStatus
+    var currentProfile: ProfileSummary
+    var coreCandidates: [CoreCandidate]
+}
+
+private struct CLIPaths: Encodable {
+    var applicationSupportDirectory: String
+    var profilesDirectory: String
+    var workDirectory: String
+    var logsDirectory: String
+    var runtimeConfigFile: String
+    var stateFile: String
+
+    init(paths: KumoPaths) {
+        self.applicationSupportDirectory = paths.applicationSupportDirectory.path
+        self.profilesDirectory = paths.profilesDirectory.path
+        self.workDirectory = paths.workDirectory.path
+        self.logsDirectory = paths.logsDirectory.path
+        self.runtimeConfigFile = paths.runtimeConfigFile.path
+        self.stateFile = paths.stateFile.path
     }
 }

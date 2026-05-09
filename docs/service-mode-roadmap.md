@@ -36,7 +36,9 @@ The GUI and CLI should keep their public command semantics unchanged.
 
 ## Authentication
 
-The service should not trust arbitrary local clients. A future version should use:
+The service should not trust arbitrary local clients. `KumoServiceRequestSigner`
+now defines the Swift-side canonical request and HMAC header shape for the
+future service client. A future version should use:
 
 - A generated key pair or shared secret.
 - Request timestamps and nonces.
@@ -57,3 +59,26 @@ The service should not trust arbitrary local clients. A future version should us
 - Privileged TUN setup.
 - Signed helper authorization flows.
 - Automatic service repair.
+
+## Status of Local Subsystems (Phase B)
+
+Phase B brings several locally hosted subsystems into the app process,
+without introducing the privileged service. Each is documented here so the
+service-mode migration can absorb them later without scope surprises.
+
+- **PAC mode is implemented** via `PACServer` (NWListener HTTP loopback) +
+  `networksetup -setautoproxyurl`. When a privileged service exists, this
+  listener should move into the service process and the front-end should
+  request "PAC enabled" rather than hosting the listener directly.
+- **Sub-Store backend supervisor is implemented** via `SubStoreSupervisor`
+  (`Process` lifecycle + `logs/substore.log`). The future service should
+  own this process so the GUI can be quit without killing Sub-Store.
+- **Open at Login** uses `SMAppService.mainApp`. Once a helper bundle
+  exists, switch to a `SMAppService.daemon`/`agent` registration so the
+  service can run independently of the UI.
+- **Spotlight indexing** uses `CSSearchableIndex.default()` from the app
+  process. This works without a service; only the data source has to move
+  if profile state is later owned by the service.
+- **App Intents** call back into `KumoAppStore`. Behind a service, these
+  should hit the same JSON service endpoints documented above so intents
+  keep working when the GUI is closed.

@@ -69,4 +69,73 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertTrue(runtime.yaml.contains("secret: \"local-secret\""))
         XCTAssertTrue(runtime.yaml.contains("proxy-groups:"))
     }
+
+    func testBuildIncludesRuntimeSettingsAndOverridesBeforeControlledKeys() {
+        let profile = Profile(
+            name: "Test",
+            source: .inline,
+            rawYAML: """
+            mixed-port: 7890
+            rules:
+              - MATCH,DIRECT
+            """
+        )
+        let settings = CoreRuntimeSettings(
+            mixedPort: 19090,
+            allowLAN: true,
+            logLevel: "debug",
+            ipv6: true,
+            geoData: GeoDataSettings(
+                geoIPURL: "https://example.com/geoip.dat",
+                geoSiteURL: "https://example.com/geosite.dat",
+                mmdbURL: "https://example.com/mmdb",
+                asnURL: "https://example.com/asn",
+                autoUpdate: true,
+                updateIntervalHours: 12,
+                usesDatMode: true
+            )
+        )
+        let builder = RuntimeConfigBuilder(runtimeSettings: settings)
+
+        let runtime = builder.build(profile: profile, overrideYAMLs: ["proxy-groups: []"])
+
+        XCTAssertTrue(runtime.yaml.contains("proxy-groups: []"))
+        XCTAssertTrue(runtime.yaml.contains("mixed-port: 19090"))
+        XCTAssertTrue(runtime.yaml.contains("allow-lan: true"))
+        XCTAssertTrue(runtime.yaml.contains("log-level: debug"))
+        XCTAssertTrue(runtime.yaml.contains("ipv6: true"))
+        XCTAssertTrue(runtime.yaml.contains("geo-auto-update: true"))
+        XCTAssertTrue(runtime.yaml.contains("geo-update-interval: 12"))
+        XCTAssertFalse(runtime.yaml.contains("mixed-port: 7890"))
+    }
+
+    func testOverridesReplaceEarlierTopLevelBlocks() {
+        let profile = Profile(
+            name: "Test",
+            source: .inline,
+            rawYAML: """
+            proxies:
+              - name: old
+                type: direct
+            rules:
+              - MATCH,DIRECT
+            """
+        )
+        let builder = RuntimeConfigBuilder()
+
+        let runtime = builder.build(
+            profile: profile,
+            overrideYAMLs: [
+                """
+                proxies:
+                  - name: replacement
+                    type: direct
+                """
+            ]
+        )
+
+        XCTAssertFalse(runtime.yaml.contains("name: old"))
+        XCTAssertTrue(runtime.yaml.contains("name: replacement"))
+        XCTAssertTrue(runtime.yaml.contains("rules:"))
+    }
 }

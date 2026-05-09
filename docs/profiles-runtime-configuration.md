@@ -37,18 +37,43 @@ This lets the app start with a safe empty state instead of crashing on missing c
 - `mode`
 - `allow-lan`
 - `log-level`
+- `ipv6`
+- Geo data settings
 
 The goal is to keep user profiles portable while ensuring Kumo can control the running core.
 
+## Overrides
+
+Kumo plans an ordered override layer:
+
+1. Selected profile YAML.
+2. Profile-specific overrides.
+3. Global overrides.
+4. Kumo-controlled runtime settings.
+
+The final layer always wins for controller address, ports, mode, and other Kumo-owned keys.
+
 ## Current Merge Strategy
 
-The current implementation appends controlled YAML. This is a first step. A production merge should parse YAML structurally and replace controlled keys with deterministic precedence.
+The current implementation merges YAML at top-level block granularity:
+
+1. The selected profile provides the base document.
+2. Later overrides replace earlier blocks with the same top-level key.
+3. Kumo-owned runtime keys are removed from user-provided documents.
+4. Kumo-controlled runtime settings are appended last and always win.
+
+This gives deterministic precedence for common Mihomo configuration sections
+without introducing JavaScript transforms or a privileged service dependency.
+Future work should move from top-level block merging to a full YAML AST so
+comments, anchors, nested map merges, and formatting can be preserved more
+precisely.
 
 ## Future Work
 
-- Add structural YAML parsing.
+- Add full YAML AST parsing.
 - Preserve comments where possible.
 - Track subscription user info from response headers.
 - Add profile metadata and multiple profile selection.
 - Add advanced YAML override files.
-- Delay JavaScript and full Subconverter-style transformations until the core app is stable.
+- Add JavaScript transforms only after the YAML override flow and sandbox strategy are stable.
+- Add Sub-Store integration after runtime configuration and resource management are stable.

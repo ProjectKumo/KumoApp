@@ -4,20 +4,27 @@ import KumoCoreKit
 struct ProxiesView: View {
     @Environment(KumoAppStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var searchText = ""
     @State private var expandedGroups: Set<String> = []
-    @FocusState private var isSearchFocused: Bool
     @Namespace private var glassNamespace
 
     var body: some View {
         Group {
             if store.proxyGroups.isEmpty {
-                emptyState
+                KumoPage(title: "Proxies") {
+                    KumoEmptyState(
+                        title: "No Proxy Groups",
+                        systemImage: "point.3.connected.trianglepath.dotted",
+                        message: "Start Kumo or import a profile with proxy groups."
+                    ) {
+                        Button("Refresh") {
+                            Task { await store.loadProxyGroups() }
+                        }
+                    }
+                }
             } else {
                 scrollContent
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
             scheduleInitialGroupExpansion()
         }
@@ -26,98 +33,29 @@ struct ProxiesView: View {
         }
     }
 
-    private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Proxies")
-                .font(.largeTitle.bold())
-            KumoEmptyState(
-                title: "No Proxy Groups",
-                systemImage: "point.3.connected.trianglepath.dotted",
-                message: "Start Kumo or import a profile with proxy groups."
-            ) {
-                Button("Refresh") {
-                    Task { await store.loadProxyGroups() }
-                }
-            }
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
     private var scrollContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                pageHeader
-                proxyGroupsContent
+            LazyVStack(spacing: 18) {
+                ForEach(store.proxyGroups) { group in
+                    ProxyGroupCard(
+                        group: group,
+                        isExpanded: isExpanded(group),
+                        namespace: glassNamespace,
+                        onToggle: { toggleExpansion(for: group) }
+                    )
+                }
             }
+            .padding(.bottom, 8)
         }
         .contentMargins(.horizontal, 24, for: .scrollContent)
         .contentMargins(.top, 24, for: .scrollContent)
         .contentMargins(.bottom, 32, for: .scrollContent)
         .scrollEdgeEffectStyleIfAvailable()
-    }
-
-    private var pageHeader: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 16) {
-            Text("Proxies")
-                .font(.largeTitle.bold())
-            Spacer(minLength: 16)
-            inlineSearchField
-                .frame(maxWidth: 240)
-        }
-    }
-
-    private var inlineSearchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .imageScale(.small)
-                .foregroundStyle(.secondary)
-            TextField("Search proxies", text: $searchText)
-                .textFieldStyle(.plain)
-                .focused($isSearchFocused)
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .imageScale(.small)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .kumoInteractiveGlass(cornerRadius: 10)
-    }
-
-    @ViewBuilder
-    private var proxyGroupsContent: some View {
-        if #available(macOS 26.0, *) {
-            GlassEffectContainer(spacing: 18) {
-                proxyGroupsStack
-            }
-        } else {
-            proxyGroupsStack
-        }
-    }
-
-    private var proxyGroupsStack: some View {
-        LazyVStack(spacing: 18) {
-            ForEach(filteredGroups) { group in
-                ProxyGroupCard(
-                    group: group,
-                    isExpanded: isExpanded(group),
-                    namespace: glassNamespace,
-                    onToggle: { toggleExpansion(for: group) }
-                )
-            }
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func isExpanded(_ group: ProxyGroup) -> Bool {
-        isSearching || expandedGroups.contains(group.id)
+        expandedGroups.contains(group.id)
     }
 
     private func toggleExpansion(for group: ProxyGroup) {
@@ -132,31 +70,6 @@ struct ProxiesView: View {
 
     private var expansionAnimation: Animation? {
         reduceMotion ? nil : .snappy(duration: 0.22)
-    }
-
-    private var isSearching: Bool {
-        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var filteredGroups: [ProxyGroup] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else {
-            return store.proxyGroups
-        }
-
-        return store.proxyGroups.compactMap { group in
-            let proxies = group.proxies.filter { proxy in
-                proxy.name.localizedCaseInsensitiveContains(query)
-                    || group.name.localizedCaseInsensitiveContains(query)
-            }
-            guard !proxies.isEmpty else {
-                return nil
-            }
-
-            var copy = group
-            copy.proxies = proxies
-            return copy
-        }
     }
 
     private func scheduleInitialGroupExpansion() {
@@ -186,17 +99,20 @@ private struct ProxyGroupCard: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            groupHeader
+        groupContainer {
+            VStack(alignment: .leading, spacing: 16) {
+                groupHeader
+                    .kumoGlassEffectID("group-\(group.id)", in: namespace)
 
-            if isExpanded {
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
-                    ForEach(group.proxies) { proxy in
-                        ProxyCard(group: group, proxy: proxy, namespace: namespace)
+                if isExpanded {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
+                        ForEach(group.proxies) { proxy in
+                            ProxyCard(group: group, proxy: proxy)
+                        }
                     }
+                    .padding(.vertical, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                .padding(.vertical, 4)
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .contextMenu {
@@ -206,30 +122,35 @@ private struct ProxyGroupCard: View {
         }
     }
 
+    @ViewBuilder
+    private func groupContainer<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: 14, content: content)
+        } else {
+            content()
+        }
+    }
+
     private var groupHeader: some View {
         HStack(spacing: 14) {
-            Button {
-                onToggle()
-            } label: {
-                groupTitleContent
+            Button(action: onToggle) {
+                HStack(spacing: 12) {
+                    groupTitleContent
+                    Spacer(minLength: 8)
+                    chevron
+                }
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("\(group.name), \(group.selectedProxyName ?? "No selection")")
+            .accessibilityHint(isExpanded ? "Collapse \(group.name)" : "Expand \(group.name)")
 
             testDelayButton
-
-            Button {
-                onToggle()
-            } label: {
-                chevron
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isExpanded ? "Collapse \(group.name)" : "Expand \(group.name)")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .kumoInteractiveGlass(cornerRadius: 18)
-        .kumoGlassEffectID("group-\(group.id)", in: namespace)
     }
 
     private var groupTitleContent: some View {
@@ -243,7 +164,7 @@ private struct ProxyGroupCard: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(.secondary.opacity(0.10), in: .capsule)
+                    .kumoSubtleBackground(in: .capsule)
             }
             Text(group.selectedProxyName ?? "No selection")
                 .font(.callout)
@@ -251,26 +172,16 @@ private struct ProxyGroupCard: View {
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(.rect)
-        .accessibilityLabel("\(group.name), \(group.selectedProxyName ?? "No selection")")
     }
 
     private var chevron: some View {
         Image(systemName: "chevron.down")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .frame(width: 28, height: 28)
-            .contentShape(.rect)
+            .foregroundStyle(.tertiary)
+            .frame(width: 24, height: 24)
             .rotationEffect(.degrees(isExpanded ? -180 : 0))
-            .animation(chevronAnimation) { content in
-                content
-                    .scaleEffect(isExpanded ? 1.06 : 1.0)
-                    .opacity(isExpanded ? 1.0 : 0.72)
-            }
-    }
-
-    private var chevronAnimation: Animation? {
-        reduceMotion ? nil : .snappy(duration: 0.16)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: isExpanded)
+            .accessibilityHidden(true)
     }
 
     private var testDelayButton: some View {
@@ -292,10 +203,8 @@ private struct ProxyGroupCard: View {
 
 private struct ProxyCard: View {
     @Environment(KumoAppStore.self) private var store
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let group: ProxyGroup
     let proxy: ProxyNode
-    let namespace: Namespace.ID
 
     private var isSelected: Bool {
         group.selectedProxyName == proxy.name
@@ -311,8 +220,6 @@ private struct ProxyCard: View {
                         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                         .padding(.top, 1)
                         .contentTransition(.symbolEffect(.replace.downUp))
-                        .scaleEffect(isSelected ? 1.08 : 1.0)
-                        .animation(selectionAnimation, value: isSelected)
                     Text(proxy.name)
                         .font(.callout.weight(isSelected ? .semibold : .regular))
                         .lineLimit(2)
@@ -328,13 +235,9 @@ private struct ProxyCard: View {
             .padding(14)
             .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
             .contentShape(.rect)
-            .kumoInteractiveGlass(cornerRadius: 16, tint: glassTint)
-            .kumoGlassEffectID("proxy-\(group.id)-\(proxy.id)", in: namespace)
+            .kumoInteractiveGlass(cornerRadius: 16, tint: Color.accentColor.opacity(isSelected ? 0.16 : 0))
         }
         .buttonStyle(.plain)
-        .animation(selectionAnimation) { content in
-            content.opacity(isSelected ? 1.0 : 0.92)
-        }
         .contextMenu {
             Button("Select Proxy") {
                 Task { await store.selectProxy(group: group, proxy: proxy) }
@@ -364,18 +267,11 @@ private struct ProxyCard: View {
                 .foregroundStyle(.tertiary)
         }
     }
-
-    private var glassTint: Color? {
-        isSelected ? Color.accentColor.opacity(0.16) : nil
-    }
-
-    private var selectionAnimation: Animation? {
-        reduceMotion ? nil : .snappy(duration: 0.18)
-    }
 }
 
 private struct DelayBadge: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var contrast
     let text: String
     let style: Color
 
@@ -386,7 +282,7 @@ private struct DelayBadge: View {
             .contentTransition(.numericText())
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .background(style.opacity(0.12), in: .capsule)
+            .background(style.opacity(contrast == .increased ? 0.26 : 0.12), in: .capsule)
             .animation(reduceMotion ? nil : .snappy(duration: 0.16), value: text)
     }
 }

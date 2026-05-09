@@ -3,13 +3,10 @@ import KumoCoreKit
 
 struct OverviewView: View {
     @Environment(KumoAppStore.self) private var store
+    let onNavigate: (SidebarDestination) -> Void
 
-    private var totalUpload: Int {
-        store.connections.reduce(0) { $0 + $1.upload }
-    }
-
-    private var totalDownload: Int {
-        store.connections.reduce(0) { $0 + $1.download }
+    init(onNavigate: @escaping (SidebarDestination) -> Void = { _ in }) {
+        self.onNavigate = onNavigate
     }
 
     private var uploadSpeed: Int {
@@ -58,8 +55,19 @@ struct OverviewView: View {
 
     private var proxyGroupStatusCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("Current Selections", systemImage: "point.3.connected.trianglepath.dotted")
-                .font(.headline)
+            HStack(spacing: 8) {
+                Label("Current Selections", systemImage: "point.3.connected.trianglepath.dotted")
+                    .font(.headline)
+                Spacer()
+                if store.proxyGroups.count > 4 {
+                    Button("View all") {
+                        onNavigate(.proxies)
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.callout)
+                    .accessibilityHint("Open the Proxies page")
+                }
+            }
 
             VStack(spacing: 0) {
                 ForEach(Array(store.proxyGroups.prefix(4).enumerated()), id: \.element.id) { index, group in
@@ -92,44 +100,98 @@ struct OverviewView: View {
             NetworkMetricCard(
                 title: "Connections",
                 value: "\(store.connections.count)",
+                secondaryValue: nil,
                 detail: store.status.state == .running ? "Active now" : "Core stopped",
-                systemImage: "network"
-            )
-
-            NetworkMetricCard(
-                title: "Throughput",
-                value: "↑ \(uploadSpeed.kumoByteCount)/s",
-                detail: "↓ \(downloadSpeed.kumoByteCount)/s",
-                systemImage: "speedometer"
-            )
+                systemImage: "network",
+                actionTitle: "Open Connections"
+            ) {
+                onNavigate(.connections)
+            }
+            .contextMenu {
+                Button("Refresh Connections") {
+                    Task { await store.loadInspectData() }
+                }
+                Button("Open Connections") {
+                    onNavigate(.connections)
+                }
+            }
 
             NetworkMetricCard(
                 title: "Traffic",
-                value: "↑ \(totalUpload.kumoByteCount)",
-                detail: "↓ \(totalDownload.kumoByteCount)",
-                systemImage: "arrow.up.arrow.down"
-            )
+                value: "↑ \(uploadSpeed.kumoByteCount)/s",
+                secondaryValue: "↓ \(downloadSpeed.kumoByteCount)/s",
+                detail: nil,
+                systemImage: "speedometer",
+                actionTitle: "Inspect Traffic"
+            ) {
+                onNavigate(.connections)
+            }
+            .contextMenu {
+                Button("Refresh Traffic") {
+                    Task { await store.loadInspectData() }
+                }
+                Button("Open Connections") {
+                    onNavigate(.connections)
+                }
+            }
 
             NetworkMetricCard(
                 title: "Proxy Groups",
                 value: "\(store.proxyGroups.count)",
+                secondaryValue: nil,
                 detail: nil,
-                systemImage: "point.3.connected.trianglepath.dotted"
-            )
+                systemImage: "point.3.connected.trianglepath.dotted",
+                actionTitle: "Open Proxies"
+            ) {
+                onNavigate(.proxies)
+            }
+            .contextMenu {
+                Button("Refresh Proxy Groups") {
+                    Task { await store.loadProxyGroups() }
+                }
+                Button("Open Proxies") {
+                    onNavigate(.proxies)
+                }
+            }
 
             NetworkMetricCard(
                 title: "System Proxy",
                 value: store.status.systemProxyEnabled ? "On" : "Off",
+                secondaryValue: nil,
                 detail: "\(store.status.endpoint.host):\(store.status.proxyPorts.mixedPort)",
-                systemImage: "switch.2"
-            )
+                systemImage: "switch.2",
+                actionTitle: "Configure System Proxy"
+            ) {
+                onNavigate(.systemProxy)
+            }
+            .contextMenu {
+                Button(store.status.systemProxyEnabled ? "Disable System Proxy" : "Enable System Proxy") {
+                    store.setSystemProxyEnabled(!store.status.systemProxyEnabled)
+                }
+                .disabled(store.status.state != .running && !store.status.systemProxyEnabled)
+                Button("Open System Proxy Settings") {
+                    onNavigate(.systemProxy)
+                }
+            }
 
             NetworkMetricCard(
                 title: "Controller",
                 value: "\(store.status.endpoint.port)",
+                secondaryValue: nil,
                 detail: store.status.endpoint.host,
-                systemImage: "slider.horizontal.2.square"
-            )
+                systemImage: "slider.horizontal.2.square",
+                actionTitle: "Open Core Settings"
+            ) {
+                onNavigate(.core)
+            }
+            .contextMenu {
+                Button("Refresh Controller") {
+                    Task { await store.loadCoreConfiguration() }
+                }
+                Button("Open Core Settings") {
+                    onNavigate(.core)
+                }
+            }
         }
     }
 
@@ -237,6 +299,7 @@ private struct StatusMenuPill<MenuContent: View>: View {
                 showsSurface: false
             )
         }
+        .menuIndicator(.hidden)
         .kumoGlassMenuButton()
         .accessibilityLabel("\(title): \(value)")
     }
@@ -245,38 +308,73 @@ private struct StatusMenuPill<MenuContent: View>: View {
 private struct NetworkMetricCard: View {
     let title: String
     let value: String
+    let secondaryValue: String?
     let detail: String?
     let systemImage: String
+    let actionTitle: String
+    let action: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: systemImage)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18)
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: systemImage)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18)
+                        .accessibilityHidden(true)
+                    Text(title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
 
-            Text(value)
-                .font(.title3.weight(.semibold))
-                .lineLimit(1)
-
-            if let detail {
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.title3.weight(.semibold))
                     .lineLimit(1)
+                    .contentTransition(.numericText())
+
+                if let secondaryValue {
+                    Text(secondaryValue)
+                        .font(.title3.weight(.semibold))
+                        .lineLimit(1)
+                        .contentTransition(.numericText())
+                }
+
+                if let detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+            .contentShape(.rect(cornerRadius: 14))
+            .kumoInteractiveGlass(cornerRadius: 14, tint: Color.accentColor.opacity(isHovered ? 0.12 : 0))
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
-        .kumoGlassCard(cornerRadius: 14)
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .accessibilityLabel(accessibilitySummary)
+        .accessibilityValue(detail ?? "")
+        .accessibilityHint(actionTitle)
+        .help(actionTitle)
+    }
+
+    private var accessibilitySummary: String {
+        if let secondaryValue {
+            return "\(title): \(value), \(secondaryValue)"
+        }
+        return "\(title): \(value)"
     }
 }
 
 private struct ProxyGroupStatusRow: View {
+    @Environment(KumoAppStore.self) private var store
     let group: ProxyGroup
 
     var body: some View {
@@ -286,26 +384,68 @@ private struct ProxyGroupStatusRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(group.name)
-                    .font(.callout.weight(.medium))
-                    .lineLimit(1)
-            }
+            Text(group.name)
+                .font(.callout.weight(.medium))
+                .lineLimit(1)
 
             Spacer(minLength: 16)
 
-            Text(group.selectedProxyName ?? "No selection")
-                .font(.callout)
-                .foregroundStyle(group.selectedProxyName == nil ? .secondary : .primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(.secondary.opacity(0.10), in: .capsule)
+            selectionMenu
         }
         .padding(.vertical, 10)
-        .contentShape(.rect)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(group.name), \(group.selectedProxyName ?? "No selection")")
+        .accessibilityLabel("\(group.name), selected \(group.selectedProxyName ?? "no proxy")")
+        .accessibilityHint("Opens a menu to switch the selected proxy.")
+    }
+
+    @ViewBuilder
+    private var selectionMenu: some View {
+        Menu {
+            if group.proxies.isEmpty {
+                Text("No proxies")
+            } else {
+                Button {
+                    Task { await store.testDelay(for: group) }
+                } label: {
+                    Label("Test Delay", systemImage: "speedometer")
+                }
+                .disabled(store.isTestingDelay)
+
+                Divider()
+
+                ForEach(group.proxies) { proxy in
+                    Button {
+                        Task { await store.selectProxy(group: group, proxy: proxy) }
+                    } label: {
+                        Label(
+                            proxyMenuTitle(for: proxy),
+                            systemImage: group.selectedProxyName == proxy.name ? "checkmark" : "circle"
+                        )
+                    }
+                    .disabled(group.selectedProxyName == proxy.name || store.isLoading)
+                }
+            }
+        } label: {
+            selectionLabel
+        }
+        .menuIndicator(.hidden)
+        .kumoGlassMenuButton(cornerRadius: 12)
+        .disabled(group.proxies.isEmpty)
+        .help("Switch proxy for \(group.name)")
+    }
+
+    private var selectionLabel: some View {
+        Text(group.selectedProxyName ?? "No selection")
+            .font(.callout)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .foregroundStyle(group.selectedProxyName == nil ? .secondary : .primary)
+    }
+
+    private func proxyMenuTitle(for proxy: ProxyNode) -> String {
+        guard let delay = proxy.delay, delay > 0 else {
+            return proxy.name
+        }
+        return "\(proxy.name) — \(delay) ms"
     }
 }
