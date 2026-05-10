@@ -65,7 +65,7 @@ public struct RuntimeConfigBuilder: Sendable {
             document.merge(TopLevelYAMLDocument(rawYAML: overrideYAML))
         }
 
-        document.removeTopLevelKeys(Self.controlledTopLevelKeys)
+        document.removeTopLevelKeys(controlledTopLevelKeys())
 
         return [
             document.renderedYAML(),
@@ -91,7 +91,7 @@ public struct RuntimeConfigBuilder: Sendable {
     }
 
     private func controlledConfigYAML() -> String {
-        """
+        let base = """
         # Kumo controlled runtime settings
         external-controller: \(endpoint.host):\(endpoint.port)
         secret: "\(escaped(endpoint.secret))"
@@ -109,11 +109,79 @@ public struct RuntimeConfigBuilder: Sendable {
           mmdb: "\(escaped(runtimeSettings.geoData.mmdbURL))"
           asn: "\(escaped(runtimeSettings.geoData.asnURL))"
         """
+
+        guard let tun = runtimeSettings.tun, tun.isEnabled else {
+            return base
+        }
+
+        return [base, controlledTunYAML(tun)].joined(separator: "\n\n")
     }
 
     private func escaped(_ value: String) -> String {
         value.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    private func controlledTopLevelKeys() -> Set<String> {
+        guard runtimeSettings.tun?.isEnabled == true else {
+            return Self.controlledTopLevelKeys
+        }
+        return Self.controlledTopLevelKeys.union(["tun", "dns"])
+    }
+
+    private func controlledTunYAML(_ tun: TunSettings) -> String {
+        var lines = [
+            "# Kumo controlled TUN settings",
+            "tun:",
+            "  enable: true",
+            "  stack: \(tun.stack)",
+            "  auto-route: \(tun.autoRoute ? "true" : "false")",
+            "  auto-redirect: \(tun.autoRedirect ? "true" : "false")",
+            "  auto-detect-interface: \(tun.autoDetectInterface ? "true" : "false")",
+            "  strict-route: \(tun.strictRoute ? "true" : "false")",
+            "  dns-hijack:",
+        ]
+        lines.append(contentsOf: yamlList(tun.dnsHijack, indent: "    "))
+        if !tun.routeExcludeAddress.isEmpty {
+            lines.append("  route-exclude-address:")
+            lines.append(contentsOf: yamlList(tun.routeExcludeAddress, indent: "    "))
+        }
+        lines.append("  mtu: \(tun.mtu)")
+        if let device = normalizedTunDevice(tun.device) {
+            lines.append("  device: \(device)")
+        }
+        lines.append(contentsOf: [
+            "dns:",
+            "  enable: \(tun.dnsEnabled ? "true" : "false")",
+            "  ipv6: \(runtimeSettings.ipv6 ? "true" : "false")",
+            "  enhanced-mode: \(tun.dnsEnhancedMode)",
+            "  fake-ip-range: \(tun.fakeIPRange)",
+            "  nameserver:"
+        ])
+        lines.append(contentsOf: yamlList(tun.nameservers, indent: "    "))
+        return lines.joined(separator: "\n")
+    }
+
+    private func yamlList(_ values: [String], indent: String) -> [String] {
+        values.map { "\(indent)- \(escapedScalar($0))" }
+    }
+
+    private func escapedScalar(_ value: String) -> String {
+        guard value.rangeOfCharacter(from: CharacterSet(charactersIn: ":#{}[]&,*?|-<>=!%@`\"'")) != nil else {
+            return value
+        }
+        return "\"\(escaped(value))\""
+    }
+
+    private func normalizedTunDevice(_ value: String?) -> String? {
+        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        #if os(macOS)
+        return value.hasPrefix("utun") ? value : nil
+        #else
+        return value
+        #endif
     }
 }
 

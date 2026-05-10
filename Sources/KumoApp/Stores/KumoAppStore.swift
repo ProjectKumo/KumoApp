@@ -18,6 +18,8 @@ final class KumoAppStore {
     var ruleProviders: [RuleProviderEntry] = []
     var overrides: [OverrideItem] = []
     var subStoreStatus = SubStoreStatus()
+    var serviceModeStatus = ServiceModeStatus()
+    var tunStatus = TunStatus()
     var coreCandidates: [CoreCandidate] = []
     var preferences = UserPreferences()
     var errorMessage: String?
@@ -50,6 +52,8 @@ final class KumoAppStore {
         await loadInspectData()
         await loadResources()
         refreshOverrides()
+        refreshServiceModeStatus()
+        refreshTunStatus()
     }
 
     func refreshStatus() {
@@ -214,7 +218,8 @@ final class KumoAppStore {
                 logLevel: settings.logLevel,
                 allowLAN: settings.allowLAN,
                 ipv6: settings.ipv6,
-                geoData: settings.geoData
+                geoData: settings.geoData,
+                tunEnabled: settings.tun?.isEnabled ?? false
             )
             return
         }
@@ -274,11 +279,15 @@ final class KumoAppStore {
             try await controller.updateRuntimeSettings(settings)
             status.runtimeSettings = settings
             status.proxyPorts.mixedPort = settings.mixedPort
+            if let service = try? controller.status().serviceModeStatus {
+                serviceModeStatus = service
+            }
             coreConfiguration.mixedPort = settings.mixedPort
             coreConfiguration.logLevel = settings.logLevel
             coreConfiguration.allowLAN = settings.allowLAN
             coreConfiguration.ipv6 = settings.ipv6
             coreConfiguration.geoData = settings.geoData
+            coreConfiguration.tunEnabled = settings.tun?.isEnabled ?? coreConfiguration.tunEnabled
         }
     }
 
@@ -573,6 +582,63 @@ final class KumoAppStore {
             errorMessage = nil
         } catch {
             errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func refreshServiceModeStatus() {
+        serviceModeStatus = controller.serviceModeStatus()
+    }
+
+    func refreshTunStatus() {
+        do {
+            tunStatus = try controller.tunStatus()
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func installServiceMode() async {
+        await performLoadingTask { [self] in
+            serviceModeStatus = try controller.installServiceMode()
+            refreshStatus()
+            refreshTunStatus()
+        }
+    }
+
+    func uninstallServiceMode() async {
+        await performLoadingTask { [self] in
+            serviceModeStatus = try controller.uninstallServiceMode()
+            refreshStatus()
+            refreshTunStatus()
+        }
+    }
+
+    func updateTunSettings(_ settings: TunSettings) {
+        do {
+            try controller.updateTunSettings(settings)
+            var runtimeSettings = status.runtimeSettings ?? CoreRuntimeSettings(mixedPort: status.proxyPorts.mixedPort)
+            runtimeSettings.tun = settings
+            status.runtimeSettings = runtimeSettings
+            tunStatus = try controller.tunStatus()
+            coreConfiguration.tunEnabled = settings.isEnabled
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func setTunEnabled(_ isEnabled: Bool) async {
+        await performLoadingTask { [self] in
+            tunStatus = try await controller.setTunEnabled(isEnabled)
+            refreshStatus()
+            refreshServiceModeStatus()
+            if status.state == .running {
+                try await controller.waitForControllerReady()
+                await loadCoreConfiguration()
+            } else {
+                coreConfiguration.tunEnabled = tunStatus.isEnabled
+            }
         }
     }
 

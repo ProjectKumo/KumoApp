@@ -39,6 +39,21 @@ targets:
     dependencies:
       - package: Kumo
         product: KumoCoreKit
+      - target: KumoService
+    postBuildScripts:
+      - name: Copy KumoService Helper
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          HELPER_SOURCE="${BUILT_PRODUCTS_DIR}/KumoService"
+          HELPER_DESTINATION="${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Contents/MacOS/KumoService"
+          if [ -x "${HELPER_SOURCE}" ]; then
+            mkdir -p "$(dirname "${HELPER_DESTINATION}")"
+            cp "${HELPER_SOURCE}" "${HELPER_DESTINATION}"
+            chmod 755 "${HELPER_DESTINATION}"
+          else
+            echo "warning: KumoService helper not found at ${HELPER_SOURCE}"
+          fi
     settings:
       base:
         PRODUCT_NAME: Kumo
@@ -70,11 +85,27 @@ targets:
         PRODUCT_NAME: kumo
         SWIFT_VERSION: "6.0"
 
+  KumoService:
+    type: tool
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources/KumoService
+    dependencies:
+      - package: Kumo
+        product: KumoCoreKit
+    settings:
+      base:
+        PRODUCT_NAME: KumoService
+        SWIFT_VERSION: "6.0"
+        OTHER_SWIFT_FLAGS: "$(inherited) -parse-as-library"
+
 schemes:
   KumoApp:
     build:
       targets:
         KumoApp: all
+        KumoService: all
       parallelizeBuild: true
       buildImplicitDependencies: true
     run:
@@ -95,4 +126,12 @@ schemes:
         kumo: all
     run:
       executable: kumo
+      config: Debug
+
+  KumoService:
+    build:
+      targets:
+        KumoService: all
+    run:
+      executable: KumoService
       config: Debug

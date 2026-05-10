@@ -9,6 +9,7 @@ public enum KumoError: LocalizedError, Equatable {
     case controllerResponse(Int, String)
     case commandFailed(String)
     case coreInstallFailed(String)
+    case serviceUnavailable(String)
 
     public var errorDescription: String? {
         switch self {
@@ -28,6 +29,8 @@ public enum KumoError: LocalizedError, Equatable {
             message
         case .coreInstallFailed(let message):
             "Core installation failed: \(message)"
+        case .serviceUnavailable(let message):
+            message
         }
     }
 }

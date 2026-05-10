@@ -10,7 +10,8 @@ let package = Package(
     products: [
         .library(name: "KumoCoreKit", targets: ["KumoCoreKit"]),
         .executable(name: "KumoApp", targets: ["KumoApp"]),
-        .executable(name: "kumo", targets: ["KumoCLI"])
+        .executable(name: "kumo", targets: ["KumoCLI"]),
+        .executable(name: "KumoService", targets: ["KumoService"])
     ],
     targets: [
         .target(name: "KumoCoreKit"),
@@ -20,6 +21,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "KumoCLI",
+            dependencies: ["KumoCoreKit"]
+        ),
+        .executableTarget(
+            name: "KumoService",
             dependencies: ["KumoCoreKit"]
         ),
         .testTarget(

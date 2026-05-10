@@ -20,6 +20,9 @@ kumo proxies --json
 kumo select "Proxy" "HK-01"
 kumo profile refresh "https://example.com/sub.yaml"
 kumo sysproxy on --dry-run --json
+kumo service status --json
+kumo service install
+kumo tun enable --json
 ```
 
 ## Output Modes
@@ -64,7 +67,17 @@ identical to triggering the same flow from the GUI. They require the
 
 ## Shared Control Layer
 
-The CLI must not bypass `KumoCoreKit`. If the app later introduces `KumoService`, the CLI should switch to service-backed calls while keeping command names and JSON schemas compatible.
+The CLI must not bypass `KumoCoreKit`. When `KumoService` is installed and
+reachable, the same commands switch to service-backed calls while keeping
+command names and JSON schemas compatible:
+
+- `kumo start|stop|restart` delegates Mihomo lifecycle to the helper.
+- `kumo sysproxy on|off` delegates protected system proxy changes to the helper
+  unless `--dry-run` is used.
+- `kumo tun enable|disable` delegates TUN state changes to the helper and fails
+  clearly when no helper or privileged process can manage `utun`.
+- `kumo service install|uninstall|status` reports LaunchDaemon/socket state and
+  uses macOS administrator authorization for install and uninstall.
 
 App Intents follow the same rule: when service mode lands, intents should
 hit service endpoints rather than `KumoAppStore` directly so they keep
@@ -73,7 +86,4 @@ working when the GUI is closed.
 ## Future Work
 
 - Add shell completion.
-- Add `kumo logs`.
-- Add `kumo doctor`.
-- Add `kumo config path`.
 - Add JSON schemas for automation consumers.
