@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Assets/kumo-anime-icon.png" alt="Kumo app icon" width="160" height="160">
+  <img src="Assets/KumoApp-Banner-1280x640.png" alt="Kumo app banner" width="640" style="border-radius: 24px;">
 </p>
 
 <h1 align="center">Kumo</h1>
