@@ -85,19 +85,119 @@ public struct CoreRuntimeSettings: Codable, Equatable, Sendable {
     public var logLevel: String
     public var ipv6: Bool
     public var geoData: GeoDataSettings
+    public var tun: TunSettings?
 
     public init(
         mixedPort: Int = 7890,
         allowLAN: Bool = false,
         logLevel: String = "info",
         ipv6: Bool = false,
-        geoData: GeoDataSettings = GeoDataSettings()
+        geoData: GeoDataSettings = GeoDataSettings(),
+        tun: TunSettings? = nil
     ) {
         self.mixedPort = mixedPort
         self.allowLAN = allowLAN
         self.logLevel = logLevel
         self.ipv6 = ipv6
         self.geoData = geoData
+        self.tun = tun
+    }
+}
+
+public struct TunSettings: Codable, Equatable, Sendable {
+    public var isEnabled: Bool
+    public var stack: String
+    public var autoRoute: Bool
+    public var autoRedirect: Bool
+    public var autoDetectInterface: Bool
+    public var strictRoute: Bool
+    public var dnsHijack: [String]
+    public var routeExcludeAddress: [String]
+    public var mtu: Int
+    public var device: String?
+    public var dnsEnabled: Bool
+    public var dnsEnhancedMode: String
+    public var fakeIPRange: String
+    public var nameservers: [String]
+
+    public init(
+        isEnabled: Bool = false,
+        stack: String = "mixed",
+        autoRoute: Bool = true,
+        autoRedirect: Bool = false,
+        autoDetectInterface: Bool = true,
+        strictRoute: Bool = false,
+        dnsHijack: [String] = ["any:53"],
+        routeExcludeAddress: [String] = [],
+        mtu: Int = 1500,
+        device: String? = nil,
+        dnsEnabled: Bool = true,
+        dnsEnhancedMode: String = "fake-ip",
+        fakeIPRange: String = "198.18.0.1/16",
+        nameservers: [String] = ["https://doh.pub/dns-query", "https://dns.alidns.com/dns-query"]
+    ) {
+        self.isEnabled = isEnabled
+        self.stack = stack
+        self.autoRoute = autoRoute
+        self.autoRedirect = autoRedirect
+        self.autoDetectInterface = autoDetectInterface
+        self.strictRoute = strictRoute
+        self.dnsHijack = dnsHijack
+        self.routeExcludeAddress = routeExcludeAddress
+        self.mtu = mtu
+        self.device = device
+        self.dnsEnabled = dnsEnabled
+        self.dnsEnhancedMode = dnsEnhancedMode
+        self.fakeIPRange = fakeIPRange
+        self.nameservers = nameservers
+    }
+}
+
+public struct ServiceModeStatus: Codable, Equatable, Sendable {
+    public var isInstalled: Bool
+    public var isRunning: Bool
+    public var isAvailable: Bool
+    public var isCurrentProcessPrivileged: Bool
+    public var socketPath: String
+    public var message: String?
+
+    public init(
+        isInstalled: Bool = false,
+        isRunning: Bool = false,
+        isAvailable: Bool = false,
+        isCurrentProcessPrivileged: Bool = false,
+        socketPath: String = "",
+        message: String? = nil
+    ) {
+        self.isInstalled = isInstalled
+        self.isRunning = isRunning
+        self.isAvailable = isAvailable
+        self.isCurrentProcessPrivileged = isCurrentProcessPrivileged
+        self.socketPath = socketPath
+        self.message = message
+    }
+
+    public var canManageTun: Bool {
+        isAvailable || isCurrentProcessPrivileged
+    }
+}
+
+public struct TunStatus: Codable, Equatable, Sendable {
+    public var isEnabled: Bool
+    public var isRunning: Bool
+    public var requiresService: Bool
+    public var lastError: String?
+
+    public init(
+        isEnabled: Bool = false,
+        isRunning: Bool = false,
+        requiresService: Bool = true,
+        lastError: String? = nil
+    ) {
+        self.isEnabled = isEnabled
+        self.isRunning = isRunning
+        self.requiresService = requiresService
+        self.lastError = lastError
     }
 }
 
@@ -190,6 +290,8 @@ public struct CoreStatus: Codable, Equatable, Sendable {
     public var runtimeSettings: CoreRuntimeSettings?
     public var systemProxySettings: SystemProxySettings?
     public var previousSystemProxySnapshot: SystemProxySnapshot?
+    public var serviceModeStatus: ServiceModeStatus?
+    public var tunStatus: TunStatus?
     public var readiness: CoreReadiness?
     public var message: String?
 
@@ -204,6 +306,8 @@ public struct CoreStatus: Codable, Equatable, Sendable {
         runtimeSettings: CoreRuntimeSettings? = nil,
         systemProxySettings: SystemProxySettings? = nil,
         previousSystemProxySnapshot: SystemProxySnapshot? = nil,
+        serviceModeStatus: ServiceModeStatus? = nil,
+        tunStatus: TunStatus? = nil,
         readiness: CoreReadiness? = nil,
         message: String? = nil
     ) {
@@ -217,6 +321,8 @@ public struct CoreStatus: Codable, Equatable, Sendable {
         self.runtimeSettings = runtimeSettings
         self.systemProxySettings = systemProxySettings
         self.previousSystemProxySnapshot = previousSystemProxySnapshot
+        self.serviceModeStatus = serviceModeStatus
+        self.tunStatus = tunStatus
         self.readiness = readiness
         self.message = message
     }

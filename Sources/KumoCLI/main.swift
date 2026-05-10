@@ -118,6 +118,10 @@ enum KumoCLI {
             try await runSystemProxyCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
         case "core":
             try await runCoreCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
+        case "service":
+            try runServiceCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
+        case "tun":
+            try await runTunCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
         default:
             throw KumoError.invalidArguments("Unknown command: \(command)")
         }
@@ -255,6 +259,67 @@ enum KumoCLI {
         }
     }
 
+    private static func runServiceCommand(
+        arguments: [String],
+        controller: KumoController,
+        wantsJSON: Bool
+    ) throws {
+        guard arguments.count >= 2 else {
+            throw KumoError.invalidArguments("Usage: kumo service <status|install|uninstall> [--json]")
+        }
+
+        let status: ServiceModeStatus
+        switch arguments[1] {
+        case "status":
+            status = controller.serviceModeStatus()
+        case "install":
+            status = try controller.installServiceMode()
+        case "uninstall":
+            status = try controller.uninstallServiceMode()
+        default:
+            throw KumoError.invalidArguments("Usage: kumo service <status|install|uninstall> [--json]")
+        }
+
+        write(status, asJSON: wantsJSON) { status in
+            [
+                "installed=\(status.isInstalled)",
+                "running=\(status.isRunning)",
+                "available=\(status.isAvailable)",
+                "privileged=\(status.isCurrentProcessPrivileged)"
+            ].joined(separator: " ")
+        }
+    }
+
+    private static func runTunCommand(
+        arguments: [String],
+        controller: KumoController,
+        wantsJSON: Bool
+    ) async throws {
+        guard arguments.count >= 2 else {
+            throw KumoError.invalidArguments("Usage: kumo tun <status|enable|disable> [--json]")
+        }
+
+        let status: TunStatus
+        switch arguments[1] {
+        case "status":
+            status = try controller.tunStatus()
+        case "enable":
+            status = try await controller.setTunEnabled(true)
+        case "disable":
+            status = try await controller.setTunEnabled(false)
+        default:
+            throw KumoError.invalidArguments("Usage: kumo tun <status|enable|disable> [--json]")
+        }
+
+        write(status, asJSON: wantsJSON) { status in
+            [
+                "enabled=\(status.isEnabled)",
+                "running=\(status.isRunning)",
+                "requiresService=\(status.requiresService)"
+            ].joined(separator: " ")
+        }
+    }
+
     private static func write<T: Encodable>(
         _ value: T,
         asJSON wantsJSON: Bool,
@@ -315,6 +380,8 @@ enum KumoCLI {
               kumo core install [--json]
               kumo profile refresh <url> [--json]
               kumo sysproxy <on|off> [--dry-run] [--json]
+              kumo service <status|install|uninstall> [--json]
+              kumo tun <status|enable|disable> [--json]
             """
         )
     }

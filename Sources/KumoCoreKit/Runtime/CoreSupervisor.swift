@@ -84,6 +84,9 @@ public struct CoreSupervisor: Sendable {
             systemProxyEnabled: currentStatus.systemProxyEnabled,
             runtimeSettings: configuration.runtimeSettings,
             systemProxySettings: currentStatus.systemProxySettings,
+            previousSystemProxySnapshot: currentStatus.previousSystemProxySnapshot,
+            serviceModeStatus: currentStatus.serviceModeStatus,
+            tunStatus: currentStatus.tunStatus,
             readiness: .processLaunched,
             message: "Mihomo core started."
         )

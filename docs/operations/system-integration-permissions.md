@@ -46,6 +46,12 @@ the `SystemProxyMode` carried by `SystemProxyConfiguration`:
 `setSystemProxy(_:dryRun:)` is `async` — dry-run mode skips the listener and
 returns the would-be commands for inspection (used by the CLI and tests).
 
+Before enabling system proxy, Kumo now verifies that the target
+`host:mixed-port` is accepting local TCP connections. This prevents macOS from
+being pointed at a stale or failed listener. After applying `networksetup`
+commands, Kumo reads the OS proxy state back and only marks the feature enabled
+when manual or PAC settings match the requested mode.
+
 ## LaunchAgent (Open at Login)
 
 `KumoAppDelegate` keeps `SMAppService.mainApp` in sync with
@@ -98,10 +104,11 @@ binding the PAC listener.
 
 ## Current Assumptions
 
-The default network service is `Wi-Fi`. This is not universal.
-`SystemProxyController` lists network services through
-`networksetup -listallnetworkservices`; the UI should consume that for a
-production picker.
+Kumo can still store a manual network service name, but new default system
+proxy settings prefer the active route interface by resolving
+`route -n get default` through `networksetup -listnetworkserviceorder`.
+This avoids writing proxy settings to `Wi-Fi` when the active service is
+Ethernet, USB tethering, or another macOS network service.
 
 When enabling system proxy outside dry-run, Kumo captures the previous
 proxy state for the selected service. The disable path turns Kumo-managed
@@ -110,24 +117,31 @@ restore exact previous values from the snapshot.
 
 ## Permissions
 
-Kumo still avoids a privileged helper. Features that need elevated
-privileges remain behind Advanced settings until the service design is
-ready. App Sandbox stays off until a helper-bundle XPC route is in place.
+Kumo now has the model and command surface for service mode, including signed
+service requests, service status, TUN status, and a `KumoService` helper target.
+This follows the Sparkle and Clash Verge Rev model: macOS asks for administrator
+authorization when Kumo installs or repairs the helper, but Kumo does **not**
+register a NetworkExtension or VPN profile. The "Allow VPN Configuration"
+system prompt is therefore not expected for System Proxy or Mihomo TUN mode.
+
+Until the helper or a privileged process is available, TUN enable requests fail
+with a visible service-mode error instead of leaving the UI in a misleading
+"On" state. Once installed, the helper owns privileged operations such as
+starting Mihomo for TUN and applying guarded system proxy changes.
 
 ## Advanced Features
 
-The following remain non-primary features:
+The following remain hardening work after the first service-backed path:
 
-- TUN device setup
-- DNS overwrite
 - System proxy guard and auto-restore
-- Privileged helper installation
-- LaunchDaemon management (we currently use `SMAppService.mainApp` only)
+- Privileged helper repair UX
+- LaunchDaemon management hardening and notarized distribution
 
 ## Future Work
 
 - Restore exact previous proxy settings from the captured snapshot.
 - Add a proxy guard in service mode.
-- Add a signed privileged helper for TUN and protected system changes.
+- Harden the signed privileged helper installer for TUN and protected system
+  changes, including notarized app distribution.
 - Adopt App Sandbox + helper-bundle separation so `networksetup` invocations
   and child processes can run from a sandboxed front-end.

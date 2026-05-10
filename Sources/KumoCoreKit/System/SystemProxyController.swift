@@ -1,4 +1,19 @@
 import Foundation
+import Network
+
+private final class ConnectionProbeState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didResume = false
+
+    func resumeOnce(_ value: Bool, connection: NWConnection, continuation: CheckedContinuation<Bool, Never>) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !didResume else { return }
+        didResume = true
+        connection.cancel()
+        continuation.resume(returning: value)
+    }
+}
 
 public struct ShellCommand: Codable, Equatable, Sendable {
     public var executable: String
@@ -59,6 +74,43 @@ public struct SystemProxyController: Sendable {
                 }
                 return normalized.trimmingCharacters(in: .whitespacesAndNewlines)
             }
+    }
+
+    public func activeNetworkService() throws -> String {
+        let routeOutput = try runCapturingOutput(
+            ShellCommand(executable: "/sbin/route", arguments: ["-n", "get", "default"])
+        )
+        guard let interface = routeOutput
+            .split(separator: "\n")
+            .map({ String($0).trimmingCharacters(in: .whitespacesAndNewlines) })
+            .first(where: { $0.hasPrefix("interface:") })?
+            .split(separator: " ")
+            .last
+            .map(String.init) else {
+            throw KumoError.commandFailed("Unable to determine active network interface.")
+        }
+
+        let orderOutput = try runCapturingOutput(
+            ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-listnetworkserviceorder"])
+        )
+        return try Self.networkService(in: orderOutput, matchingDevice: interface)
+    }
+
+    public static func networkService(in serviceOrderOutput: String, matchingDevice device: String) throws -> String {
+        let blocks = serviceOrderOutput.components(separatedBy: "\n\n")
+        guard let block = blocks.first(where: { $0.contains("Device: \(device)") }) else {
+            throw KumoError.commandFailed("Unable to find a network service for interface \(device).")
+        }
+
+        for line in block.split(separator: "\n") {
+            let trimmed = String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.hasPrefix("("), let closeIndex = trimmed.firstIndex(of: ")") else {
+                continue
+            }
+            return String(trimmed[trimmed.index(after: closeIndex)...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        throw KumoError.commandFailed("Unable to parse network service for interface \(device).")
     }
 
     public func snapshot(networkService: String) throws -> SystemProxySnapshot {
@@ -166,7 +218,7 @@ public struct SystemProxyController: Sendable {
                 if dryRun {
                     pacURL = "http://127.0.0.1:0/proxy.pac"
                 } else {
-                    let port = try await pacServer.start(script: configuration.pacScript)
+                    let port = try await pacServer.start(script: Self.renderPACScript(configuration.pacScript, port: configuration.port))
                     pacURL = "http://127.0.0.1:\(port)/proxy.pac"
                 }
                 commands = disableCommands(networkService: configuration.networkService)
@@ -188,12 +240,15 @@ public struct SystemProxyController: Sendable {
         }
 
         if !dryRun {
+            if isEnabled {
+                try await verifyTargetPort(configuration: configuration)
+            }
             try commands.forEach(run)
+            try verifyAppliedState(isEnabled: isEnabled, configuration: configuration, pacURL: pacURL)
         }
 
         var status = try stateStore.load()
         status.systemProxyEnabled = isEnabled
-        status.proxyPorts = ProxyPortConfiguration(mixedPort: configuration.port)
         var settings = SystemProxySettings(
             networkService: configuration.networkService,
             host: configuration.host,
@@ -211,6 +266,101 @@ public struct SystemProxyController: Sendable {
         try stateStore.save(status)
 
         return commands
+    }
+
+    public static func renderPACScript(_ script: String, port: Int) -> String {
+        script.replacingOccurrences(of: "%mixed-port%", with: "\(port)")
+    }
+
+    private func verifyTargetPort(configuration: SystemProxyConfiguration) async throws {
+        guard configuration.port > 0 else {
+            throw KumoError.commandFailed("System proxy port must be greater than zero.")
+        }
+        let canConnect = await canConnect(to: configuration.host, port: configuration.port)
+        guard canConnect else {
+            throw KumoError.commandFailed("System proxy target \(configuration.host):\(configuration.port) is not accepting connections.")
+        }
+    }
+
+    private func verifyAppliedState(isEnabled: Bool, configuration: SystemProxyConfiguration, pacURL: String?) throws {
+        let webProxy = try runCapturingOutput(
+            ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getwebproxy", configuration.networkService])
+        )
+        let secureWebProxy = try runCapturingOutput(
+            ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getsecurewebproxy", configuration.networkService])
+        )
+        let socksProxy = try runCapturingOutput(
+            ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getsocksfirewallproxy", configuration.networkService])
+        )
+        let autoProxy = try runCapturingOutput(
+            ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getautoproxyurl", configuration.networkService])
+        )
+
+        if !isEnabled {
+            guard [webProxy, secureWebProxy, socksProxy, autoProxy].allSatisfy({ $0.contains("Enabled: No") }) else {
+                throw KumoError.commandFailed("macOS did not disable every Kumo-managed proxy setting for \(configuration.networkService).")
+            }
+            return
+        }
+
+        switch configuration.mode {
+        case .manual:
+            let expected = [webProxy, secureWebProxy, socksProxy]
+            guard expected.allSatisfy({ output in
+                output.contains("Enabled: Yes")
+                    && output.contains("Server: \(configuration.host)")
+                    && output.contains("Port: \(configuration.port)")
+            }) else {
+                throw KumoError.commandFailed("macOS did not apply manual proxy \(configuration.host):\(configuration.port) to \(configuration.networkService).")
+            }
+            guard autoProxy.contains("Enabled: No") else {
+                throw KumoError.commandFailed("macOS auto proxy is still enabled after applying manual proxy.")
+            }
+        case .pac:
+            guard [webProxy, secureWebProxy, socksProxy].allSatisfy({ $0.contains("Enabled: No") }) else {
+                throw KumoError.commandFailed("macOS manual proxies are still enabled after applying PAC mode.")
+            }
+            guard let pacURL,
+                  autoProxy.contains("Enabled: Yes"),
+                  autoProxy.contains(pacURL) else {
+                throw KumoError.commandFailed("macOS did not apply PAC proxy URL for \(configuration.networkService).")
+            }
+        }
+    }
+
+    private func canConnect(to host: String, port: Int) async -> Bool {
+        await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                await withCheckedContinuation { continuation in
+                    let connection = NWConnection(
+                        host: NWEndpoint.Host(host),
+                        port: NWEndpoint.Port(integerLiteral: UInt16(port)),
+                        using: .tcp
+                    )
+                    let probeState = ConnectionProbeState()
+                    connection.stateUpdateHandler = { connectionState in
+                        switch connectionState {
+                        case .ready:
+                            probeState.resumeOnce(true, connection: connection, continuation: continuation)
+                        case .failed, .cancelled:
+                            probeState.resumeOnce(false, connection: connection, continuation: continuation)
+                        default:
+                            break
+                        }
+                    }
+                    connection.start(queue: .global(qos: .utility))
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(1))
+                return false
+            }
+            guard let result = await group.next() else {
+                return false
+            }
+            group.cancelAll()
+            return result
+        }
     }
 
     private func run(_ command: ShellCommand) throws {

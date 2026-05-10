@@ -11,6 +11,8 @@ PROJECT := Kumo.xcodeproj
 DERIVED_DATA := build
 APP_PATH_DEBUG := $(DERIVED_DATA)/Build/Products/Debug/Kumo.app
 APP_PATH_RELEASE := $(DERIVED_DATA)/Build/Products/Release/Kumo.app
+SERVICE_PATH_DEBUG := $(DERIVED_DATA)/Build/Products/Debug/KumoService
+SERVICE_PATH_RELEASE := $(DERIVED_DATA)/Build/Products/Release/KumoService
 RELEASE_OUTPUT := $(DERIVED_DATA)/release
 DESTINATION ?= platform=macOS
 
@@ -27,10 +29,20 @@ generate: ## Regenerate the Xcode project from project.yml using XcodeGen.
 .PHONY: app
 app: generate ## Build the Kumo .app bundle in Debug to build/Build/Products/Debug.
 	$(XCODEBUILD) -project $(PROJECT) -scheme $(SCHEME_APP) -configuration Debug -derivedDataPath $(DERIVED_DATA) build
+	@if [ -x "$(SERVICE_PATH_DEBUG)" ]; then \
+		mkdir -p "$(APP_PATH_DEBUG)/Contents/MacOS"; \
+		cp "$(SERVICE_PATH_DEBUG)" "$(APP_PATH_DEBUG)/Contents/MacOS/KumoService"; \
+		chmod 755 "$(APP_PATH_DEBUG)/Contents/MacOS/KumoService"; \
+	fi
 
 .PHONY: app-release
 app-release: generate ## Build the Kumo .app bundle in Release to build/Build/Products/Release.
 	$(XCODEBUILD) -project $(PROJECT) -scheme $(SCHEME_APP) -configuration Release -derivedDataPath $(DERIVED_DATA) build
+	@if [ -x "$(SERVICE_PATH_RELEASE)" ]; then \
+		mkdir -p "$(APP_PATH_RELEASE)/Contents/MacOS"; \
+		cp "$(SERVICE_PATH_RELEASE)" "$(APP_PATH_RELEASE)/Contents/MacOS/KumoService"; \
+		chmod 755 "$(APP_PATH_RELEASE)/Contents/MacOS/KumoService"; \
+	fi
 
 .PHONY: release-dmg
 release-dmg: app-release ## Build release app, DMG, and latest.yml. Requires VERSION=0.0.1.

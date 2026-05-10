@@ -57,6 +57,30 @@ final class SystemProxyControllerTests: XCTestCase {
         })
     }
 
+    func testRenderPACScriptReplacesMixedPortPlaceholder() {
+        let script = "return \"PROXY 127.0.0.1:%mixed-port%; SOCKS5 127.0.0.1:%mixed-port%; DIRECT;\";"
+
+        let rendered = SystemProxyController.renderPACScript(script, port: 17890)
+
+        XCTAssertFalse(rendered.contains("%mixed-port%"))
+        XCTAssertTrue(rendered.contains("127.0.0.1:17890"))
+    }
+
+    func testNetworkServiceParserMatchesDefaultInterface() throws {
+        let output = """
+        An asterisk (*) denotes that a network service is disabled.
+        (1) Thunderbolt Bridge
+        (Hardware Port: Thunderbolt Bridge, Device: bridge0)
+
+        (2) Wi-Fi
+        (Hardware Port: Wi-Fi, Device: en0)
+        """
+
+        let service = try SystemProxyController.networkService(in: output, matchingDevice: "en0")
+
+        XCTAssertEqual(service, "Wi-Fi")
+    }
+
     private func temporaryDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

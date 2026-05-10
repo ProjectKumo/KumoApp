@@ -15,11 +15,13 @@ The Sparkle reference project uses a separate service process with:
 - System proxy endpoints
 - Fallback to non-service mode when service is unavailable
 
-Kumo should follow the same separation of concerns, but implement it in Swift-native form.
+Kumo follows the same separation of concerns in Swift-native form. The helper
+path uses administrator authorization and LaunchDaemon registration; it does
+not use NetworkExtension or install a VPN configuration profile.
 
 ## Proposed API Shape
 
-Future `KumoService` endpoints should mirror current `KumoCoreKit` intent:
+`KumoService` endpoints mirror current `KumoCoreKit` intent:
 
 - `GET /status`
 - `POST /core/start`
@@ -31,16 +33,22 @@ Future `KumoService` endpoints should mirror current `KumoCoreKit` intent:
 - `GET /sysproxy/status`
 - `POST /sysproxy/enable`
 - `POST /sysproxy/disable`
+- `GET /service/status`
+- `POST /service/install`
+- `POST /service/uninstall`
+- `GET /tun/status`
+- `POST /tun/enable`
+- `POST /tun/disable`
 
 The GUI and CLI should keep their public command semantics unchanged.
 
 ## Authentication
 
-The service should not trust arbitrary local clients. `KumoServiceRequestSigner`
-now defines the Swift-side canonical request and HMAC header shape for the
-future service client. A future version should use:
+The service does not trust arbitrary local clients. `KumoServiceRequestSigner`
+defines the Swift-side canonical request and HMAC header shape used by the
+Unix socket transport:
 
-- A generated key pair or shared secret.
+- A generated shared secret persisted in Kumo Application Support.
 - Request timestamps and nonces.
 - Request body hashing.
 - A canonical signing string.
@@ -50,15 +58,23 @@ future service client. A future version should use:
 1. Keep local `KumoCoreKit` implementations as the default.
 2. Add service client protocols with the same high-level operations.
 3. Introduce `KumoService` as an optional backend.
-4. Switch GUI and CLI to service-backed calls when service mode is enabled.
-5. Preserve CLI output schemas.
+4. Keep TUN guarded by service availability: if no helper or privileged process
+   is available, Kumo records the failure and rolls the TUN setting back.
+5. Switch GUI and CLI to service-backed calls when service mode is enabled.
+6. Preserve CLI output schemas.
 
-## Out of Scope for v1
+## Remaining Helper Work
 
-- LaunchDaemon installation.
-- Privileged TUN setup.
-- Signed helper authorization flows.
-- Automatic service repair.
+- Harden LaunchDaemon installation for notarized release artifacts.
+- Improve automatic service repair and diagnostics.
+- Expand proxy guard events and UI notifications.
+- Move PAC hosting fully into the helper process for long-lived service mode.
+
+The current implementation adds the service-mode model, signed endpoint
+surface, CLI/UI status, administrator-authorized `KumoService` installation,
+Unix socket request routing, service-backed core/system proxy/TUN control, and
+TUN configuration generation. It intentionally does not silently install a
+privileged daemon; installation remains an explicit, authorized user action.
 
 ## Status of Local Subsystems (Phase B)
 
@@ -82,3 +98,8 @@ service-mode migration can absorb them later without scope surprises.
 - **App Intents** call back into `KumoAppStore`. Behind a service, these
   should hit the same JSON service endpoints documented above so intents
   keep working when the GUI is closed.
+- **TUN mode** now has first-class settings in `CoreRuntimeSettings`. When
+  enabled behind service availability, runtime config generation owns the
+  `tun:` and required `dns:` blocks and the helper restarts Mihomo from the
+  privileged backend. When service mode is unavailable, Kumo disables the
+  requested TUN state and surfaces the helper requirement.

@@ -267,6 +267,9 @@ struct SystemProxyView: View {
                             Text(mode.displayName).tag(mode)
                         }
                     }
+                    Text("System Proxy updates macOS proxy settings through networksetup. It does not add a VPN configuration; helper installation uses the administrator authorization prompt.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 if systemProxySettings.mode == .manual {
@@ -379,12 +382,127 @@ struct TunView: View {
     let onNavigate: (SidebarDestination) -> Void
 
     var body: some View {
-        ProfileBackedConfigPage(
-            title: "TUN",
-            systemImage: "lock.shield",
-            rows: [("Enabled", store.coreConfiguration.tunEnabled ? "On" : "Off")],
-            onNavigate: onNavigate
-        )
+        KumoPage(title: "TUN") {
+            Form {
+                Section("Service") {
+                    LabeledContent("Helper", value: helperState)
+                    LabeledContent("Socket", value: store.serviceModeStatus.socketPath.isEmpty ? "-" : store.serviceModeStatus.socketPath)
+                    if let message = store.serviceModeStatus.message {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Button("Install / Repair Service") {
+                            Task { await store.installServiceMode() }
+                        }
+                        .disabled(store.isLoading)
+                        .help("Install or repair Kumo Helper with macOS administrator authorization.")
+                        Button("Uninstall Service") {
+                            Task { await store.uninstallServiceMode() }
+                        }
+                        .disabled(!store.serviceModeStatus.isInstalled || store.isLoading)
+                    }
+                }
+
+                Section("Runtime") {
+                    Toggle("Enable TUN", isOn: Binding {
+                        tunSettings.isEnabled
+                    } set: { isEnabled in
+                        Task { await store.setTunEnabled(isEnabled) }
+                    })
+                    .disabled(store.isLoading)
+                    LabeledContent("Running", value: store.tunStatus.isRunning ? "Yes" : "No")
+                    if let lastError = store.tunStatus.lastError {
+                        Text(lastError)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section {
+                    Picker("Stack", selection: stackBinding) {
+                        Text("Mixed").tag("mixed")
+                        Text("gVisor").tag("gvisor")
+                        Text("System").tag("system")
+                    }
+                    Toggle("Auto Route", isOn: autoRouteBinding)
+                    Toggle("Auto Detect Interface", isOn: autoDetectInterfaceBinding)
+                    Toggle("Strict Route", isOn: strictRouteBinding)
+                    TextField("MTU", value: mtuBinding, format: .number)
+                    TextField("DNS Hijack", text: dnsHijackBinding)
+                } header: {
+                    Text("TUN Settings")
+                } footer: {
+                    Text("TUN requires Kumo Helper or a privileged Kumo process so Mihomo can create the utun interface. This path does not use macOS VPN configuration prompts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Profile") {
+                    Button {
+                        onNavigate(.profiles)
+                    } label: {
+                        Label("Open Profile YAML", systemImage: "doc.text")
+                    }
+                }
+            }
+            .formStyle(.grouped)
+        }
+        .task {
+            store.refreshServiceModeStatus()
+            store.refreshTunStatus()
+        }
+    }
+
+    private var helperState: String {
+        if store.serviceModeStatus.canManageTun {
+            return store.serviceModeStatus.isCurrentProcessPrivileged ? "Privileged Process" : "Running"
+        }
+        return store.serviceModeStatus.isInstalled ? "Installed, Not Running" : "Not Installed"
+    }
+
+    private var tunSettings: TunSettings {
+        store.status.runtimeSettings?.tun ?? TunSettings()
+    }
+
+    private func updateTunSettings(_ edit: (inout TunSettings) -> Void) {
+        var settings = tunSettings
+        edit(&settings)
+        store.updateTunSettings(settings)
+    }
+
+    private var stackBinding: Binding<String> {
+        Binding { tunSettings.stack } set: { value in updateTunSettings { $0.stack = value } }
+    }
+
+    private var autoRouteBinding: Binding<Bool> {
+        Binding { tunSettings.autoRoute } set: { value in updateTunSettings { $0.autoRoute = value } }
+    }
+
+    private var autoDetectInterfaceBinding: Binding<Bool> {
+        Binding { tunSettings.autoDetectInterface } set: { value in updateTunSettings { $0.autoDetectInterface = value } }
+    }
+
+    private var strictRouteBinding: Binding<Bool> {
+        Binding { tunSettings.strictRoute } set: { value in updateTunSettings { $0.strictRoute = value } }
+    }
+
+    private var mtuBinding: Binding<Int> {
+        Binding { tunSettings.mtu } set: { value in updateTunSettings { $0.mtu = max(576, min(9000, value)) } }
+    }
+
+    private var dnsHijackBinding: Binding<String> {
+        Binding {
+            tunSettings.dnsHijack.joined(separator: ",")
+        } set: { value in
+            updateTunSettings {
+                $0.dnsHijack = value
+                    .split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            }
+        }
     }
 }
 

@@ -75,6 +75,30 @@ public struct KumoPaths: Sendable {
         logsDirectory.appendingPathComponent("runtime-events.jsonl")
     }
 
+    public var serviceSocketFile: URL {
+        applicationSupportDirectory.appendingPathComponent("kumo-service.sock")
+    }
+
+    public var serviceStatusFile: URL {
+        applicationSupportDirectory.appendingPathComponent("service-status.json")
+    }
+
+    public var serviceCredentialsFile: URL {
+        applicationSupportDirectory.appendingPathComponent("service-credentials.json")
+    }
+
+    public var serviceLogFile: URL {
+        logsDirectory.appendingPathComponent("kumo-service.log")
+    }
+
+    public var serviceExecutableFile: URL {
+        URL(fileURLWithPath: "/Library/PrivilegedHelperTools/io.kumo.KumoService")
+    }
+
+    public var serviceLaunchDaemonPlistFile: URL {
+        URL(fileURLWithPath: "/Library/LaunchDaemons/io.kumo.KumoService.plist")
+    }
+
     public var subStoreLogFile: URL {
         logsDirectory.appendingPathComponent("substore.log")
     }

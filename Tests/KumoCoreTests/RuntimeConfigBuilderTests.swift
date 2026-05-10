@@ -138,4 +138,56 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertTrue(runtime.yaml.contains("name: replacement"))
         XCTAssertTrue(runtime.yaml.contains("rules:"))
     }
+
+    func testBuildInjectsControlledTunAndDNSWhenEnabled() {
+        let profile = Profile(
+            name: "Test",
+            source: .inline,
+            rawYAML: """
+            tun:
+              enable: false
+            dns:
+              enable: false
+            rules:
+              - MATCH,DIRECT
+            """
+        )
+        let settings = CoreRuntimeSettings(
+            mixedPort: 19090,
+            tun: TunSettings(
+                isEnabled: true,
+                stack: "mixed",
+                dnsHijack: ["any:53"],
+                device: "utun9"
+            )
+        )
+        let builder = RuntimeConfigBuilder(runtimeSettings: settings)
+
+        let runtime = builder.build(profile: profile)
+
+        XCTAssertTrue(runtime.yaml.contains("tun:\n  enable: true"))
+        XCTAssertTrue(runtime.yaml.contains("stack: mixed"))
+        XCTAssertTrue(runtime.yaml.contains("dns-hijack:\n    - \"any:53\""))
+        XCTAssertTrue(runtime.yaml.contains("device: utun9"))
+        XCTAssertTrue(runtime.yaml.contains("dns:\n  enable: true"))
+        XCTAssertFalse(runtime.yaml.contains("tun:\n  enable: false"))
+    }
+
+    func testBuildPreservesProfileTunWhenKumoTunIsDisabled() {
+        let profile = Profile(
+            name: "Test",
+            source: .inline,
+            rawYAML: """
+            tun:
+              enable: true
+            rules:
+              - MATCH,DIRECT
+            """
+        )
+        let builder = RuntimeConfigBuilder(runtimeSettings: CoreRuntimeSettings(tun: TunSettings(isEnabled: false)))
+
+        let runtime = builder.build(profile: profile)
+
+        XCTAssertTrue(runtime.yaml.contains("tun:\n  enable: true"))
+    }
 }
