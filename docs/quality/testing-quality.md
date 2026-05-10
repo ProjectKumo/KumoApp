@@ -61,6 +61,8 @@ Prioritize tests that do not mutate real system state:
 - System proxy dry-run prints the expected commands.
 - SwiftUI window opens with Overview selected.
 - Settings opens with Cmd+,.
-- MenuBarExtra exposes start, stop, refresh, and system proxy controls.
+- Menu bar status item exposes start, stop, mode switching, refresh, profiles, proxy groups, and system proxy controls.
+- App updates check the default GitHub Releases feed when no manifest override is set.
+- App update DMG downloads fail closed on SHA-256 mismatch and report a clear error when the current app location is not writable.
 - `kumo doctor --json` reports status, profile, and core candidate information.
 - `kumo backup export <path> --json` creates a manifest-backed backup directory.

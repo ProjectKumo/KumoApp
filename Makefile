@@ -11,6 +11,7 @@ PROJECT := Kumo.xcodeproj
 DERIVED_DATA := build
 APP_PATH_DEBUG := $(DERIVED_DATA)/Build/Products/Debug/Kumo.app
 APP_PATH_RELEASE := $(DERIVED_DATA)/Build/Products/Release/Kumo.app
+RELEASE_OUTPUT := $(DERIVED_DATA)/release
 DESTINATION ?= platform=macOS
 
 .DEFAULT_GOAL := help
@@ -30,6 +31,13 @@ app: generate ## Build the Kumo .app bundle in Debug to build/Build/Products/Deb
 .PHONY: app-release
 app-release: generate ## Build the Kumo .app bundle in Release to build/Build/Products/Release.
 	$(XCODEBUILD) -project $(PROJECT) -scheme $(SCHEME_APP) -configuration Release -derivedDataPath $(DERIVED_DATA) build
+
+.PHONY: release-dmg
+release-dmg: app-release ## Build release app, DMG, and latest.yml. Requires VERSION=0.0.1.
+	VERSION="$(VERSION)" CHANNEL="$(CHANNEL)" OUTPUT_DIR="$(RELEASE_OUTPUT)" APP_PATH="$(APP_PATH_RELEASE)" bash Scripts/make_release_artifacts.sh
+
+.PHONY: release-manifest
+release-manifest: release-dmg ## Alias for release-dmg; latest.yml is emitted beside the DMG.
 
 .PHONY: dev
 dev: app ## Build and open the Kumo .app bundle.
@@ -86,7 +94,7 @@ cli-sysproxy-dry-run: ## Show system proxy commands without applying them.
 .PHONY: docs
 docs: ## List technical documentation files.
 	@printf "Technical docs:\n"
-	@ls docs/*.md
+	@find docs -name '*.md' | sort
 
 .PHONY: clean
 clean: ## Remove Swift build artifacts.

@@ -1,4 +1,4 @@
-# Kumo Standards
+# Implementation Standards
 
 This directory captures implementation standards that are narrower than the main architecture documents but important enough to preserve across UI and runtime changes.
 
@@ -7,4 +7,5 @@ Use these standards when editing existing features, reviewing regressions, or ad
 ## Documents
 
 - [Page Titles and Window Chrome](page-title-chrome.md)
+- [Menu Bar Status Item](menu-bar-status-item.md)
 - [Proxies Page Scroll Container](proxies-page-scroll-container.md)

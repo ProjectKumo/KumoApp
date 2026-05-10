@@ -11,6 +11,7 @@ public struct KumoController: Sendable {
     private let subStoreManager: SubStoreManager
     private let backupManager: KumoBackupManager
     private let appUpdateManager: AppUpdateManager
+    private let appUpdateInstaller: AppUpdateInstaller
     private let preferencesStore: UserPreferencesStore
     private let subStoreSupervisor: SubStoreSupervisor
 
@@ -25,6 +26,7 @@ public struct KumoController: Sendable {
         self.subStoreManager = SubStoreManager(paths: paths)
         self.backupManager = KumoBackupManager(paths: paths)
         self.appUpdateManager = AppUpdateManager()
+        self.appUpdateInstaller = AppUpdateInstaller(paths: paths)
         self.preferencesStore = UserPreferencesStore(paths: paths)
         self.subStoreSupervisor = SubStoreSupervisor(paths: paths)
     }
@@ -438,7 +440,7 @@ public struct KumoController: Sendable {
     }
 
     public func checkAppUpdate(
-        manifestURL: URL,
+        manifestURL: URL?,
         currentVersion: String,
         channel: AppUpdateChannel = .stable
     ) async throws -> AppUpdateCheckResult {
@@ -446,6 +448,29 @@ public struct KumoController: Sendable {
             manifestURL: manifestURL,
             currentVersion: currentVersion,
             channel: channel
+        )
+    }
+
+    public func downloadAppUpdate(
+        manifest: AppUpdateManifest,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> AppUpdateDownloadResult {
+        try await appUpdateManager.downloadUpdate(
+            manifest: manifest,
+            to: paths.appUpdateDownloadsDirectory,
+            progress: progress
+        )
+    }
+
+    public func installAppUpdate(
+        dmgURL: URL,
+        currentAppURL: URL,
+        processID: Int32
+    ) throws {
+        try appUpdateInstaller.installDMG(
+            dmgURL: dmgURL,
+            currentAppURL: currentAppURL,
+            processID: processID
         )
     }
 

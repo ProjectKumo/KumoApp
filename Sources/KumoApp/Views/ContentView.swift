@@ -69,6 +69,7 @@ struct ContentView: View {
                     }
                     .pickerStyle(.segmented)
                     .disabled(store.isLoading || store.status.state != .running)
+                    .allowsHitTesting(!store.isSwitchingMode)
                     .help("Switch outbound mode")
                 }
 

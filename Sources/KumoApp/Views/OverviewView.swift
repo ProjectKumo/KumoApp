@@ -263,7 +263,7 @@ struct OverviewView: View {
                     } label: {
                         Label(mode.displayName, systemImage: store.status.mode == mode ? "checkmark" : "circle")
                     }
-                    .disabled(store.status.mode == mode || store.isLoading)
+                    .disabled(store.status.mode == mode || store.isLoading || store.isSwitchingMode)
                 }
             }
 

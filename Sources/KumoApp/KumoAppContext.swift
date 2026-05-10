@@ -12,11 +12,69 @@ final class KumoAppContext {
     static let shared = KumoAppContext()
 
     private(set) var store: KumoAppStore?
+    private var openMainWindowAction: (() -> Void)?
+    private var openSettingsAction: (() -> Void)?
+    private var openAboutWindowAction: (() -> Void)?
 
     private init() {}
 
     func attach(store: KumoAppStore) {
         self.store = store
+    }
+
+    func attachWindowActions(
+        openMainWindow: @escaping () -> Void,
+        openSettings: @escaping () -> Void,
+        openAboutWindow: @escaping () -> Void
+    ) {
+        openMainWindowAction = openMainWindow
+        openSettingsAction = openSettings
+        openAboutWindowAction = openAboutWindow
+    }
+
+    func openMainWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = NSApp.windows.first(where: isMainWindow(_:)) {
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        openMainWindowAction?()
+    }
+
+    func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let openSettingsAction {
+            openSettingsAction()
+        } else {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
+    }
+
+    func openAboutWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = NSApp.windows.first(where: { $0.title == "About Kumo" }) {
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        openAboutWindowAction?()
+    }
+
+    private func isMainWindow(_ window: NSWindow) -> Bool {
+        guard window.canBecomeMain else {
+            return false
+        }
+        if window.title == "Kumo" {
+            return true
+        }
+        return SidebarDestination.allCases.contains { $0.rawValue == window.title }
     }
 
     /// Handle a continued `NSUserActivity` (Spotlight tap, Handoff). Returns

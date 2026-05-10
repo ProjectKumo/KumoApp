@@ -5,16 +5,17 @@
 Use these documents as the project map before making architectural, runtime, UI, or workflow changes:
 
 - `docs/README.md` — documentation index.
-- `docs/product-information-architecture.md` — product scope and information architecture.
-- `docs/macos-swiftui-interface.md` — macOS SwiftUI interface structure and navigation.
-- `docs/core-control-layer.md` — core lifecycle and control boundaries.
-- `docs/mihomo-runtime-controller.md` — Mihomo runtime controller behavior.
-- `docs/profiles-runtime-configuration.md` — profile import, metadata, and runtime configuration flow.
-- `docs/cli-agent-control.md` — CLI and agent-control surfaces.
-- `docs/system-integration-permissions.md` — macOS permissions and system integration.
-- `docs/persistence-logging.md` — persistence, state files, and logging.
-- `docs/service-mode-roadmap.md` — service-mode direction and staged roadmap.
-- `docs/testing-quality.md` — testing and quality expectations.
+- `docs/product/information-architecture.md` — product scope and information architecture.
+- `docs/interfaces/macos-swiftui-interface.md` — macOS SwiftUI interface structure and navigation.
+- `docs/interfaces/cli-agent-control.md` — CLI and agent-control surfaces.
+- `docs/core/control-layer.md` — core lifecycle and control boundaries.
+- `docs/core/mihomo-runtime-controller.md` — Mihomo runtime controller behavior.
+- `docs/core/profiles-runtime-configuration.md` — profile import, metadata, and runtime configuration flow.
+- `docs/operations/system-integration-permissions.md` — macOS permissions and system integration.
+- `docs/operations/persistence-logging.md` — persistence, state files, and logging.
+- `docs/operations/release-management.md` — release artifacts and app update flow.
+- `docs/roadmap/service-mode-roadmap.md` — service-mode direction and staged roadmap.
+- `docs/quality/testing-quality.md` — testing and quality expectations.
 
 SwiftUI-specific implementation guidance lives under `.agents/skills/`, especially:
 
