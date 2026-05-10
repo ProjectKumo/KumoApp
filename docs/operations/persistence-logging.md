@@ -72,15 +72,35 @@ This allows the CLI and GUI to share state without requiring a service in v1.
 not affect Mihomo runtime):
 
 - `launchAtLogin` — synced with `SMAppService.mainApp` by `KumoAppDelegate`.
-- `hideMenuBarIcon` — persisted; runtime hide requires future
-  `NSStatusItem` migration (`MenuBarExtra` Scene cannot toggle visibility).
+- `hideMenuBarIcon` — persisted for the menu bar visibility preference; Kumo now uses
+  an AppKit `NSStatusItem`, so runtime visibility can be wired through the status item
+  controller when the Settings toggle is re-exposed.
 - `quitOnLastWindowClose` — read by
   `applicationShouldTerminateAfterLastWindowClosed`.
 - `updateChannel` (`stable` / `beta`) and `updateManifestURL` — feed
-  `AppUpdateManager.checkForUpdate(...)`.
+  `AppUpdateManager.checkForUpdate(...)`. A blank `updateManifestURL` uses
+  Kumo's default GitHub Releases feed; a value overrides it for local testing
+  or private distribution.
 
 Decoding falls back to defaults so a missing or corrupted file never blocks
 launch.
+
+## App Updates
+
+App update downloads are cached under:
+
+```text
+updates/downloads/
+```
+
+The detached DMG installer writes its log to:
+
+```text
+logs/app-update-installer.log
+```
+
+The cache is disposable. Release metadata and artifact rules are documented in
+[Release Management](release-management.md).
 
 ## Sub-Store
 

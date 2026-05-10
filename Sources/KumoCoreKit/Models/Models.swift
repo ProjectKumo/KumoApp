@@ -343,10 +343,12 @@ public struct ProfileSummary: Identifiable, Codable, Equatable, Sendable {
 public struct ProxyNode: Identifiable, Codable, Equatable, Sendable {
     public var id: String { name }
     public var name: String
+    public var type: String?
     public var delay: Int?
 
-    public init(name: String, delay: Int? = nil) {
+    public init(name: String, type: String? = nil, delay: Int? = nil) {
         self.name = name
+        self.type = type
         self.delay = delay
     }
 }

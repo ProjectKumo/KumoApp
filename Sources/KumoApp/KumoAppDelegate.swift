@@ -11,12 +11,14 @@ import ServiceManagement
 final class KumoAppDelegate: NSObject, NSApplicationDelegate {
     private let preferencesStore = UserPreferencesStore()
     private var dockBadgeTimer: Timer?
+    private var statusItemController: KumoStatusItemController?
 
     nonisolated override init() {
         super.init()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        statusItemController = KumoStatusItemController()
         synchronizeLaunchAtLogin()
         registerServicesProvider()
         startDockBadgeObserver()
@@ -28,6 +30,8 @@ final class KumoAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         dockBadgeTimer?.invalidate()
         dockBadgeTimer = nil
+        statusItemController?.invalidate()
+        statusItemController = nil
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

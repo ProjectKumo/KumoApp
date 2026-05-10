@@ -214,26 +214,26 @@ private struct ProxyCard: View {
         Button {
             Task { await store.selectProxy(group: group, proxy: proxy) }
         } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                        .padding(.top, 1)
-                        .contentTransition(.symbolEffect(.replace.downUp))
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                    .padding(.top, 1)
+                    .contentTransition(.symbolEffect(.replace.downUp))
+
+                VStack(alignment: .leading, spacing: 6) {
                     Text(proxy.name)
                         .font(.callout.weight(isSelected ? .semibold : .regular))
-                        .lineLimit(2)
+                        .lineLimit(1)
                         .multilineTextAlignment(.leading)
-                    Spacer(minLength: 0)
+
+                    metadataRow
                 }
 
-                HStack {
-                    Spacer()
-                    delayView
-                }
+                Spacer(minLength: 0)
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .topLeading)
             .contentShape(.rect)
             .kumoInteractiveGlass(cornerRadius: 16, tint: Color.accentColor.opacity(isSelected ? 0.16 : 0))
         }
@@ -244,7 +244,19 @@ private struct ProxyCard: View {
             }
         }
         .accessibilityLabel("Select \(proxy.name)")
-        .accessibilityValue(isSelected ? "Selected" : delayText)
+        .accessibilityValue(accessibilityValue)
+    }
+
+    private var accessibilityValue: String {
+        var values: [String] = []
+        if isSelected {
+            values.append("Selected")
+        }
+        if !proxyTypeText.isEmpty {
+            values.append("Protocol \(proxyTypeText)")
+        }
+        values.append(delayText)
+        return values.joined(separator: ", ")
     }
 
     private var delayText: String {
@@ -257,32 +269,31 @@ private struct ProxyCard: View {
         return "\(delay) ms"
     }
 
-    @ViewBuilder
-    private var delayView: some View {
-        if let delay = proxy.delay, delay > 0 {
-            DelayBadge(text: "\(delay) ms", style: delay < 300 ? .green : .orange)
-        } else {
-            Text(delayText)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.tertiary)
-        }
+    private var proxyTypeText: String {
+        proxy.type?.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase ?? ""
     }
-}
 
-private struct DelayBadge: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorSchemeContrast) private var contrast
-    let text: String
-    let style: Color
+    @ViewBuilder
+    private var metadataRow: some View {
+        HStack(spacing: 8) {
+            if !proxyTypeText.isEmpty {
+                Text(proxyTypeText)
+                    .foregroundStyle(.secondary)
+            }
+            Text(delayText)
+                .foregroundStyle(delayColor)
+        }
+        .font(.caption2.weight(.medium))
+        .lineLimit(1)
+    }
 
-    var body: some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(style)
-            .contentTransition(.numericText())
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(style.opacity(contrast == .increased ? 0.26 : 0.12), in: .capsule)
-            .animation(reduceMotion ? nil : .snappy(duration: 0.16), value: text)
+    private var delayColor: Color {
+        guard let delay = proxy.delay else {
+            return Color.secondary.opacity(0.7)
+        }
+        if delay == 0 {
+            return .red
+        }
+        return delay < 300 ? .green : .orange
     }
 }

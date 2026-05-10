@@ -54,7 +54,7 @@ Sub-Store remain discoverable in secondary sections, so daily use stays focused.
 
 | Area | What Kumo provides |
 | --- | --- |
-| Native macOS app | SwiftUI interface built around `NavigationSplitView`, `Settings`, `MenuBarExtra`, and standard macOS controls. |
+| Native macOS app | SwiftUI interface built around `NavigationSplitView`, `Settings`, an AppKit menu bar status item, and standard macOS controls. |
 | Shared core | `KumoCoreKit` owns Mihomo lifecycle, profile generation, controller calls, state, and system proxy logic. |
 | CLI for humans and agents | The `kumo` executable supports stable command names, `--json`, dry-run system changes, and predictable exit codes. |
 | Mihomo discovery | Kumo can use `--core`, `KUMO_MIHOMO_PATH`, a bundled binary, common Homebrew paths, or a managed install. |
@@ -64,7 +64,7 @@ Sub-Store remain discoverable in secondary sections, so daily use stays focused.
 ## Screenshots
 
 The v1 SwiftUI layout is still being finalized. The current interface structure
-is documented in [docs/macos-swiftui-interface.md](docs/macos-swiftui-interface.md).
+is documented in [docs/interfaces/macos-swiftui-interface.md](docs/interfaces/macos-swiftui-interface.md).
 
 ## Quick Start
 
@@ -110,7 +110,7 @@ area is needed:
 | Inspect | Connections, Logs, Rules | Troubleshooting, traffic inspection, logs, and rule visibility. |
 | Configure | Core, System Proxy, DNS, TUN, Sniffer, Resources, Overrides, Sub-Store | Lower-frequency runtime settings and advanced integrations. |
 
-Quick controls are available from the menu bar and keyboard:
+Quick controls are available from the menu bar status item and keyboard:
 
 | Action | Shortcut |
 | --- | --- |
@@ -197,19 +197,15 @@ Assets/          Project images and README assets
 
 ## Documentation
 
-Project documentation lives under [docs/](docs/):
+Project documentation lives under [docs/](docs/) and is grouped by domain:
 
-- [Product and Information Architecture](docs/product-information-architecture.md)
-- [macOS SwiftUI Interface](docs/macos-swiftui-interface.md)
-- [Core Control Layer](docs/core-control-layer.md)
-- [Mihomo Runtime and Controller](docs/mihomo-runtime-controller.md)
-- [Profiles and Runtime Configuration](docs/profiles-runtime-configuration.md)
-- [CLI and Agent Control](docs/cli-agent-control.md)
-- [System Integration and Permissions](docs/system-integration-permissions.md)
-- [Persistence and Logging](docs/persistence-logging.md)
-- [Service Mode Roadmap](docs/service-mode-roadmap.md)
-- [Sparkle Parity Roadmap](docs/sparkle-parity-roadmap.md)
-- [Testing and Quality](docs/testing-quality.md)
+- [Product](docs/product/README.md)
+- [Interfaces](docs/interfaces/README.md)
+- [Core](docs/core/README.md)
+- [Operations](docs/operations/README.md)
+- [Quality](docs/quality/README.md)
+- [Roadmap](docs/roadmap/README.md)
+- [Implementation Standards](docs/standards/README.md)
 
 Agent-facing guidelines, including UI copy and SwiftUI component constraints,
 live in [AGENTS.md](AGENTS.md).
@@ -272,7 +268,7 @@ make xcode-test
 ## Roadmap
 
 Kumo's first version intentionally avoids privileged helpers. The broader plan
-is tracked in [docs/service-mode-roadmap.md](docs/service-mode-roadmap.md):
+is tracked in [docs/roadmap/service-mode-roadmap.md](docs/roadmap/service-mode-roadmap.md):
 
 - Runtime settings parity for ports, LAN access, log level, controller secret,
   and Geo data.

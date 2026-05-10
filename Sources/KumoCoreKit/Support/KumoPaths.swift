@@ -39,6 +39,18 @@ public struct KumoPaths: Sendable {
         applicationSupportDirectory.appendingPathComponent("substore", isDirectory: true)
     }
 
+    public var appUpdatesDirectory: URL {
+        applicationSupportDirectory.appendingPathComponent("updates", isDirectory: true)
+    }
+
+    public var appUpdateDownloadsDirectory: URL {
+        appUpdatesDirectory.appendingPathComponent("downloads", isDirectory: true)
+    }
+
+    public var appUpdateInstallerLogFile: URL {
+        logsDirectory.appendingPathComponent("app-update-installer.log")
+    }
+
     public var managedCoreDirectory: URL {
         applicationSupportDirectory.appendingPathComponent("cores", isDirectory: true)
     }
@@ -98,6 +110,14 @@ public struct KumoPaths: Sendable {
         )
         try FileManager.default.createDirectory(
             at: subStoreDirectory,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: appUpdatesDirectory,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: appUpdateDownloadsDirectory,
             withIntermediateDirectories: true
         )
         try FileManager.default.createDirectory(

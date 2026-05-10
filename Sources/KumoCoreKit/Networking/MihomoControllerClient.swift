@@ -77,8 +77,9 @@ public struct MihomoControllerClient: Sendable {
                 }
 
                 let nodes = allNames.map { nodeName -> ProxyNode in
+                    let proxy = proxies[nodeName]
                     let delay = (proxies[nodeName]?["history"] as? [[String: Any]])?.last?["delay"] as? Int
-                    return ProxyNode(name: nodeName, delay: delay)
+                    return ProxyNode(name: nodeName, type: proxy?["type"] as? String, delay: delay)
                 }
 
                 return ProxyGroup(
@@ -117,7 +118,7 @@ public struct MihomoControllerClient: Sendable {
         var nodes: [ProxyNode] = []
         for proxy in group.proxies {
             let delay = try? await proxyDelay(proxy: proxy.name, testURL: group.testURL)
-            nodes.append(ProxyNode(name: proxy.name, delay: delay ?? proxy.delay))
+            nodes.append(ProxyNode(name: proxy.name, type: proxy.type, delay: delay ?? proxy.delay))
         }
         return nodes
     }

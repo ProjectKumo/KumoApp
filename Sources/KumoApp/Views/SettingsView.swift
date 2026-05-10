@@ -28,6 +28,7 @@ struct SettingsView: View {
 
 private struct GeneralSettingsTab: View {
     @Environment(KumoAppStore.self) private var store
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Form {
@@ -40,6 +41,9 @@ private struct GeneralSettingsTab: View {
             Section("About") {
                 LabeledContent("Version", value: bundleShortVersion)
                 LabeledContent("Build", value: bundleBuild)
+                Button("Open About Kumo") {
+                    openWindow(id: "about")
+                }
             }
         }
         .formStyle(.grouped)
@@ -131,13 +135,16 @@ private struct UpdateSettingsTab: View {
                 }
             }
 
-            Section("Manifest") {
+            Section("Release Feed") {
                 TextField(
-                    "Manifest URL",
+                    "Custom Manifest URL",
                     text: manifestURLBinding,
-                    prompt: Text("https://example.com/kumo-update.json")
+                    prompt: Text("Default GitHub Releases feed")
                 )
                 .textFieldStyle(.roundedBorder)
+                Text("Leave blank to use Kumo's GitHub Releases feed for the selected channel.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -150,18 +157,37 @@ private struct UpdateSettingsTab: View {
                         Text("Check for Updates Now")
                     }
                 }
-                .disabled(store.preferences.updateManifestURL == nil || store.isCheckingForUpdates)
+                .disabled(store.isCheckingForUpdates || store.isDownloadingUpdate || store.isInstallingUpdate)
 
                 if let result = store.lastUpdateCheckResult {
                     LabeledContent("Current", value: result.currentVersion)
                     if let manifest = result.update {
                         LabeledContent("Available", value: manifest.version)
-                        Link("Open Download Page", destination: manifest.downloadURL)
+                        if manifest.canInstallAutomatically {
+                            Button {
+                                Task { await store.downloadAndInstallUpdate(manifest) }
+                            } label: {
+                                Text(store.isInstallingUpdate ? "Preparing Installer..." : "Download and Install")
+                            }
+                            .disabled(store.isDownloadingUpdate || store.isInstallingUpdate)
+                        } else {
+                            Link("Open Download Page", destination: manifest.downloadURL)
+                        }
                     } else {
                         Text("You are on the latest \(store.preferences.updateChannel.rawValue) build.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                }
+
+                if store.isDownloadingUpdate {
+                    ProgressView(value: store.updateDownloadProgress ?? 0)
+                }
+
+                if let updateStatusMessage = store.updateStatusMessage {
+                    Text(updateStatusMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

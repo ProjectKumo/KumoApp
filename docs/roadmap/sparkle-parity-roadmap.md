@@ -29,6 +29,7 @@ updates, and backup workflows.
 | Overrides | Ordered YAML overrides | partial | `OverrideRepository` | Global and profile-scoped YAML overrides apply in documented order. |
 | Overrides | JavaScript transforms | deferred | `OverrideRepository` | Requires a reviewed sandbox strategy before enablement. |
 | Controller | Proxy groups and selection | implemented | `MihomoControllerClient` | Groups load, filter hidden entries, and allow node selection. |
+| Controller | Outbound mode switching | implemented | `KumoAppStore` / `MihomoControllerClient` | Rule / Global / Direct changes persist locally, PATCH Mihomo `/configs`, close existing connections, and refresh proxy groups without blocking the Start / Stop toolbar action. |
 | Controller | Rules, connections, providers, geo updates | partial | `MihomoControllerClient` | Inspect and Configure pages expose controller actions without direct UI clients. |
 | Controller | Traffic, memory, logs, and lifecycle events | partial | `MihomoControllerClient` | Event streams use bounded caches and survive transient disconnects. |
 | CLI | Stable agent-friendly JSON commands | partial | `KumoCLI` | Every command has `--json`, stable envelopes, and deterministic exit codes. |

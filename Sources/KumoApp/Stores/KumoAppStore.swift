@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import KumoCoreKit
@@ -21,11 +22,16 @@ final class KumoAppStore {
     var preferences = UserPreferences()
     var errorMessage: String?
     var isLoading = false
+    var isSwitchingMode = false
     var isImportingProfile = false
     var isInstallingCore = false
     var isTestingDelay = false
     var isStreamingLogs = false
     var isCheckingForUpdates = false
+    var isDownloadingUpdate = false
+    var isInstallingUpdate = false
+    var updateDownloadProgress: Double?
+    var updateStatusMessage: String?
     var lastUpdateCheckResult: AppUpdateCheckResult?
 
     private let controller = KumoController()
@@ -154,10 +160,34 @@ final class KumoAppStore {
     }
 
     func setMode(_ mode: OutboundMode) async {
-        await performLoadingTask { [self] in
-            try await self.controller.setMode(mode)
-            self.status.mode = mode
-            self.coreConfiguration.mode = mode
+        guard mode != status.mode else { return }
+        guard !isSwitchingMode else { return }
+
+        let previousStatusMode = status.mode
+        let previousConfigurationMode = coreConfiguration.mode
+        var didApplyMode = false
+
+        isSwitchingMode = true
+        status.mode = mode
+        coreConfiguration.mode = mode
+        defer { isSwitchingMode = false }
+
+        do {
+            try await controller.setMode(mode)
+            didApplyMode = true
+            errorMessage = nil
+
+            if status.state == .running {
+                try await controller.closeConnections(matchingProxy: nil)
+                connections = []
+                await loadProxyGroups()
+            }
+        } catch {
+            if !didApplyMode {
+                status.mode = previousStatusMode
+                coreConfiguration.mode = previousConfigurationMode
+            }
+            errorMessage = displayMessage(for: error)
         }
     }
 
@@ -593,23 +623,63 @@ final class KumoAppStore {
     }
 
     func checkForUpdate() async {
-        guard let manifestURL = preferences.updateManifestURL else {
-            errorMessage = "Set an update manifest URL in Settings."
-            return
-        }
-
         isCheckingForUpdates = true
         defer { isCheckingForUpdates = false }
 
         do {
             let result = try await controller.checkAppUpdate(
-                manifestURL: manifestURL,
+                manifestURL: preferences.updateManifestURL,
                 currentVersion: bundleShortVersion,
                 channel: preferences.updateChannel
             )
             lastUpdateCheckResult = result
+            updateStatusMessage = result.update == nil ? "Kumo is up to date." : nil
             errorMessage = nil
         } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func downloadAndInstallUpdate(_ manifest: AppUpdateManifest) async {
+        guard manifest.canInstallAutomatically else {
+            NSWorkspace.shared.open(manifest.downloadURL)
+            return
+        }
+
+        isDownloadingUpdate = true
+        updateDownloadProgress = 0
+        updateStatusMessage = "Downloading \(manifest.version)..."
+        defer {
+            isDownloadingUpdate = false
+            updateDownloadProgress = nil
+        }
+
+        do {
+            let downloaded = try await controller.downloadAppUpdate(manifest: manifest) { [weak self] progress in
+                Task { @MainActor in
+                    self?.updateDownloadProgress = progress
+                }
+            }
+
+            updateStatusMessage = "Installing \(manifest.version)..."
+            isInstallingUpdate = true
+            if status.systemProxyEnabled {
+                setSystemProxyEnabled(false)
+            }
+            if status.state == .running {
+                stopCore()
+            }
+
+            try controller.installAppUpdate(
+                dmgURL: downloaded.fileURL,
+                currentAppURL: Bundle.main.bundleURL,
+                processID: ProcessInfo.processInfo.processIdentifier
+            )
+            updateStatusMessage = "Kumo will relaunch after installing \(manifest.version)."
+            NSApplication.shared.terminate(nil)
+        } catch {
+            isInstallingUpdate = false
+            updateStatusMessage = nil
             errorMessage = displayMessage(for: error)
         }
     }
