@@ -31,6 +31,9 @@ targets:
       - path: Resources/KumoApp/Assets.xcassets
     info:
       path: Resources/KumoApp/Info.plist
+      properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
     entitlements:
       path: Resources/KumoApp/KumoApp.entitlements
     dependencies:

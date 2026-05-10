@@ -90,7 +90,7 @@ hdiutil create \
   -size "${DMG_SIZE_MB}m" \
   -fs HFS+ \
   -ov \
-  -format UDRW \
+  -type UDIF \
   "$RW_DMG_PATH"
 
 hdiutil attach "$RW_DMG_PATH" \
