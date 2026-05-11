@@ -86,6 +86,7 @@ private struct DebouncedTextEditor: View {
 struct CoreView: View {
     @Environment(KumoAppStore.self) private var store
     @State private var isChoosingCore = false
+    @State private var runtimeDraft = CoreRuntimeSettings()
 
     var body: some View {
         KumoPage(title: "Core") {
@@ -99,7 +100,7 @@ struct CoreView: View {
                     LabeledContent("Log Level", value: store.coreConfiguration.logLevel)
                 }
 
-                Section("Runtime Settings") {
+                Section {
                     TextField("Mixed Port", value: mixedPortBinding, format: .number)
                     Picker("Log Level", selection: logLevelBinding) {
                         Text("Silent").tag("silent")
@@ -114,6 +115,24 @@ struct CoreView: View {
                         currentSecret: store.status.endpoint.secret,
                         commit: { store.setControllerSecret($0) }
                     )
+                    HStack {
+                        Spacer()
+                        Button("Reset") {
+                            resetRuntimeDraft()
+                        }
+                        .disabled(!hasRuntimeDraftChanges || store.isLoading)
+
+                        Button("Apply") {
+                            applyRuntimeDraft()
+                        }
+                        .disabled(!hasRuntimeDraftChanges || store.isLoading)
+                    }
+                } header: {
+                    Text("Runtime Settings")
+                } footer: {
+                    Text("Changes are staged locally until you apply them. Kumo-owned runtime keys are written through the shared controller layer.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Core Binary") {
@@ -165,6 +184,12 @@ struct CoreView: View {
         .task {
             store.refreshCoreCandidates()
             await store.loadCoreConfiguration()
+            resetRuntimeDraft()
+        }
+        .onChange(of: runtimeSettings) { oldValue, newValue in
+            if runtimeDraft == oldValue {
+                runtimeDraft = newValue
+            }
         }
     }
 
@@ -184,44 +209,56 @@ struct CoreView: View {
         store.status.runtimeSettings ?? CoreRuntimeSettings(mixedPort: store.status.proxyPorts.mixedPort)
     }
 
+    private var hasRuntimeDraftChanges: Bool {
+        normalizedRuntimeDraft != runtimeSettings
+    }
+
+    private var normalizedRuntimeDraft: CoreRuntimeSettings {
+        var settings = runtimeDraft
+        settings.mixedPort = max(1, min(65535, settings.mixedPort))
+        return settings
+    }
+
     private var mixedPortBinding: Binding<Int> {
         Binding {
-            runtimeSettings.mixedPort
+            runtimeDraft.mixedPort
         } set: { value in
-            var settings = runtimeSettings
-            settings.mixedPort = max(1, min(65535, value))
-            Task { await store.updateRuntimeSettings(settings) }
+            runtimeDraft.mixedPort = max(1, min(65535, value))
         }
     }
 
     private var logLevelBinding: Binding<String> {
         Binding {
-            runtimeSettings.logLevel
+            runtimeDraft.logLevel
         } set: { value in
-            var settings = runtimeSettings
-            settings.logLevel = value
-            Task { await store.updateRuntimeSettings(settings) }
+            runtimeDraft.logLevel = value
         }
     }
 
     private var allowLANBinding: Binding<Bool> {
         Binding {
-            runtimeSettings.allowLAN
+            runtimeDraft.allowLAN
         } set: { value in
-            var settings = runtimeSettings
-            settings.allowLAN = value
-            Task { await store.updateRuntimeSettings(settings) }
+            runtimeDraft.allowLAN = value
         }
     }
 
     private var ipv6Binding: Binding<Bool> {
         Binding {
-            runtimeSettings.ipv6
+            runtimeDraft.ipv6
         } set: { value in
-            var settings = runtimeSettings
-            settings.ipv6 = value
-            Task { await store.updateRuntimeSettings(settings) }
+            runtimeDraft.ipv6 = value
         }
+    }
+
+    private func resetRuntimeDraft() {
+        runtimeDraft = runtimeSettings
+    }
+
+    private func applyRuntimeDraft() {
+        let settings = normalizedRuntimeDraft
+        runtimeDraft = settings
+        Task { await store.updateRuntimeSettings(settings) }
     }
 
     private var installCoreButton: some View {
@@ -248,7 +285,7 @@ struct CoreView: View {
 
 struct SystemProxyView: View {
     @Environment(KumoAppStore.self) private var store
-    @State private var bypassText = ""
+    @State private var systemProxyDraft = SystemProxySettings()
 
     var body: some View {
         KumoPage(title: "System Proxy") {
@@ -270,35 +307,43 @@ struct SystemProxyView: View {
                     Text("System Proxy updates macOS proxy settings through networksetup. It does not add a VPN configuration; helper installation uses the administrator authorization prompt.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    HStack {
+                        Spacer()
+                        Button("Reset") {
+                            resetSystemProxyDraft()
+                        }
+                        .disabled(!hasSystemProxyDraftChanges)
+
+                        Button("Apply") {
+                            applySystemProxyDraft()
+                        }
+                        .disabled(!hasSystemProxyDraftChanges)
+                    }
+                } footer: {
+                    Text("Network service, host, port, mode, bypass, and PAC script changes are staged until you apply them.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
-                if systemProxySettings.mode == .manual {
+                if systemProxyDraft.mode == .manual {
                     Section("Bypass") {
-                        DebouncedTextEditor(value: bypassText) { newValue in
-                            bypassText = newValue
-                            var settings = systemProxySettings
-                            settings.bypassList = newValue
-                                .split(separator: "\n")
-                                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                                .filter { !$0.isEmpty }
-                            store.updateSystemProxySettings(settings)
-                        }
+                        TextEditor(text: bypassTextBinding)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 120)
                         Button("Add Defaults") {
-                            var settings = systemProxySettings
-                            settings.bypassList = Array(Set(settings.bypassList + SystemProxySettings.defaultBypassList)).sorted()
-                            bypassText = settings.bypassList.joined(separator: "\n")
-                            store.updateSystemProxySettings(settings)
+                            systemProxyDraft.bypassList = Array(
+                                Set(systemProxyDraft.bypassList + SystemProxySettings.defaultBypassList)
+                            ).sorted()
                         }
                     }
                 }
 
-                if systemProxySettings.mode == .pac {
+                if systemProxyDraft.mode == .pac {
                     Section {
-                        DebouncedTextEditor(value: systemProxySettings.pacScript, minHeight: 200) { newValue in
-                            var settings = systemProxySettings
-                            settings.pacScript = newValue
-                            store.updateSystemProxySettings(settings)
-                        }
+                        TextEditor(text: $systemProxyDraft.pacScript)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 200)
                     } header: {
                         Text("PAC Script")
                     } footer: {
@@ -311,7 +356,12 @@ struct SystemProxyView: View {
             .formStyle(.grouped)
         }
         .task {
-            bypassText = systemProxySettings.bypassList.joined(separator: "\n")
+            resetSystemProxyDraft()
+        }
+        .onChange(of: systemProxySettings) { oldValue, newValue in
+            if systemProxyDraft == oldValue {
+                systemProxyDraft = newValue
+            }
         }
     }
 
@@ -322,44 +372,72 @@ struct SystemProxyView: View {
         )
     }
 
+    private var hasSystemProxyDraftChanges: Bool {
+        normalizedSystemProxyDraft != systemProxySettings
+    }
+
+    private var normalizedSystemProxyDraft: SystemProxySettings {
+        var settings = systemProxyDraft
+        settings.networkService = settings.networkService.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.host = settings.host.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.port = max(1, min(65535, settings.port))
+        settings.bypassList = settings.bypassList
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return settings
+    }
+
     private var networkServiceBinding: Binding<String> {
         Binding {
-            systemProxySettings.networkService
+            systemProxyDraft.networkService
         } set: { value in
-            var settings = systemProxySettings
-            settings.networkService = value
-            store.updateSystemProxySettings(settings)
+            systemProxyDraft.networkService = value
         }
     }
 
     private var hostBinding: Binding<String> {
         Binding {
-            systemProxySettings.host
+            systemProxyDraft.host
         } set: { value in
-            var settings = systemProxySettings
-            settings.host = value
-            store.updateSystemProxySettings(settings)
+            systemProxyDraft.host = value
         }
     }
 
     private var portBinding: Binding<Int> {
         Binding {
-            systemProxySettings.port
+            systemProxyDraft.port
         } set: { value in
-            var settings = systemProxySettings
-            settings.port = value
-            store.updateSystemProxySettings(settings)
+            systemProxyDraft.port = max(1, min(65535, value))
         }
     }
 
     private var modeBinding: Binding<SystemProxyMode> {
         Binding {
-            systemProxySettings.mode
+            systemProxyDraft.mode
         } set: { value in
-            var settings = systemProxySettings
-            settings.mode = value
-            store.updateSystemProxySettings(settings)
+            systemProxyDraft.mode = value
         }
+    }
+
+    private var bypassTextBinding: Binding<String> {
+        Binding {
+            systemProxyDraft.bypassList.joined(separator: "\n")
+        } set: { value in
+            systemProxyDraft.bypassList = value
+                .split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+    }
+
+    private func resetSystemProxyDraft() {
+        systemProxyDraft = systemProxySettings
+    }
+
+    private func applySystemProxyDraft() {
+        let settings = normalizedSystemProxyDraft
+        systemProxyDraft = settings
+        store.updateSystemProxySettings(settings)
     }
 }
 
@@ -379,6 +457,7 @@ struct DNSView: View {
 
 struct TunView: View {
     @Environment(KumoAppStore.self) private var store
+    @State private var isConfirmingServiceUninstall = false
     let onNavigate: (SidebarDestination) -> Void
 
     var body: some View {
@@ -399,7 +478,7 @@ struct TunView: View {
                         .disabled(store.isLoading)
                         .help("Install or repair Kumo Helper with macOS administrator authorization.")
                         Button("Uninstall Service") {
-                            Task { await store.uninstallServiceMode() }
+                            isConfirmingServiceUninstall = true
                         }
                         .disabled(!store.serviceModeStatus.isInstalled || store.isLoading)
                     }
@@ -452,6 +531,18 @@ struct TunView: View {
         .task {
             store.refreshServiceModeStatus()
             store.refreshTunStatus()
+        }
+        .confirmationDialog(
+            "Uninstall Kumo Helper?",
+            isPresented: $isConfirmingServiceUninstall,
+            titleVisibility: .visible
+        ) {
+            Button("Uninstall Service", role: .destructive) {
+                Task { await store.uninstallServiceMode() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the privileged helper used for TUN and protected system integration. TUN will not be manageable until the service is installed again.")
         }
     }
 
@@ -632,32 +723,7 @@ struct OverridesView: View {
     var body: some View {
         KumoPage(title: "Overrides") {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    TextField("Remote override URL", text: $remoteURL)
-                        .textFieldStyle(.roundedBorder)
-                    Picker("Format", selection: $format) {
-                        Text("YAML").tag(OverrideFormat.yaml)
-                        Text("JavaScript").tag(OverrideFormat.javascript)
-                    }
-                    .frame(width: 140)
-                    Toggle("Global", isOn: $isGlobal)
-                        .toggleStyle(.checkbox)
-                    Button("Import URL") {
-                        Task {
-                            await store.addRemoteOverride(urlString: remoteURL, format: format, isGlobal: isGlobal)
-                            if store.errorMessage == nil {
-                                remoteURL = ""
-                            }
-                        }
-                    }
-                    .disabled(remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isLoading)
-                    Button("Import File…") {
-                        isImportingFile = true
-                    }
-                    Button("New…") {
-                        newDraft = NewOverrideDraft(isGlobal: isGlobal)
-                    }
-                }
+                importControls
 
                 if store.overrides.isEmpty {
                     KumoEmptyState(
@@ -746,6 +812,66 @@ struct OverridesView: View {
             }
         } message: { _ in
             Text("This removes the local override file and metadata.")
+        }
+    }
+
+    private var importControls: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                remoteOverrideURLField
+                overrideOptions
+                overrideActionGroup
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                remoteOverrideURLField
+                HStack(spacing: 8) {
+                    overrideOptions
+                    Spacer()
+                    overrideActionGroup
+                }
+            }
+        }
+    }
+
+    private var remoteOverrideURLField: some View {
+        TextField("Remote override URL", text: $remoteURL)
+            .textFieldStyle(.roundedBorder)
+    }
+
+    private var overrideOptions: some View {
+        HStack(spacing: 8) {
+            Picker("Format", selection: $format) {
+                Text("YAML").tag(OverrideFormat.yaml)
+                Text("JavaScript").tag(OverrideFormat.javascript)
+            }
+            .frame(width: 140)
+
+            Toggle("Global", isOn: $isGlobal)
+                .toggleStyle(.checkbox)
+                .fixedSize()
+        }
+    }
+
+    private var overrideActionGroup: some View {
+        HStack(spacing: 8) {
+            Button("Import URL") {
+                Task {
+                    await store.addRemoteOverride(urlString: remoteURL, format: format, isGlobal: isGlobal)
+                    if store.errorMessage == nil {
+                        remoteURL = ""
+                    }
+                }
+            }
+            .disabled(remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isLoading)
+
+            Button("Import File…") {
+                isImportingFile = true
+            }
+
+            Button("New…") {
+                newDraft = NewOverrideDraft(isGlobal: isGlobal)
+            }
         }
     }
 

@@ -39,7 +39,6 @@ struct ConnectionsView: View {
                         Text(connection.download.kumoByteCount)
                     }
                 }
-                .searchable(text: $searchText, placement: .toolbar, prompt: "Search connections")
                 .contextMenu(forSelectionType: ConnectionEntry.ID.self) { selection in
                     Button("Copy Host") {
                         copy(\.host, for: selection)
@@ -56,30 +55,31 @@ struct ConnectionsView: View {
                     }
                     .disabled(selection.isEmpty || store.status.state != .running)
                 }
-                .toolbar {
-                    ToolbarItem(placement: .secondaryAction) {
-                        Button(role: .destructive) {
-                            isConfirmingCloseAll = true
-                        } label: {
-                            Label("Close All", systemImage: "xmark.circle")
-                        }
-                        .disabled(store.connections.isEmpty || store.status.state != .running)
-                        .help("Close every active connection")
-                    }
-                }
-                .confirmationDialog(
-                    "Close all \(store.connections.count) connections?",
-                    isPresented: $isConfirmingCloseAll,
-                    titleVisibility: .visible
-                ) {
-                    Button("Close All", role: .destructive) {
-                        Task { await store.closeAllConnections() }
-                    }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("Active TCP/UDP sessions tracked by Mihomo will be terminated. Apps may need to reconnect.")
-                }
             }
+        }
+        .searchable(text: $searchText, placement: .toolbar, prompt: "Search connections")
+        .toolbar {
+            ToolbarItem(placement: .secondaryAction) {
+                Button(role: .destructive) {
+                    isConfirmingCloseAll = true
+                } label: {
+                    Label("Close All", systemImage: "xmark.circle")
+                }
+                .disabled(store.connections.isEmpty || store.status.state != .running)
+                .help("Close every active connection")
+            }
+        }
+        .confirmationDialog(
+            "Close all \(store.connections.count) connections?",
+            isPresented: $isConfirmingCloseAll,
+            titleVisibility: .visible
+        ) {
+            Button("Close All", role: .destructive) {
+                Task { await store.closeAllConnections() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Active TCP/UDP sessions tracked by Mihomo will be terminated. Apps may need to reconnect.")
         }
         .task {
             await store.loadInspectData()
@@ -177,6 +177,7 @@ enum LogLevelFilter: String, CaseIterable, Identifiable {
 
 struct LogsView: View {
     @Environment(KumoAppStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var searchText = ""
     @State private var level: LogLevelFilter = .all
     @State private var followsLiveLogs = false
@@ -208,11 +209,11 @@ struct LogsView: View {
                                 }
                             }
                     }
-                    .searchable(text: $searchText, placement: .toolbar, prompt: "Search logs")
                     .scrollEdgeEffectStyleIfAvailable()
                 }
             }
         }
+        .searchable(text: $searchText, placement: .toolbar, prompt: "Search logs")
         .task {
             await store.loadInspectData()
         }
@@ -245,7 +246,7 @@ struct LogsView: View {
                         Circle()
                             .fill(Color.red)
                             .frame(width: 6, height: 6)
-                            .symbolEffect(.pulse, isActive: followsLiveLogs)
+                            .symbolEffect(.pulse, isActive: followsLiveLogs && !reduceMotion)
                     }
                     Text(followsLiveLogs ? "Pause" : "Follow")
                 }
@@ -367,10 +368,10 @@ struct RulesView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .searchable(text: $searchText, placement: .toolbar, prompt: "Search rules")
                 .scrollEdgeEffectStyleIfAvailable()
             }
         }
+        .searchable(text: $searchText, placement: .toolbar, prompt: "Search rules")
         .task {
             await store.loadInspectData()
         }
@@ -418,6 +419,7 @@ private struct HitRateBadge: View {
                 .kumoSubtleBackground(in: .capsule)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Show rule statistics")
         .popover(isPresented: $showPopover, arrowEdge: .top) {
             VStack(alignment: .leading, spacing: 6) {
                 LabeledContent("Hit", value: "\(rule.hitCount)")

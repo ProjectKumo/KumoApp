@@ -14,32 +14,7 @@ struct ProfilesView: View {
     var body: some View {
         KumoPage(title: "Profiles") {
             VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 8) {
-                    TextField("Subscription URL", text: $remoteURL)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($urlFieldFocused)
-                        .onSubmit { importRemoteProfile() }
-
-                    PasteButton(payloadType: String.self) { values in
-                        if let value = values.first {
-                            remoteURL = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                        }
-                    }
-                    .labelStyle(.iconOnly)
-                    .help("Paste subscription URL")
-
-                    Toggle("Use Kumo to fetch", isOn: $usesProxyForImport)
-                        .toggleStyle(.checkbox)
-
-                    Button("Import URL") {
-                        importRemoteProfile()
-                    }
-                    .disabled(remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isImportingProfile)
-
-                    Button("Import File…") {
-                        isImportingFile = true
-                    }
-                }
+                importControls
 
                 if store.profiles.isEmpty {
                     KumoEmptyState(
@@ -130,6 +105,60 @@ struct ProfilesView: View {
         }
     }
 
+    private var importControls: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                subscriptionURLField
+                proxyImportToggle
+                importActionGroup
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                subscriptionURLField
+                HStack(spacing: 8) {
+                    proxyImportToggle
+                    Spacer()
+                    importActionGroup
+                }
+            }
+        }
+    }
+
+    private var subscriptionURLField: some View {
+        TextField("Subscription URL", text: $remoteURL)
+            .textFieldStyle(.roundedBorder)
+            .focused($urlFieldFocused)
+            .onSubmit { importRemoteProfile() }
+    }
+
+    private var proxyImportToggle: some View {
+        Toggle("Use Kumo to fetch", isOn: $usesProxyForImport)
+            .toggleStyle(.checkbox)
+            .fixedSize()
+    }
+
+    private var importActionGroup: some View {
+        HStack(spacing: 8) {
+            PasteButton(payloadType: String.self) { values in
+                if let value = values.first {
+                    remoteURL = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+            .labelStyle(.iconOnly)
+            .help("Paste subscription URL")
+            .accessibilityLabel("Paste subscription URL")
+
+            Button("Import URL") {
+                importRemoteProfile()
+            }
+            .disabled(remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isImportingProfile)
+
+            Button("Import File…") {
+                isImportingFile = true
+            }
+        }
+    }
+
     private func importRemoteProfile() {
         let value = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
         Task {
@@ -162,7 +191,6 @@ private struct ProfileRow: View {
     let profile: ProfileSummary
     let onEdit: () -> Void
     let onDelete: () -> Void
-    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -196,12 +224,11 @@ private struct ProfileRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if !profile.isCurrent && isHovered {
+            if !profile.isCurrent {
                 Button("Use") {
                     Task { await store.selectProfile(profile) }
                 }
                 .disabled(store.isLoading)
-                .transition(.opacity)
             }
             Menu {
                 Button("Edit") {
@@ -222,8 +249,6 @@ private struct ProfileRow: View {
             .buttonStyle(.borderless)
         }
         .padding(.vertical, 4)
-        .onHover { isHovered = $0 }
-        .animation(.snappy(duration: 0.15), value: isHovered)
         .contextMenu {
             Button("Use Profile") {
                 Task { await store.selectProfile(profile) }

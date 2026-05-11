@@ -5,11 +5,12 @@ import KumoCoreKit
 @main
 struct KumoApp: App {
     @State private var store = KumoAppStore()
+    @State private var navigation = KumoNavigationState()
     @NSApplicationDelegateAdaptor(KumoAppDelegate.self) private var appDelegate
 
     var body: some Scene {
         WindowGroup(id: "main") {
-            KumoRootView(store: store)
+            KumoRootView(store: store, navigation: navigation)
         }
         .defaultSize(width: 1040, height: 720)
         .windowResizability(.contentMinSize)
@@ -46,6 +47,14 @@ struct KumoApp: App {
 
                 Divider()
 
+                Button(store.status.systemProxyEnabled ? "Disable System Proxy" : "Enable System Proxy") {
+                    store.setSystemProxyEnabled(!store.status.systemProxyEnabled)
+                }
+                .keyboardShortcut("p", modifiers: [.command, .control])
+                .disabled(store.isLoading || (store.status.state != .running && !store.status.systemProxyEnabled))
+
+                Divider()
+
                 Button("Rule Mode") {
                     Task { await store.setMode(.rule) }
                 }
@@ -71,6 +80,23 @@ struct KumoApp: App {
                 }
                 .disabled(store.isLoading)
             }
+
+            CommandMenu("Navigate") {
+                navigationButton("Overview", destination: .overview, key: "1")
+                navigationButton("Profiles", destination: .profiles, key: "2")
+                navigationButton("Proxies", destination: .proxies, key: "3")
+
+                Divider()
+
+                navigationButton("Connections", destination: .connections, key: "4")
+                navigationButton("Logs", destination: .logs, key: "5")
+                navigationButton("Rules", destination: .rules, key: "6")
+
+                Divider()
+
+                navigationButton("Core", destination: .core, key: "7")
+                navigationButton("System Proxy", destination: .systemProxy, key: "8")
+            }
         }
 
         Settings {
@@ -87,14 +113,26 @@ struct KumoApp: App {
     }
 }
 
+private extension KumoApp {
+    func navigationButton(_ title: String, destination: SidebarDestination, key: KeyEquivalent) -> some View {
+        Button(title) {
+            navigation.selection = destination
+            KumoAppContext.shared.openMainWindow()
+        }
+        .keyboardShortcut(key, modifiers: [.command, .option])
+    }
+}
+
 private struct KumoRootView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
     let store: KumoAppStore
+    let navigation: KumoNavigationState
 
     var body: some View {
         ContentView()
             .environment(store)
+            .environment(navigation)
             .frame(minWidth: 820, minHeight: 560)
             .task {
                 KumoAppContext.shared.attach(store: store)
