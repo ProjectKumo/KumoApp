@@ -14,6 +14,8 @@ The app uses:
 - `KumoStatusItemController` for the persistent menu bar icon and native quick menu. It uses `NSStatusItem` so Kumo can rebuild menu content dynamically and avoid SwiftUI `MenuBarExtra` visibility limitations.
 - `CommandMenu("Control")` for keyboard-accessible Kumo commands.
 - `CommandGroup(after: .toolbar)` to expose `Toggle Sidebar` (Cmd+Ctrl+S).
+- `CommandMenu("Navigate")` for keyboard-accessible jumps to the primary Daily
+  and Inspect destinations without moving navigation state into `KumoCoreKit`.
 - `@NSApplicationDelegateAdaptor(KumoAppDelegate.self)` to bridge AppKit-only behaviour (status item setup, Services menu, Spotlight handoff, Dock badge timer, `SMAppService.mainApp` synchronisation, `applicationShouldTerminateAfterLastWindowClosed`).
 
 `KumoAppContext.shared` is a tiny `@MainActor` singleton that exposes the live `KumoAppStore` and SwiftUI window-opening actions to the AppDelegate, status item, App Intents, and Services callbacks (none of which sit inside the SwiftUI view tree).
@@ -37,12 +39,25 @@ uses a dedicated `isSwitchingMode` state instead of the global `isLoading` flag
 so the Start / Stop toolbar action does not flash disabled during a mode-only
 change.
 
+Inspect pages keep toolbar search attached to the page container rather than
+only to populated `Table` / `List` branches. A no-match state must not remove
+the search field, because users need the same toolbar control to clear or edit
+the query.
+
 The Overview metric cards are interactive summaries. They use native `Button`
 controls to navigate into the relevant sidebar destinations and expose focused
 context-menu actions such as refresh, proxy toggle, or opening the matching
 settings page.
 
+Overview proxy group menus are intentionally bounded. They provide quick access
+to the first visible proxy choices and route large groups to the full Proxies
+page instead of creating oversized status menus.
+
 The Configure views may begin as small setting surfaces, but user-visible controls must correspond to shared `KumoCoreKit` behavior. Do not add a SwiftUI-only setting that bypasses the runtime builder, state store, or controller facade.
+System-facing configuration forms such as Core runtime settings and System
+Proxy settings should stage edits in local SwiftUI state and commit them through
+explicit Apply actions. This avoids writing partially typed ports, hosts, or
+network service names into the shared controller layer.
 
 ## Liquid Glass Usage
 
