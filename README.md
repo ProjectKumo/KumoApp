@@ -301,3 +301,13 @@ Contributions are welcome. Before opening a PR:
 - [Mihomo](https://github.com/MetaCubeX/mihomo), the proxy core Kumo drives.
 - The Clash and Mihomo ecosystem, for the controller API conventions Kumo speaks.
 - Apple, for SwiftUI, Liquid Glass, and the macOS Human Interface Guidelines.
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=projectkumo%2Fkumoapp&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=projectkumo/kumoapp&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=projectkumo/kumoapp&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=projectkumo/kumoapp&type=date&legend=top-left" />
+ </picture>
+</a>
