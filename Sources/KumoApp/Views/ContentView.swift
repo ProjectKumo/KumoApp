@@ -1,4 +1,5 @@
 import SwiftUI
+import Observation
 import KumoCoreKit
 
 enum SidebarDestination: String, CaseIterable, Identifiable {
@@ -45,9 +46,15 @@ struct SidebarSection: Identifiable {
     let destinations: [SidebarDestination]
 }
 
+@MainActor
+@Observable
+final class KumoNavigationState {
+    var selection: SidebarDestination = .overview
+}
+
 struct ContentView: View {
     @Environment(KumoAppStore.self) private var store
-    @State private var selection: SidebarDestination = .overview
+    @Environment(KumoNavigationState.self) private var navigation
     private let sections = [
         SidebarSection(id: "daily", title: "Daily", destinations: [.overview, .profiles, .proxies]),
         SidebarSection(id: "inspect", title: "Inspect", destinations: [.connections, .logs, .rules]),
@@ -101,7 +108,7 @@ struct ContentView: View {
                 if isCoreNotFoundError {
                     Button("Open Core Settings") {
                         store.clearError()
-                        selection = .core
+                        navigation.selection = .core
                     }
 
                     Button("Scan Again") {
@@ -127,7 +134,7 @@ struct ContentView: View {
         } detail: {
             detailView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationTitle(selection.rawValue)
+                .navigationTitle(navigation.selection.rawValue)
         }
         .navigationDestination(for: SidebarDestination.self) { destination in
             detailView(for: destination)
@@ -136,7 +143,7 @@ struct ContentView: View {
     }
 
     private var sidebarList: some View {
-        List(selection: $selection) {
+        List(selection: selectionBinding) {
             ForEach(sections) { section in
                 Section(section.title) {
                     ForEach(section.destinations) { destination in
@@ -187,7 +194,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var detailView: some View {
-        detailView(for: selection)
+        detailView(for: navigation.selection)
     }
 
     @ViewBuilder
@@ -225,7 +232,17 @@ struct ContentView: View {
     }
 
     private var navigateAction: (SidebarDestination) -> Void {
-        { destination in selection = destination }
+        { destination in navigation.selection = destination }
+    }
+
+    private var selectionBinding: Binding<SidebarDestination?> {
+        Binding {
+            navigation.selection
+        } set: { destination in
+            if let destination {
+                navigation.selection = destination
+            }
+        }
     }
 
 }

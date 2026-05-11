@@ -75,7 +75,7 @@ struct OverviewView: View {
                         Divider()
                             .padding(.leading, 34)
                     }
-                    ProxyGroupStatusRow(group: group)
+                    ProxyGroupStatusRow(group: group, onNavigate: onNavigate)
                 }
             }
         }
@@ -376,6 +376,8 @@ private struct NetworkMetricCard: View {
 private struct ProxyGroupStatusRow: View {
     @Environment(KumoAppStore.self) private var store
     let group: ProxyGroup
+    let onNavigate: (SidebarDestination) -> Void
+    private let maxMenuProxyCount = 12
 
     var body: some View {
         HStack(spacing: 12) {
@@ -413,7 +415,7 @@ private struct ProxyGroupStatusRow: View {
 
                 Divider()
 
-                ForEach(group.proxies) { proxy in
+                ForEach(Array(group.proxies.prefix(maxMenuProxyCount))) { proxy in
                     Button {
                         Task { await store.selectProxy(group: group, proxy: proxy) }
                     } label: {
@@ -423,6 +425,13 @@ private struct ProxyGroupStatusRow: View {
                         )
                     }
                     .disabled(group.selectedProxyName == proxy.name || store.isLoading)
+                }
+
+                if group.proxies.count > maxMenuProxyCount {
+                    Divider()
+                    Button("Open Proxies…") {
+                        onNavigate(.proxies)
+                    }
                 }
             }
         } label: {
