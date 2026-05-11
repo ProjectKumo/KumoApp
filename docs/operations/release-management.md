@@ -34,6 +34,11 @@ Use the release helper to build the Release `.app`, create the DMG, and emit `la
 make release-dmg VERSION=0.0.1 CHANNEL=stable
 ```
 
+`VERSION` is passed through to Xcode as `MARKETING_VERSION`, so the built
+`Kumo.app/Contents/Info.plist` and `latest.yml` use the same app version.
+Override `BUILD_NUMBER` to set `CFBundleVersion`; it defaults to `1`.
+The artifact script validates the built app version before creating the DMG.
+
 The DMG is laid out as a Finder install window. `Assets/dmg-background.png`
 provides the 660×420 paper background with handwritten labels and a
 pencil-drawn small-loop arrow from `Kumo.app` toward the `/Applications` alias.

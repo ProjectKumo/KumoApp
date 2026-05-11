@@ -456,11 +456,13 @@ public struct MihomoControllerClient: Sendable {
         guard let object = jsonObject(from: text) else {
             return nil
         }
+        let upload = intValue(object["up"]) ?? intValue(object["upload"]) ?? 0
+        let download = intValue(object["down"]) ?? intValue(object["download"]) ?? 0
         return TrafficSnapshot(
-            upload: intValue(object["up"]) ?? intValue(object["upload"]) ?? 0,
-            download: intValue(object["down"]) ?? intValue(object["download"]) ?? 0,
-            uploadSpeed: intValue(object["uploadSpeed"]) ?? intValue(object["upSpeed"]) ?? 0,
-            downloadSpeed: intValue(object["downloadSpeed"]) ?? intValue(object["downSpeed"]) ?? 0
+            upload: upload,
+            download: download,
+            uploadSpeed: intValue(object["uploadSpeed"]) ?? intValue(object["upSpeed"]) ?? upload,
+            downloadSpeed: intValue(object["downloadSpeed"]) ?? intValue(object["downSpeed"]) ?? download
         )
     }
 

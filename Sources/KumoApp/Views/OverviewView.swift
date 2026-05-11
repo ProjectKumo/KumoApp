@@ -10,11 +10,11 @@ struct OverviewView: View {
     }
 
     private var uploadSpeed: Int {
-        store.connections.reduce(0) { $0 + $1.uploadSpeed }
+        store.trafficSnapshot.uploadSpeed
     }
 
     private var downloadSpeed: Int {
-        store.connections.reduce(0) { $0 + $1.downloadSpeed }
+        store.trafficSnapshot.downloadSpeed
     }
 
     var body: some View {

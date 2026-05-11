@@ -47,7 +47,9 @@ the query.
 The Overview metric cards are interactive summaries. They use native `Button`
 controls to navigate into the relevant sidebar destinations and expose focused
 context-menu actions such as refresh, proxy toggle, or opening the matching
-settings page.
+settings page. The Traffic metric uses the controller `/traffic` WebSocket for
+live upload and download speeds, matching Mihomo's `up` / `down` stream values
+rather than deriving speed from connection snapshots.
 
 Overview proxy group menus are intentionally bounded. They provide quick access
 to the first visible proxy choices and route large groups to the full Proxies

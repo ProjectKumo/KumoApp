@@ -5,6 +5,7 @@ XCODEBUILD := xcodebuild
 XCODEGEN := xcodegen
 PRODUCT_APP := KumoApp
 PRODUCT_CLI := kumo
+APP_BUNDLE_ID := io.kumo.KumoApp
 SCHEME_APP := KumoApp
 SCHEME_PACKAGE := Kumo-Package
 PROJECT := Kumo.xcodeproj
@@ -15,6 +16,7 @@ SERVICE_PATH_DEBUG := $(DERIVED_DATA)/Build/Products/Debug/KumoService
 SERVICE_PATH_RELEASE := $(DERIVED_DATA)/Build/Products/Release/KumoService
 RELEASE_OUTPUT := $(DERIVED_DATA)/release
 DESTINATION ?= platform=macOS
+BUILD_NUMBER ?= 1
 
 .DEFAULT_GOAL := help
 
@@ -37,23 +39,53 @@ app: generate ## Build the Kumo .app bundle in Debug to build/Build/Products/Deb
 
 .PHONY: app-release
 app-release: generate ## Build the Kumo .app bundle in Release to build/Build/Products/Release.
-	$(XCODEBUILD) -project $(PROJECT) -scheme $(SCHEME_APP) -configuration Release -derivedDataPath $(DERIVED_DATA) build
+	$(XCODEBUILD) -project $(PROJECT) -scheme $(SCHEME_APP) -configuration Release -derivedDataPath $(DERIVED_DATA) build $(if $(VERSION),MARKETING_VERSION="$(VERSION)" CURRENT_PROJECT_VERSION="$(BUILD_NUMBER)",)
 	@if [ -x "$(SERVICE_PATH_RELEASE)" ]; then \
 		mkdir -p "$(APP_PATH_RELEASE)/Contents/MacOS"; \
 		cp "$(SERVICE_PATH_RELEASE)" "$(APP_PATH_RELEASE)/Contents/MacOS/KumoService"; \
 		chmod 755 "$(APP_PATH_RELEASE)/Contents/MacOS/KumoService"; \
 	fi
 
+.PHONY: require-release-version
+require-release-version:
+	@test -n "$(VERSION)" || { echo "Set VERSION, for example: make release-dmg VERSION=0.0.1"; exit 1; }
+
 .PHONY: release-dmg
-release-dmg: app-release ## Build release app, DMG, and latest.yml. Requires VERSION=0.0.1.
+release-dmg: require-release-version ## Build release app, DMG, and latest.yml. Requires VERSION=0.0.1.
+	$(MAKE) app-release VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)"
 	VERSION="$(VERSION)" CHANNEL="$(CHANNEL)" OUTPUT_DIR="$(RELEASE_OUTPUT)" APP_PATH="$(APP_PATH_RELEASE)" bash Scripts/make_release_artifacts.sh
+
+.PHONY: release-artifacts
+release-artifacts: release-dmg ## Alias for release-dmg.
 
 .PHONY: release-manifest
 release-manifest: release-dmg ## Alias for release-dmg; latest.yml is emitted beside the DMG.
 
+.PHONY: quit-app
+quit-app: ## Quit a running Kumo app before replacing the debug bundle.
+	@osascript -e 'tell application id "$(APP_BUNDLE_ID)" to quit' >/dev/null 2>&1 || true
+	@for attempt in 1 2 3 4 5 6 7 8 9 10; do \
+		if pgrep -x "Kumo" >/dev/null; then \
+			sleep 0.2; \
+		else \
+			break; \
+		fi; \
+	done
+	@if pgrep -x "Kumo" >/dev/null; then \
+		echo "Kumo is still running; sending SIGTERM before rebuilding."; \
+		pkill -TERM -x "Kumo"; \
+	fi
+
+.PHONY: clean-debug-app
+clean-debug-app: ## Remove the debug app bundle before rebuilding it.
+	rm -rf "$(APP_PATH_DEBUG)"
+
 .PHONY: dev
-dev: app ## Build and open the Kumo .app bundle.
-	open $(APP_PATH_DEBUG)
+dev: ## Quit any running Kumo, build, and open the debug .app bundle.
+	$(MAKE) quit-app
+	$(MAKE) clean-debug-app
+	$(MAKE) app
+	open -n "$(APP_PATH_DEBUG)"
 
 .PHONY: dev-cli
 dev-cli: ## Run the SwiftUI macOS app via swift run (no .app bundle).

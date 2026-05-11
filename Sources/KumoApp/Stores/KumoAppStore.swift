@@ -11,6 +11,7 @@ final class KumoAppStore {
     var profiles: [ProfileSummary] = []
     var currentProfile: ProfileSummary?
     var coreConfiguration = CoreConfigurationSnapshot()
+    var trafficSnapshot = TrafficSnapshot()
     var rules: [RuleEntry] = []
     var connections: [ConnectionEntry] = []
     var logs: [LogEntry] = []
@@ -38,10 +39,12 @@ final class KumoAppStore {
 
     private let controller = KumoController()
     private var loadingTaskCount = 0
+    private var trafficStreamTask: Task<Void, Never>?
     private var logStreamTask: Task<Void, Never>?
 
     func refreshAll() async {
         refreshStatus()
+        syncTrafficStreamWithStatus()
         refreshProfiles()
         await refreshDueProfiles()
         refreshCoreCandidates()
@@ -141,6 +144,7 @@ final class KumoAppStore {
             let installResult = try await self.installManagedCoreIfNeeded()
             self.status = try self.controller.start()
             try await self.controller.waitForControllerReady()
+            self.startTrafficStream()
             self.refreshProfiles()
             await self.loadProxyGroups()
             await self.loadCoreConfiguration()
@@ -154,9 +158,11 @@ final class KumoAppStore {
 
     func stopCore() {
         do {
+            stopTrafficStream()
             stopLogStream()
             status = try controller.stop()
             proxyGroups = []
+            trafficSnapshot = TrafficSnapshot()
             errorMessage = nil
         } catch {
             errorMessage = displayMessage(for: error)
@@ -295,6 +301,9 @@ final class KumoAppStore {
         do {
             try controller.setControllerSecret(secret)
             status.endpoint.secret = secret
+            if status.state == .running {
+                startTrafficStream()
+            }
             errorMessage = nil
         } catch {
             errorMessage = displayMessage(for: error)
@@ -552,6 +561,7 @@ final class KumoAppStore {
             if self.status.state == .running {
                 self.status = try self.controller.restart()
                 try await self.controller.waitForControllerReady()
+                self.startTrafficStream()
                 await self.loadProxyGroups()
                 await self.loadCoreConfiguration()
             }
@@ -636,6 +646,7 @@ final class KumoAppStore {
             if status.state == .running {
                 try await controller.waitForControllerReady()
                 await loadCoreConfiguration()
+                startTrafficStream()
             } else {
                 coreConfiguration.tunEnabled = tunStatus.isEnabled
             }
@@ -668,6 +679,34 @@ final class KumoAppStore {
         logStreamTask?.cancel()
         logStreamTask = nil
         isStreamingLogs = false
+    }
+
+    private func startTrafficStream() {
+        guard status.state == .running else { return }
+        trafficStreamTask?.cancel()
+        trafficStreamTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let stream = try self.controller.trafficStream()
+                for try await snapshot in stream {
+                    await MainActor.run {
+                        self.trafficSnapshot = snapshot
+                    }
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                await MainActor.run {
+                    self.trafficSnapshot = TrafficSnapshot()
+                }
+            }
+        }
+    }
+
+    private func stopTrafficStream() {
+        trafficStreamTask?.cancel()
+        trafficStreamTask = nil
+        trafficSnapshot = TrafficSnapshot()
     }
 
     func clearLogs() {
@@ -820,6 +859,7 @@ final class KumoAppStore {
 
         status = try controller.restart()
         try await controller.waitForControllerReady()
+        startTrafficStream()
         await loadProxyGroups()
         await loadCoreConfiguration()
         await loadInspectData()
@@ -838,6 +878,7 @@ final class KumoAppStore {
         }
 
         try await controller.waitForControllerReady()
+        startTrafficStream()
         await loadProxyGroups()
         await loadCoreConfiguration()
         await loadInspectData()
@@ -889,6 +930,14 @@ final class KumoAppStore {
         logs.append(log)
         if logs.count > 500 {
             logs.removeFirst(logs.count - 500)
+        }
+    }
+
+    private func syncTrafficStreamWithStatus() {
+        if status.state == .running {
+            startTrafficStream()
+        } else {
+            stopTrafficStream()
         }
     }
 

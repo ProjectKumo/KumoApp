@@ -21,6 +21,19 @@ if [[ ! -d "$APP_PATH" ]]; then
   exit 1
 fi
 
+APP_INFO_PLIST="${APP_PATH}/Contents/Info.plist"
+if [[ ! -f "$APP_INFO_PLIST" ]]; then
+  echo "App Info.plist not found: $APP_INFO_PLIST" >&2
+  exit 1
+fi
+
+APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_INFO_PLIST")"
+if [[ "$APP_VERSION" != "$VERSION" ]]; then
+  echo "App bundle version ${APP_VERSION} does not match release VERSION ${VERSION}." >&2
+  echo "Build with: make release-dmg VERSION=${VERSION}" >&2
+  exit 1
+fi
+
 if [[ ! -f "$DMG_BACKGROUND_PATH" ]]; then
   echo "DMG background not found: $DMG_BACKGROUND_PATH" >&2
   echo "Place the installer background at Assets/dmg-background.png." >&2
