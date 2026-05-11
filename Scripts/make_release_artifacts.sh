@@ -106,7 +106,9 @@ ln -s /Applications "$MOUNT_DIR/Applications"
 mkdir -p "$MOUNT_DIR/.background"
 cp "$DMG_BACKGROUND_PATH" "$MOUNT_DIR/.background/dmg-background.png"
 
-configure_finder_window
+if ! configure_finder_window; then
+  echo "Warning: failed to configure Finder window for ${VOLUME_NAME}; continuing with default DMG layout." >&2
+fi
 sync
 detach_dmg
 
