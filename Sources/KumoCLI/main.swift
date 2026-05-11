@@ -122,6 +122,8 @@ enum KumoCLI {
             try runServiceCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
         case "tun":
             try await runTunCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
+        case "skills":
+            try runSkillsCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
         default:
             throw KumoError.invalidArguments("Unknown command: \(command)")
         }
@@ -320,6 +322,69 @@ enum KumoCLI {
         }
     }
 
+    private static func runSkillsCommand(
+        arguments: [String],
+        controller: KumoController,
+        wantsJSON: Bool
+    ) throws {
+        guard arguments.count >= 2 else {
+            throw KumoError.invalidArguments("Usage: kumo skills <status|install|uninstall> [--agent <agent|all>] [--scope <global|project>] [--dry-run] [--force] [--json]")
+        }
+
+        let scope = try skillsScope(from: value(after: "--scope", in: arguments))
+        let targets = try skillsTargets(from: value(after: "--agent", in: arguments), scope: scope)
+        let projectWorkingDirectory = URL(
+            fileURLWithPath: FileManager.default.currentDirectoryPath,
+            isDirectory: true
+        )
+        let installer = try AgentSkillsInstaller(paths: controller.paths)
+
+        switch arguments[1] {
+        case "status":
+            let status = try installer.status(
+                targets: targets,
+                scope: scope,
+                projectWorkingDirectory: projectWorkingDirectory
+            )
+            write(status, asJSON: wantsJSON) { status in
+                status.targets.map { targetStatus in
+                    [
+                        targetStatus.target.rawValue,
+                        "scope=\(targetStatus.scope.rawValue)",
+                        "installed=\(targetStatus.installed)",
+                        "upToDate=\(targetStatus.upToDate)",
+                        "path=\(targetStatus.destinationRoot)"
+                    ].joined(separator: " ")
+                }.joined(separator: "\n")
+            }
+        case "install":
+            let report = try installer.install(
+                targets: targets,
+                scope: scope,
+                projectWorkingDirectory: projectWorkingDirectory,
+                dryRun: arguments.contains("--dry-run"),
+                force: arguments.contains("--force")
+            )
+            write(report, asJSON: wantsJSON) { report in
+                let action = report.dryRun ? "would install" : "installed"
+                return "\(action) \(report.copiedSkillIds.joined(separator: ", ")) to \(report.destinationRoots.joined(separator: ", "))"
+            }
+        case "uninstall":
+            let report = try installer.uninstall(
+                targets: targets,
+                scope: scope,
+                projectWorkingDirectory: projectWorkingDirectory,
+                dryRun: arguments.contains("--dry-run")
+            )
+            write(report, asJSON: wantsJSON) { report in
+                let action = report.dryRun ? "would uninstall" : "uninstalled"
+                return "\(action) \(report.copiedSkillIds.joined(separator: ", ")) from \(report.destinationRoots.joined(separator: ", "))"
+            }
+        default:
+            throw KumoError.invalidArguments("Usage: kumo skills <status|install|uninstall> [--agent <agent|all>] [--scope <global|project>] [--dry-run] [--force] [--json]")
+        }
+    }
+
     private static func write<T: Encodable>(
         _ value: T,
         asJSON wantsJSON: Bool,
@@ -382,8 +447,35 @@ enum KumoCLI {
               kumo sysproxy <on|off> [--dry-run] [--json]
               kumo service <status|install|uninstall> [--json]
               kumo tun <status|enable|disable> [--json]
+              kumo skills <status|install|uninstall> [--agent <agent|all>] [--scope <global|project>] [--dry-run] [--force] [--json]
             """
         )
+    }
+
+    private static func skillsScope(from rawValue: String?) throws -> AgentSkillsScope {
+        guard let rawValue else {
+            return .global
+        }
+        guard let scope = AgentSkillsScope(rawValue: rawValue) else {
+            throw KumoError.invalidArguments("Unknown skills scope: \(rawValue). Use global or project.")
+        }
+        return scope
+    }
+
+    private static func skillsTargets(
+        from rawValue: String?,
+        scope: AgentSkillsScope
+    ) throws -> Set<AgentSkillsTarget>? {
+        guard let rawValue, rawValue != "all" else {
+            return nil
+        }
+        guard let target = AgentSkillsTarget(rawValue: rawValue) else {
+            throw KumoError.invalidArguments("Unknown skills agent: \(rawValue). Use cursor, claude, codex, gemini, agents, or all.")
+        }
+        guard scope == .global || target.supportsProjectScope else {
+            throw KumoError.invalidArguments("\(target.displayName) does not support project scope.")
+        }
+        return [target]
     }
 }
 

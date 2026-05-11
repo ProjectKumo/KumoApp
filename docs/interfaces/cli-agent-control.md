@@ -23,6 +23,8 @@ kumo sysproxy on --dry-run --json
 kumo service status --json
 kumo service install
 kumo tun enable --json
+kumo skills status --json
+kumo skills install --agent codex --dry-run --json
 ```
 
 ## Output Modes
@@ -45,9 +47,38 @@ Agent workflows need predictable behavior:
 
 - `--json` should be supported for every command.
 - Dry-run should be available for commands that change system settings.
+- Agent skill installation should use `kumo skills ... --dry-run` before writing
+  into user or project agent skill directories.
 - Exit code `0` means success.
 - Exit code `1` means the command failed and `error` explains why.
 - Command names should remain stable even if implementation moves to a service later.
+
+## Agent Skills
+
+`kumo skills` installs the bundled `kumo-cli` Agent Skill into supported coding
+agent skill directories. The CLI and macOS Integrations UI both use the same
+`KumoCoreKit` target mapping and install state.
+
+Supported agents:
+
+- `cursor` → `~/.cursor/skills` globally, `.cursor/skills` for project scope.
+- `claude` → `~/.claude/skills` globally, `.claude/skills` for project scope.
+- `codex` → `$CODEX_HOME/skills` or `~/.codex/skills` globally.
+- `gemini` → `~/.gemini/skills` globally.
+- `agents` → `~/.agents/skills` globally, `.agents/skills` for project scope.
+- `all` → every target supported by the selected scope.
+
+Commands:
+
+```bash
+kumo skills status [--agent <cursor|claude|codex|gemini|agents|all>] [--scope <global|project>] [--json]
+kumo skills install [--agent <cursor|claude|codex|gemini|agents|all>] [--scope <global|project>] [--dry-run] [--force] [--json]
+kumo skills uninstall [--agent <cursor|claude|codex|gemini|agents|all>] [--scope <global|project>] [--dry-run] [--json]
+```
+
+Install is non-destructive by default. If a destination skill directory already
+exists and was not recorded as installed by Kumo, the command fails unless the
+caller explicitly passes `--force`.
 
 ## App Intents (GUI surface)
 

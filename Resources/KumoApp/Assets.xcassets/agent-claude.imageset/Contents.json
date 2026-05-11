@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "agent-claude.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

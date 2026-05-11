@@ -28,7 +28,7 @@ The main window keeps standard macOS chrome, a unified toolbar, and a sensible m
 
 - Daily: `OverviewView`, `ProfilesView`, `ProxiesView`
 - Inspect: `ConnectionsView`, `LogsView`, `RulesView`
-- Configure: `CoreView`, `SystemProxyView`, `DNSView`, `TunView`, `SnifferView`, `ResourcesView`, `OverridesView`, `SubStoreView`
+- Configure: `CoreView`, `SystemProxyView`, `DNSView`, `TunView`, `SnifferView`, `ResourcesView`, `OverridesView`, `SubStoreView`, `AgentSkillsView`
 
 `KumoAppStore` is an `@Observable` object that bridges SwiftUI state to `KumoCoreKit`. Views should call store methods instead of directly constructing controller clients.
 
@@ -58,6 +58,11 @@ System-facing configuration forms such as Core runtime settings and System
 Proxy settings should stage edits in local SwiftUI state and commit them through
 explicit Apply actions. This avoids writing partially typed ports, hosts, or
 network service names into the shared controller layer.
+
+`AgentSkillsView` installs Kumo's bundled `kumo-cli` Agent Skill into supported
+coding-agent skill directories. The target list, supported scopes, destination
+paths, install state, and overwrite rules come from
+`KumoCoreKit.AgentSkillsInstaller`, matching `kumo skills`.
 
 ## Liquid Glass Usage
 

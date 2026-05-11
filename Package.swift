@@ -14,7 +14,12 @@ let package = Package(
         .executable(name: "KumoService", targets: ["KumoService"])
     ],
     targets: [
-        .target(name: "KumoCoreKit"),
+        .target(
+            name: "KumoCoreKit",
+            resources: [
+                .copy("Resources/KumoAgentSkills")
+            ]
+        ),
         .executableTarget(
             name: "KumoApp",
             dependencies: ["KumoCoreKit"]

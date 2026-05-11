@@ -63,6 +63,10 @@ public struct KumoPaths: Sendable {
         applicationSupportDirectory.appendingPathComponent("state.json")
     }
 
+    public var agentSkillsStateFile: URL {
+        applicationSupportDirectory.appendingPathComponent("agent-skills-state.json")
+    }
+
     public var runtimeConfigFile: URL {
         workDirectory.appendingPathComponent("config.yaml")
     }

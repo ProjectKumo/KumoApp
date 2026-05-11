@@ -1,0 +1,9 @@
+{
+  "bundleVersion": "2",
+  "skills": [
+    {
+      "id": "kumo-cli",
+      "relativePath": "skills/kumo-cli"
+    }
+  ]
+}

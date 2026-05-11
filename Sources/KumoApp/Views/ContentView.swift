@@ -17,6 +17,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
     case resources = "Resources"
     case overrides = "Overrides"
     case subStore = "Sub-Store"
+    case agentSkills = "Agent Skills"
 
     var id: String { rawValue }
 
@@ -36,6 +37,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
         case .resources: "shippingbox"
         case .overrides: "slider.horizontal.3"
         case .subStore: "square.stack.3d.up"
+        case .agentSkills: "puzzlepiece.extension"
         }
     }
 }
@@ -61,7 +63,7 @@ struct ContentView: View {
         SidebarSection(
             id: "configure",
             title: "Configure",
-            destinations: [.core, .systemProxy, .dns, .tun, .sniffer, .resources, .overrides, .subStore]
+            destinations: [.core, .systemProxy, .dns, .tun, .sniffer, .resources, .overrides, .subStore, .agentSkills]
         )
     ]
 
@@ -228,6 +230,8 @@ struct ContentView: View {
             OverridesView()
         case .subStore:
             SubStoreView()
+        case .agentSkills:
+            AgentSkillsView()
         }
     }
 
