@@ -61,10 +61,13 @@ CoreKit import/export contract.
 - controller endpoint
 - mixed proxy port
 - system proxy state (including PAC `mode` and `pacScript`)
-- controlled runtime settings
+- controlled runtime settings, including TUN stack, routing, DNS, route
+  exclusions, MTU, and ICMP forwarding preferences
 - last status message
 
 This allows the CLI and GUI to share state without requiring a service in v1.
+Runtime setting models must decode missing fields with defaults so app updates
+can add new TUN controls without invalidating an existing `state.json`.
 
 ## User Preferences
 
@@ -105,10 +108,26 @@ The cache is disposable. Release metadata and artifact rules are documented in
 ## Sub-Store
 
 `substore/status.json` (`SubStoreStatus`) stores enable flag, custom backend
-URL, downloaded bundle paths, and configured ports. `SubStoreSupervisor`
-launches the backend Process when Sub-Store is enabled and tees stdout +
-stderr into `logs/substore.log`. Stopping Sub-Store terminates the process
-and closes the log handle.
+URL, host/LAN mode, proxy mode, cron settings, resource version, copied bundle
+paths, and configured ports.
+
+Bundled Sub-Store resources are copied from `KumoCoreKit` into:
+
+```text
+substore/resources/
+  manifest.json
+  node/bin/node
+  backend/sub-store.bundle.js
+```
+
+Sub-Store runtime data is kept under `substore/data/`, matching
+`SUB_STORE_DATA_BASE_PATH`. Temporary staging work belongs under
+`substore/temp/`. There is no bundled web frontend: Kumo's SwiftUI Sub-Store
+surface talks to the local backend over HTTP directly.
+
+`SubStoreSupervisor` launches the bundled Node sidecar with
+`sub-store.bundle.js` and Sparkle-compatible environment variables. Stopping
+Sub-Store terminates the backend process and closes the log handle.
 
 ## Runtime Configuration
 

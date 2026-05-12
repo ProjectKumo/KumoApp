@@ -133,7 +133,9 @@ public struct ProfileRepository: Sendable {
             autoUpdate: existing?.autoUpdate ?? true,
             useProxy: existing?.useProxy ?? false,
             updateIntervalSeconds: existing?.updateIntervalSeconds,
-            subscriptionUserInfo: existing?.subscriptionUserInfo
+            subscriptionUserInfo: existing?.subscriptionUserInfo,
+            isSubStoreManaged: existing?.isSubStoreManaged ?? false,
+            subStorePath: existing?.subStorePath
         )
         try saveMetadata(metadata)
         if makeCurrent {
@@ -203,7 +205,55 @@ public struct ProfileRepository: Sendable {
             autoUpdate: autoUpdate,
             useProxy: useProxy,
             updateIntervalSeconds: document.updateIntervalSeconds,
-            subscriptionUserInfo: document.subscriptionUserInfo
+            subscriptionUserInfo: document.subscriptionUserInfo,
+            isSubStoreManaged: false,
+            subStorePath: nil
+        )
+        try saveMetadata(metadata)
+
+        if makeCurrent {
+            try setCurrentProfile(id: id)
+        }
+
+        return try summary(for: id, url: profileURL, metadata: metadata[id], currentID: makeCurrent ? id : currentProfileID())
+    }
+
+    @discardableResult
+    public func saveSubStoreProfile(
+        name: String,
+        subStorePath: String,
+        downloadURL: URL,
+        autoUpdate: Bool = true,
+        useProxy: Bool = false,
+        preferredID: String? = nil,
+        makeCurrent: Bool = true
+    ) async throws -> ProfileSummary {
+        let document = try await fetchRemoteProfileDocument(from: downloadURL, name: name, proxyPort: nil)
+        let profile = Profile(
+            name: document.name,
+            source: .remote(downloadURL),
+            rawYAML: document.yaml,
+            updatedAt: Date()
+        )
+        let id = preferredID ?? stableProfileID(for: profile)
+        let profileURL = profileURL(for: id)
+        try FileManager.default.createDirectory(at: profilesDirectory, withIntermediateDirectories: true)
+        try document.yaml.data(using: .utf8)?.write(to: profileURL, options: .atomic)
+
+        var metadata = try loadMetadata()
+        metadata[id] = ProfileMetadata(
+            id: id,
+            name: document.name,
+            kind: .remote,
+            remoteURL: downloadURL,
+            homeURL: document.homeURL,
+            updatedAt: Date(),
+            autoUpdate: autoUpdate,
+            useProxy: useProxy,
+            updateIntervalSeconds: document.updateIntervalSeconds,
+            subscriptionUserInfo: document.subscriptionUserInfo,
+            isSubStoreManaged: true,
+            subStorePath: subStorePath
         )
         try saveMetadata(metadata)
 
@@ -281,7 +331,9 @@ public struct ProfileRepository: Sendable {
             autoUpdate: autoUpdate,
             useProxy: useProxy,
             updateIntervalSeconds: existing?.updateIntervalSeconds,
-            subscriptionUserInfo: existing?.subscriptionUserInfo
+            subscriptionUserInfo: existing?.subscriptionUserInfo,
+            isSubStoreManaged: existing?.isSubStoreManaged ?? false,
+            subStorePath: existing?.subStorePath
         )
         try saveMetadata(metadata)
         return try summary(for: id, url: url, metadata: metadata[id], currentID: currentProfileID())
@@ -372,7 +424,9 @@ public struct ProfileRepository: Sendable {
             autoUpdate: metadata?.autoUpdate ?? true,
             useProxy: metadata?.useProxy ?? false,
             updateIntervalSeconds: metadata?.updateIntervalSeconds,
-            subscriptionUserInfo: metadata?.subscriptionUserInfo
+            subscriptionUserInfo: metadata?.subscriptionUserInfo,
+            isSubStoreManaged: metadata?.isSubStoreManaged ?? false,
+            subStorePath: metadata?.subStorePath
         )
     }
 
@@ -553,6 +607,8 @@ private struct ProfileMetadata: Codable, Equatable, Sendable {
     var useProxy: Bool
     var updateIntervalSeconds: Int?
     var subscriptionUserInfo: SubscriptionUserInfo?
+    var isSubStoreManaged: Bool?
+    var subStorePath: String?
 }
 
 private struct RemoteProfileDocument: Sendable {

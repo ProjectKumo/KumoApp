@@ -322,6 +322,10 @@ public struct KumoController: Sendable {
 
     @discardableResult
     public func refreshProfile(id: String) async throws -> ProfileSummary {
+        if let profile = try profileRepository.listProfiles().first(where: { $0.id == id }),
+           profile.isSubStoreManaged {
+            return try await refreshSubStoreProfile(id: id)
+        }
         let status = try supervisor.status()
         let proxyPort = status.state == .running ? status.proxyPorts.mixedPort : nil
         return try await profileRepository.refreshRemoteProfile(id: id, proxyPort: proxyPort)
@@ -460,6 +464,46 @@ public struct KumoController: Sendable {
     }
 
     @discardableResult
+    public func applyTunSettings(_ settings: TunSettings) async throws -> TunStatus {
+        if let client = runningServiceClient() {
+            let request = try client.applyTunSettingsRequest(settings)
+            return try client.sendDecodable(request, as: TunStatus.self)
+        }
+
+        var status = try stateStore.load()
+        let service = serviceManager.status()
+        var runtimeSettings = runtimeSettings(for: status)
+        let normalizedSettings = normalizedTunSettings(settings)
+
+        if normalizedSettings.isEnabled, !service.canManageTun {
+            let message = service.message ?? "TUN requires the Kumo privileged helper."
+            status.serviceModeStatus = service
+            status.tunStatus = TunStatus(isEnabled: false, isRunning: false, requiresService: true, lastError: message)
+            try stateStore.save(status)
+            throw KumoError.serviceUnavailable(message)
+        }
+
+        runtimeSettings.tun = normalizedSettings
+        status.runtimeSettings = runtimeSettings
+        status.proxyPorts.mixedPort = runtimeSettings.mixedPort
+        status.serviceModeStatus = service
+        status.tunStatus = TunStatus(
+            isEnabled: normalizedSettings.isEnabled,
+            isRunning: status.state == .running && normalizedSettings.isEnabled,
+            requiresService: !service.canManageTun,
+            lastError: nil
+        )
+        try stateStore.save(status)
+
+        if status.state == .running {
+            _ = try restart()
+            try await waitForControllerReady()
+        }
+
+        return try tunStatus()
+    }
+
+    @discardableResult
     public func setTunEnabled(_ isEnabled: Bool) async throws -> TunStatus {
         if let client = runningServiceClient() {
             return try client.sendDecodable(client.setTunEnabledRequest(isEnabled), as: TunStatus.self)
@@ -507,10 +551,28 @@ public struct KumoController: Sendable {
     }
 
     @discardableResult
+    public func prepareSubStoreResources() throws -> SubStoreStatus {
+        try subStoreManager.prepareResources()
+    }
+
+    public func subStoreRuntimeStatus() async throws -> SubStoreRuntimeStatus {
+        let status = try subStoreManager.status()
+        let backendURL = subStoreManager.backendURL(for: status)
+        return SubStoreRuntimeStatus(
+            configuration: status,
+            isBackendRunning: await subStoreSupervisor.isRunning,
+            backendPID: await subStoreSupervisor.pid,
+            backendURL: backendURL,
+            resourceVersion: status.installedResourceVersion,
+            resourcesInstalled: subStoreManager.resourcesInstalled()
+        )
+    }
+
+    @discardableResult
     public func setSubStoreEnabled(_ isEnabled: Bool) async throws -> SubStoreStatus {
-        let status = try subStoreManager.markEnabled(isEnabled)
+        var status = try subStoreManager.markEnabled(isEnabled)
         if isEnabled {
-            try await subStoreSupervisor.start(plan: subStoreManager.launchPlan(for: status))
+            status = try await startSubStoreServices(status: status)
         } else {
             await subStoreSupervisor.stop()
         }
@@ -519,7 +581,7 @@ public struct KumoController: Sendable {
 
     public func restartSubStoreService() async throws {
         let status = try subStoreManager.status()
-        try await subStoreSupervisor.restart(plan: subStoreManager.launchPlan(for: status))
+        _ = try await startSubStoreServices(status: status, restartBackend: true)
     }
 
     public func stopSubStoreService() async {
@@ -530,17 +592,145 @@ public struct KumoController: Sendable {
         await subStoreSupervisor.isRunning
     }
 
-    public func subStoreWebURL() throws -> URL? {
-        try subStoreManager.webURL(for: subStoreManager.status())
-    }
-
     public func subStoreLaunchPlan() throws -> SubStoreLaunchPlan {
-        try subStoreManager.launchPlan(for: subStoreManager.status())
+        try subStoreManager.launchPlan(for: subStoreManager.status(), mixedPort: try? status().proxyPorts.mixedPort)
     }
 
     @discardableResult
     public func downloadSubStoreBundle(kind: SubStoreBundleKind, from url: URL) async throws -> SubStoreStatus {
-        try await subStoreManager.downloadBundle(kind: kind, from: url)
+        throw KumoError.invalidArguments("Sub-Store resources are bundled with Kumo. Update Kumo to update Sub-Store.")
+    }
+
+    /// Returns a configured `SubStoreClient` pointing at whichever backend is
+    /// currently active (bundled Node sidecar or custom backend URL). Raises
+    /// when no backend is reachable so callers can surface a clear error.
+    public func subStoreClient() throws -> SubStoreClient {
+        guard let backendURL = subStoreManager.backendURL(for: try subStoreManager.status()) else {
+            throw KumoError.invalidArguments("Sub-Store backend is not configured.")
+        }
+        return SubStoreClient(baseURL: backendURL)
+    }
+
+    public func subStoreSubscriptions() async throws -> [SubStoreSubscription] {
+        try await subStoreClient().subscriptions()
+    }
+
+    public func subStoreCollections() async throws -> [SubStoreCollection] {
+        try await subStoreClient().collections()
+    }
+
+    public func subStoreEntries(kind: SubStoreEntryKind) async throws -> [SubStoreEntry] {
+        let client = try subStoreClient()
+        switch kind {
+        case .subscription:
+            return try await client.subscriptions().map {
+                SubStoreEntry(name: $0.name, displayName: $0.displayName, icon: $0.icon, tags: $0.tag ?? [], kind: .subscription)
+            }
+        case .collection:
+            return try await client.collections().map {
+                SubStoreEntry(name: $0.name, displayName: $0.displayName, icon: $0.icon, tags: [], kind: .collection)
+            }
+        }
+    }
+
+    @discardableResult
+    public func importSubStoreProfile(path subStorePath: String, name: String? = nil, useProxy: Bool = false) async throws -> ProfileSummary {
+        let url = try subStoreProfileDownloadURL(path: subStorePath, useProxy: useProxy)
+        return try await profileRepository.saveSubStoreProfile(
+            name: name ?? subStoreDisplayName(for: subStorePath),
+            subStorePath: subStorePath,
+            downloadURL: url,
+            useProxy: useProxy
+        )
+    }
+
+    @discardableResult
+    public func refreshSubStoreProfile(id: String) async throws -> ProfileSummary {
+        let profile = try profileRepository.listProfiles().first { $0.id == id }
+        guard let profile, profile.isSubStoreManaged, let subStorePath = profile.subStorePath else {
+            throw KumoError.invalidArguments("This profile is not managed by Sub-Store.")
+        }
+        let url = try subStoreProfileDownloadURL(path: subStorePath, useProxy: profile.useProxy)
+        return try await profileRepository.saveSubStoreProfile(
+            name: profile.name,
+            subStorePath: subStorePath,
+            downloadURL: url,
+            autoUpdate: profile.autoUpdate,
+            useProxy: profile.useProxy,
+            preferredID: id,
+            makeCurrent: false
+        )
+    }
+
+    @discardableResult
+    private func startSubStoreServices(status: SubStoreStatus, restartBackend: Bool = false) async throws -> SubStoreStatus {
+        var nextStatus = subStoreManager.resourcesInstalled() ? status : try subStoreManager.prepareResources()
+        nextStatus.isEnabled = status.isEnabled
+        nextStatus.usesCustomBackend = status.usesCustomBackend
+        nextStatus.customBackendURL = status.customBackendURL
+        nextStatus.allowsLAN = status.allowsLAN
+        nextStatus.usesProxy = status.usesProxy
+        nextStatus.syncCron = status.syncCron
+        nextStatus.downloadCron = status.downloadCron
+        nextStatus.uploadCron = status.uploadCron
+        let allowLAN = status.allowsLAN
+        let backendPort = try await SubStorePortAllocator.availablePort(
+            startingAt: status.backendPort ?? 38324,
+            allowLAN: allowLAN
+        )
+
+        nextStatus.backendPort = backendPort
+        nextStatus.host = allowLAN ? "0.0.0.0" : "127.0.0.1"
+        try subStoreManager.updateStatus(nextStatus)
+
+        let plan = try subStoreManager.launchPlan(
+            for: nextStatus,
+            mixedPort: try? self.status().proxyPorts.mixedPort
+        )
+
+        if restartBackend {
+            try await subStoreSupervisor.restart(plan: plan)
+        } else {
+            try await subStoreSupervisor.start(plan: plan)
+        }
+
+        return nextStatus
+    }
+
+    private func subStoreProfileDownloadURL(path subStorePath: String, useProxy: Bool) throws -> URL {
+        let status = try subStoreManager.status()
+        let baseURL: URL
+        if let absoluteURL = URL(string: subStorePath), absoluteURL.scheme != nil {
+            baseURL = absoluteURL
+        } else if let backendURL = subStoreManager.backendURL(for: status),
+                  let relativeURL = URL(string: subStorePath, relativeTo: backendURL)?.absoluteURL {
+            baseURL = relativeURL
+        } else {
+            throw KumoError.invalidArguments("Sub-Store backend is not configured.")
+        }
+
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else {
+            throw KumoError.invalidArguments("Enter a valid Sub-Store path.")
+        }
+        var queryItems = components.queryItems ?? []
+        queryItems.removeAll { ["target", "noCache", "proxy"].contains($0.name) }
+        queryItems.append(URLQueryItem(name: "target", value: "ClashMeta"))
+        queryItems.append(URLQueryItem(name: "noCache", value: "true"))
+
+        let mixedPort = (try? self.status().proxyPorts.mixedPort) ?? 0
+        if useProxy, mixedPort > 0 {
+            queryItems.append(URLQueryItem(name: "proxy", value: "http://127.0.0.1:\(mixedPort)"))
+        }
+        components.queryItems = queryItems
+
+        guard let url = components.url else {
+            throw KumoError.invalidArguments("Enter a valid Sub-Store path.")
+        }
+        return url
+    }
+
+    private func subStoreDisplayName(for path: String) -> String {
+        URL(string: path)?.lastPathComponent.removingPercentEncoding ?? "Sub-Store Profile"
     }
 
     @discardableResult
@@ -709,6 +899,7 @@ public struct KumoController: Sendable {
             "auto-redirect": tun.autoRedirect,
             "auto-detect-interface": tun.autoDetectInterface,
             "strict-route": tun.strictRoute,
+            "disable-icmp-forwarding": tun.disableICMPForwarding,
             "dns-hijack": tun.dnsHijack,
             "mtu": tun.mtu
         ]
@@ -729,4 +920,26 @@ public struct KumoController: Sendable {
             "nameserver": tun.nameservers
         ]
     }
+
+    private func normalizedTunSettings(_ settings: TunSettings) -> TunSettings {
+        var settings = settings
+        settings.mtu = max(576, min(9000, settings.mtu))
+        settings.stack = ["mixed", "gvisor", "system"].contains(settings.stack) ? settings.stack : "mixed"
+        settings.dnsEnhancedMode = ["fake-ip", "redir-host", "normal"].contains(settings.dnsEnhancedMode)
+            ? settings.dnsEnhancedMode
+            : "fake-ip"
+        settings.dnsHijack = normalizedList(settings.dnsHijack)
+        settings.routeExcludeAddress = normalizedList(settings.routeExcludeAddress)
+        settings.nameservers = normalizedList(settings.nameservers)
+        settings.fakeIPRange = settings.fakeIPRange.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.device = settings.device?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return settings
+    }
+
+    private func normalizedList(_ values: [String]) -> [String] {
+        values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
 }
+

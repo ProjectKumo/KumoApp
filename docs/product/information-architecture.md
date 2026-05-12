@@ -34,6 +34,10 @@ The following features belong in `Configure` or `Settings`:
 
 Inspect-only features such as connection tables, full logs, and rules live in `Inspect`, because they answer what the core is doing rather than how it should be configured.
 
+Settings is reserved for app-level preferences such as launch, window, language,
+and update choices. Runtime status summaries belong in `Daily` surfaces and the
+menu bar status item, not in the Settings window.
+
 ## Empty and Error States
 
 Kumo should use plain-language messages:

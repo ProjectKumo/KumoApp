@@ -3,16 +3,10 @@ import SwiftUI
 import KumoCoreKit
 
 struct SettingsView: View {
-    @Environment(KumoAppStore.self) private var store
-
     var body: some View {
         TabView {
             Tab("General", systemImage: "gear") {
                 GeneralSettingsTab()
-            }
-
-            Tab("Preferences", systemImage: "switch.2") {
-                PreferencesSettingsTab()
             }
 
             Tab("Updates", systemImage: "arrow.down.circle") {
@@ -20,46 +14,10 @@ struct SettingsView: View {
             }
         }
         .frame(width: 560)
-        .task {
-            await store.refreshAll()
-        }
     }
 }
 
 private struct GeneralSettingsTab: View {
-    @Environment(KumoAppStore.self) private var store
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Form {
-            Section("Status") {
-                LabeledContent("Profile", value: store.currentProfile?.name ?? "Default")
-                LabeledContent("Mode", value: store.status.mode.displayName)
-                LabeledContent("System Proxy", value: store.status.systemProxyEnabled ? "On" : "Off")
-            }
-
-            Section("About") {
-                LabeledContent("Version", value: bundleShortVersion)
-                LabeledContent("Build", value: bundleBuild)
-                Button("Open About Kumo") {
-                    openWindow(id: "about")
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .scenePadding()
-    }
-
-    private var bundleShortVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
-    }
-
-    private var bundleBuild: String {
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
-    }
-}
-
-private struct PreferencesSettingsTab: View {
     @Environment(KumoAppStore.self) private var store
     @State private var launchAtLoginErrorMessage: String?
 

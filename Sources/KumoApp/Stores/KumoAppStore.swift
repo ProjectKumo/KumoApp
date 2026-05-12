@@ -19,6 +19,8 @@ final class KumoAppStore {
     var ruleProviders: [RuleProviderEntry] = []
     var overrides: [OverrideItem] = []
     var subStoreStatus = SubStoreStatus()
+    var subStoreRuntimeStatus = SubStoreRuntimeStatus()
+    var subStoreEntries: [SubStoreEntry] = []
     var serviceModeStatus = ServiceModeStatus()
     var tunStatus = TunStatus()
     var coreCandidates: [CoreCandidate] = []
@@ -37,7 +39,7 @@ final class KumoAppStore {
     var updateStatusMessage: String?
     var lastUpdateCheckResult: AppUpdateCheckResult?
 
-    private let controller = KumoController()
+    let controller = KumoController()
     private var loadingTaskCount = 0
     private var trafficStreamTask: Task<Void, Never>?
     private var logStreamTask: Task<Void, Never>?
@@ -55,6 +57,7 @@ final class KumoAppStore {
         await loadInspectData()
         await loadResources()
         refreshOverrides()
+        await refreshSubStoreRuntimeStatus()
         refreshServiceModeStatus()
         refreshTunStatus()
     }
@@ -418,6 +421,27 @@ final class KumoAppStore {
     func refreshSubStoreStatus() {
         do {
             subStoreStatus = try controller.subStoreStatus()
+            subStoreRuntimeStatus.configuration = subStoreStatus
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func refreshSubStoreRuntimeStatus() async {
+        do {
+            subStoreRuntimeStatus = try await controller.subStoreRuntimeStatus()
+            subStoreStatus = subStoreRuntimeStatus.configuration
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func prepareSubStoreResources() {
+        do {
+            subStoreStatus = try controller.prepareSubStoreResources()
+            subStoreRuntimeStatus.configuration = subStoreStatus
             errorMessage = nil
         } catch {
             errorMessage = displayMessage(for: error)
@@ -427,23 +451,27 @@ final class KumoAppStore {
     func setSubStoreEnabled(_ isEnabled: Bool) async {
         await performLoadingTask { [self] in
             subStoreStatus = try await controller.setSubStoreEnabled(isEnabled)
+            subStoreRuntimeStatus = try await controller.subStoreRuntimeStatus()
         }
     }
 
     func restartSubStoreService() async {
         await performLoadingTask { [self] in
             try await controller.restartSubStoreService()
+            subStoreRuntimeStatus = try await controller.subStoreRuntimeStatus()
         }
     }
 
     func stopSubStoreService() async {
         await controller.stopSubStoreService()
+        await refreshSubStoreRuntimeStatus()
     }
 
     func updateSubStoreStatus(_ status: SubStoreStatus) {
         do {
             try controller.updateSubStoreStatus(status)
             subStoreStatus = status
+            subStoreRuntimeStatus.configuration = status
             errorMessage = nil
         } catch {
             errorMessage = displayMessage(for: error)
@@ -458,6 +486,26 @@ final class KumoAppStore {
 
         await performLoadingTask { [self] in
             subStoreStatus = try await controller.downloadSubStoreBundle(kind: kind, from: url)
+        }
+    }
+
+    func loadSubStoreEntries() async {
+        do {
+            async let subscriptions = controller.subStoreEntries(kind: .subscription)
+            async let collections = controller.subStoreEntries(kind: .collection)
+            let loadedSubscriptions = try await subscriptions
+            let loadedCollections = try await collections
+            subStoreEntries = loadedSubscriptions + loadedCollections
+            errorMessage = nil
+        } catch {
+            errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func importSubStoreProfile(path: String, name: String?, useProxy: Bool) async {
+        await performLoadingTask { [self] in
+            _ = try await controller.importSubStoreProfile(path: path, name: name, useProxy: useProxy)
+            refreshProfiles()
         }
     }
 
@@ -635,6 +683,24 @@ final class KumoAppStore {
             errorMessage = nil
         } catch {
             errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func applyTunSettings(_ settings: TunSettings) async {
+        await performLoadingTask { [self] in
+            tunStatus = try await controller.applyTunSettings(settings)
+            refreshStatus()
+            refreshServiceModeStatus()
+            if status.state == .running {
+                try await controller.waitForControllerReady()
+                await loadCoreConfiguration()
+                startTrafficStream()
+            } else {
+                var runtimeSettings = status.runtimeSettings ?? CoreRuntimeSettings(mixedPort: status.proxyPorts.mixedPort)
+                runtimeSettings.tun = settings
+                status.runtimeSettings = runtimeSettings
+                coreConfiguration.tunEnabled = tunStatus.isEnabled
+            }
         }
     }
 

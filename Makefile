@@ -17,6 +17,7 @@ SERVICE_PATH_RELEASE := $(DERIVED_DATA)/Build/Products/Release/KumoService
 RELEASE_OUTPUT := $(DERIVED_DATA)/release
 DESTINATION ?= platform=macOS
 BUILD_NUMBER ?= 1
+SUBSTORE_RUNTIME_SCRIPT := Scripts/prepare_substore_runtime.sh
 
 .DEFAULT_GOAL := help
 
@@ -28,8 +29,13 @@ help: ## Show available commands.
 generate: ## Regenerate the Xcode project from project.yml using XcodeGen.
 	$(XCODEGEN) generate
 
+.PHONY: prepare-substore-runtime
+prepare-substore-runtime: ## Download the generated Sub-Store Node runtime into local resources.
+	bash $(SUBSTORE_RUNTIME_SCRIPT)
+
 .PHONY: app
 app: generate ## Build the Kumo .app bundle in Debug to build/Build/Products/Debug.
+	$(MAKE) prepare-substore-runtime
 	$(XCODEBUILD) -project $(PROJECT) -scheme $(SCHEME_APP) -configuration Debug -derivedDataPath $(DERIVED_DATA) build
 	@if [ -x "$(SERVICE_PATH_DEBUG)" ]; then \
 		mkdir -p "$(APP_PATH_DEBUG)/Contents/MacOS"; \
@@ -39,6 +45,7 @@ app: generate ## Build the Kumo .app bundle in Debug to build/Build/Products/Deb
 
 .PHONY: app-release
 app-release: generate ## Build the Kumo .app bundle in Release to build/Build/Products/Release.
+	$(MAKE) prepare-substore-runtime
 	$(XCODEBUILD) -project $(PROJECT) -scheme $(SCHEME_APP) -configuration Release -derivedDataPath $(DERIVED_DATA) build $(if $(VERSION),MARKETING_VERSION="$(VERSION)" CURRENT_PROJECT_VERSION="$(BUILD_NUMBER)",)
 	@if [ -x "$(SERVICE_PATH_RELEASE)" ]; then \
 		mkdir -p "$(APP_PATH_RELEASE)/Contents/MacOS"; \
@@ -89,6 +96,7 @@ dev: ## Quit any running Kumo, build, and open the debug .app bundle.
 
 .PHONY: dev-cli
 dev-cli: ## Run the SwiftUI macOS app via swift run (no .app bundle).
+	$(MAKE) prepare-substore-runtime
 	$(SWIFT) run $(PRODUCT_APP)
 
 .PHONY: check
@@ -110,10 +118,12 @@ xcode-test: ## Run package tests via xcodebuild.
 
 .PHONY: swift-build
 swift-build: ## Build all Swift package products in debug mode.
+	$(MAKE) prepare-substore-runtime
 	$(SWIFT) build
 
 .PHONY: build-release
 build-release: ## Build all Swift package products in release mode.
+	$(MAKE) prepare-substore-runtime
 	$(SWIFT) build -c release
 
 .PHONY: test
@@ -125,6 +135,7 @@ swift-test: ## Run unit tests with SwiftPM.
 
 .PHONY: run-cli
 run-cli: ## Run the Kumo CLI. Override ARGS, for example: make run-cli ARGS="status --json".
+	$(MAKE) prepare-substore-runtime
 	$(SWIFT) run $(PRODUCT_CLI) $(ARGS)
 
 .PHONY: cli-status

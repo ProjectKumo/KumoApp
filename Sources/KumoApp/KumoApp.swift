@@ -4,13 +4,20 @@ import KumoCoreKit
 
 @main
 struct KumoApp: App {
-    @State private var store = KumoAppStore()
+    @State private var store: KumoAppStore
+    @State private var subStore: SubStoreStore
     @State private var navigation = KumoNavigationState()
     @NSApplicationDelegateAdaptor(KumoAppDelegate.self) private var appDelegate
 
+    init() {
+        let appStore = KumoAppStore()
+        _store = State(initialValue: appStore)
+        _subStore = State(initialValue: SubStoreStore(controller: appStore.controller))
+    }
+
     var body: some Scene {
         WindowGroup(id: "main") {
-            KumoRootView(store: store, navigation: navigation)
+            KumoRootView(store: store, subStore: subStore, navigation: navigation)
         }
         .defaultSize(width: 1040, height: 720)
         .windowResizability(.contentMinSize)
@@ -96,6 +103,7 @@ struct KumoApp: App {
 
                 navigationButton("Core", destination: .core, key: "7")
                 navigationButton("System Proxy", destination: .systemProxy, key: "8")
+                navigationButton("Sub-Store", destination: .subStore, key: "9")
             }
         }
 
@@ -127,11 +135,13 @@ private struct KumoRootView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
     let store: KumoAppStore
+    let subStore: SubStoreStore
     let navigation: KumoNavigationState
 
     var body: some View {
         ContentView()
             .environment(store)
+            .environment(subStore)
             .environment(navigation)
             .frame(minWidth: 820, minHeight: 560)
             .task {

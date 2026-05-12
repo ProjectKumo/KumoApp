@@ -86,9 +86,12 @@ service-mode migration can absorb them later without scope surprises.
   `networksetup -setautoproxyurl`. When a privileged service exists, this
   listener should move into the service process and the front-end should
   request "PAC enabled" rather than hosting the listener directly.
-- **Sub-Store backend supervisor is implemented** via `SubStoreSupervisor`
-  (`Process` lifecycle + `logs/substore.log`). The future service should
-  own this process so the GUI can be quit without killing Sub-Store.
+- **Sub-Store local lifecycle is implemented in the app process** via
+  `SubStoreSupervisor` (Node `Process` lifecycle + `logs/substore.log`).
+  The future service should own this process so the GUI can be quit without
+  killing Sub-Store. Sub-Store's UI is fully SwiftUI-native and talks to the
+  backend over HTTP, so the service hand-off only needs to relocate the
+  backend process, not any web frontend.
 - **Open at Login** uses `SMAppService.mainApp`. Once a helper bundle
   exists, switch to a `SMAppService.daemon`/`agent` registration so the
   service can run independently of the UI.

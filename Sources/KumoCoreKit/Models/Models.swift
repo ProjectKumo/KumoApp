@@ -111,6 +111,7 @@ public struct TunSettings: Codable, Equatable, Sendable {
     public var autoRedirect: Bool
     public var autoDetectInterface: Bool
     public var strictRoute: Bool
+    public var disableICMPForwarding: Bool
     public var dnsHijack: [String]
     public var routeExcludeAddress: [String]
     public var mtu: Int
@@ -127,6 +128,7 @@ public struct TunSettings: Codable, Equatable, Sendable {
         autoRedirect: Bool = false,
         autoDetectInterface: Bool = true,
         strictRoute: Bool = false,
+        disableICMPForwarding: Bool = false,
         dnsHijack: [String] = ["any:53"],
         routeExcludeAddress: [String] = [],
         mtu: Int = 1500,
@@ -142,6 +144,7 @@ public struct TunSettings: Codable, Equatable, Sendable {
         self.autoRedirect = autoRedirect
         self.autoDetectInterface = autoDetectInterface
         self.strictRoute = strictRoute
+        self.disableICMPForwarding = disableICMPForwarding
         self.dnsHijack = dnsHijack
         self.routeExcludeAddress = routeExcludeAddress
         self.mtu = mtu
@@ -150,6 +153,46 @@ public struct TunSettings: Codable, Equatable, Sendable {
         self.dnsEnhancedMode = dnsEnhancedMode
         self.fakeIPRange = fakeIPRange
         self.nameservers = nameservers
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case isEnabled
+        case stack
+        case autoRoute
+        case autoRedirect
+        case autoDetectInterface
+        case strictRoute
+        case disableICMPForwarding
+        case dnsHijack
+        case routeExcludeAddress
+        case mtu
+        case device
+        case dnsEnabled
+        case dnsEnhancedMode
+        case fakeIPRange
+        case nameservers
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = TunSettings()
+        self.init(
+            isEnabled: try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? defaults.isEnabled,
+            stack: try container.decodeIfPresent(String.self, forKey: .stack) ?? defaults.stack,
+            autoRoute: try container.decodeIfPresent(Bool.self, forKey: .autoRoute) ?? defaults.autoRoute,
+            autoRedirect: try container.decodeIfPresent(Bool.self, forKey: .autoRedirect) ?? defaults.autoRedirect,
+            autoDetectInterface: try container.decodeIfPresent(Bool.self, forKey: .autoDetectInterface) ?? defaults.autoDetectInterface,
+            strictRoute: try container.decodeIfPresent(Bool.self, forKey: .strictRoute) ?? defaults.strictRoute,
+            disableICMPForwarding: try container.decodeIfPresent(Bool.self, forKey: .disableICMPForwarding) ?? defaults.disableICMPForwarding,
+            dnsHijack: try container.decodeIfPresent([String].self, forKey: .dnsHijack) ?? defaults.dnsHijack,
+            routeExcludeAddress: try container.decodeIfPresent([String].self, forKey: .routeExcludeAddress) ?? defaults.routeExcludeAddress,
+            mtu: try container.decodeIfPresent(Int.self, forKey: .mtu) ?? defaults.mtu,
+            device: try container.decodeIfPresent(String.self, forKey: .device) ?? defaults.device,
+            dnsEnabled: try container.decodeIfPresent(Bool.self, forKey: .dnsEnabled) ?? defaults.dnsEnabled,
+            dnsEnhancedMode: try container.decodeIfPresent(String.self, forKey: .dnsEnhancedMode) ?? defaults.dnsEnhancedMode,
+            fakeIPRange: try container.decodeIfPresent(String.self, forKey: .fakeIPRange) ?? defaults.fakeIPRange,
+            nameservers: try container.decodeIfPresent([String].self, forKey: .nameservers) ?? defaults.nameservers
+        )
     }
 }
 
@@ -416,6 +459,8 @@ public struct ProfileSummary: Identifiable, Codable, Equatable, Sendable {
     public var useProxy: Bool
     public var updateIntervalSeconds: Int?
     public var subscriptionUserInfo: SubscriptionUserInfo?
+    public var isSubStoreManaged: Bool
+    public var subStorePath: String?
 
     public init(
         id: String,
@@ -429,7 +474,9 @@ public struct ProfileSummary: Identifiable, Codable, Equatable, Sendable {
         autoUpdate: Bool = true,
         useProxy: Bool = false,
         updateIntervalSeconds: Int? = nil,
-        subscriptionUserInfo: SubscriptionUserInfo? = nil
+        subscriptionUserInfo: SubscriptionUserInfo? = nil,
+        isSubStoreManaged: Bool = false,
+        subStorePath: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -443,6 +490,8 @@ public struct ProfileSummary: Identifiable, Codable, Equatable, Sendable {
         self.useProxy = useProxy
         self.updateIntervalSeconds = updateIntervalSeconds
         self.subscriptionUserInfo = subscriptionUserInfo
+        self.isSubStoreManaged = isSubStoreManaged
+        self.subStorePath = subStorePath
     }
 }
 
@@ -776,6 +825,35 @@ public struct SubStoreStatus: Codable, Equatable, Sendable {
     public var frontendPort: Int?
     public var allowsLAN: Bool
     public var usesProxy: Bool
+    public var host: String
+    public var syncCron: String
+    public var downloadCron: String
+    public var uploadCron: String
+    public var installedResourceVersion: String?
+    public var lastResourceInstallAt: Date?
+    public var lastError: String?
+
+    enum CodingKeys: String, CodingKey {
+        case isEnabled
+        case usesCustomBackend
+        case customBackendURL
+        case frontendDownloadURL
+        case backendDownloadURL
+        case localFrontendPath
+        case localBackendPath
+        case lastUpdatedAt
+        case backendPort
+        case frontendPort
+        case allowsLAN
+        case usesProxy
+        case host
+        case syncCron
+        case downloadCron
+        case uploadCron
+        case installedResourceVersion
+        case lastResourceInstallAt
+        case lastError
+    }
 
     public init(
         isEnabled: Bool = false,
@@ -789,7 +867,14 @@ public struct SubStoreStatus: Codable, Equatable, Sendable {
         backendPort: Int? = nil,
         frontendPort: Int? = nil,
         allowsLAN: Bool = false,
-        usesProxy: Bool = false
+        usesProxy: Bool = false,
+        host: String = "127.0.0.1",
+        syncCron: String = "",
+        downloadCron: String = "",
+        uploadCron: String = "",
+        installedResourceVersion: String? = nil,
+        lastResourceInstallAt: Date? = nil,
+        lastError: String? = nil
     ) {
         self.isEnabled = isEnabled
         self.usesCustomBackend = usesCustomBackend
@@ -803,10 +888,149 @@ public struct SubStoreStatus: Codable, Equatable, Sendable {
         self.frontendPort = frontendPort
         self.allowsLAN = allowsLAN
         self.usesProxy = usesProxy
+        self.host = host
+        self.syncCron = syncCron
+        self.downloadCron = downloadCron
+        self.uploadCron = uploadCron
+        self.installedResourceVersion = installedResourceVersion
+        self.lastResourceInstallAt = lastResourceInstallAt
+        self.lastError = lastError
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = SubStoreStatus()
+        self.init(
+            isEnabled: try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? defaults.isEnabled,
+            usesCustomBackend: try container.decodeIfPresent(Bool.self, forKey: .usesCustomBackend) ?? defaults.usesCustomBackend,
+            customBackendURL: try container.decodeIfPresent(URL.self, forKey: .customBackendURL),
+            frontendDownloadURL: try container.decodeIfPresent(URL.self, forKey: .frontendDownloadURL),
+            backendDownloadURL: try container.decodeIfPresent(URL.self, forKey: .backendDownloadURL),
+            localFrontendPath: try container.decodeIfPresent(String.self, forKey: .localFrontendPath),
+            localBackendPath: try container.decodeIfPresent(String.self, forKey: .localBackendPath),
+            lastUpdatedAt: try container.decodeIfPresent(Date.self, forKey: .lastUpdatedAt),
+            backendPort: try container.decodeIfPresent(Int.self, forKey: .backendPort),
+            frontendPort: try container.decodeIfPresent(Int.self, forKey: .frontendPort),
+            allowsLAN: try container.decodeIfPresent(Bool.self, forKey: .allowsLAN) ?? defaults.allowsLAN,
+            usesProxy: try container.decodeIfPresent(Bool.self, forKey: .usesProxy) ?? defaults.usesProxy,
+            host: try container.decodeIfPresent(String.self, forKey: .host) ?? defaults.host,
+            syncCron: try container.decodeIfPresent(String.self, forKey: .syncCron) ?? defaults.syncCron,
+            downloadCron: try container.decodeIfPresent(String.self, forKey: .downloadCron) ?? defaults.downloadCron,
+            uploadCron: try container.decodeIfPresent(String.self, forKey: .uploadCron) ?? defaults.uploadCron,
+            installedResourceVersion: try container.decodeIfPresent(String.self, forKey: .installedResourceVersion),
+            lastResourceInstallAt: try container.decodeIfPresent(Date.self, forKey: .lastResourceInstallAt),
+            lastError: try container.decodeIfPresent(String.self, forKey: .lastError)
+        )
     }
 }
 
 public enum SubStoreBundleKind: String, Codable, CaseIterable, Sendable {
     case frontend
     case backend
+}
+
+public struct SubStoreResourceManifest: Codable, Equatable, Sendable {
+    public var version: String
+    public var nodeExecutableRelativePath: String
+    public var backendBundleRelativePath: String
+
+    public init(
+        version: String = "0",
+        nodeExecutableRelativePath: String = "node/bin/node",
+        backendBundleRelativePath: String = "backend/sub-store.bundle.js"
+    ) {
+        self.version = version
+        self.nodeExecutableRelativePath = nodeExecutableRelativePath
+        self.backendBundleRelativePath = backendBundleRelativePath
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case nodeExecutableRelativePath
+        case backendBundleRelativePath
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = SubStoreResourceManifest()
+        self.version = try container.decodeIfPresent(String.self, forKey: .version) ?? defaults.version
+        self.nodeExecutableRelativePath = try container.decodeIfPresent(String.self, forKey: .nodeExecutableRelativePath) ?? defaults.nodeExecutableRelativePath
+        self.backendBundleRelativePath = try container.decodeIfPresent(String.self, forKey: .backendBundleRelativePath) ?? defaults.backendBundleRelativePath
+    }
+}
+
+public struct SubStoreRuntimeStatus: Codable, Equatable, Sendable {
+    public var configuration: SubStoreStatus
+    public var isBackendRunning: Bool
+    public var backendPID: Int32?
+    public var backendURL: URL?
+    public var resourceVersion: String?
+    public var resourcesInstalled: Bool
+
+    public init(
+        configuration: SubStoreStatus = SubStoreStatus(),
+        isBackendRunning: Bool = false,
+        backendPID: Int32? = nil,
+        backendURL: URL? = nil,
+        resourceVersion: String? = nil,
+        resourcesInstalled: Bool = false
+    ) {
+        self.configuration = configuration
+        self.isBackendRunning = isBackendRunning
+        self.backendPID = backendPID
+        self.backendURL = backendURL
+        self.resourceVersion = resourceVersion
+        self.resourcesInstalled = resourcesInstalled
+    }
+}
+
+public struct SubStoreEntry: Identifiable, Codable, Equatable, Sendable {
+    public var name: String
+    public var displayName: String?
+    public var icon: String?
+    public var tags: [String]
+    public var kind: SubStoreEntryKind
+
+    public var id: String {
+        "\(kind.rawValue):\(name)"
+    }
+
+    public init(
+        name: String,
+        displayName: String? = nil,
+        icon: String? = nil,
+        tags: [String] = [],
+        kind: SubStoreEntryKind
+    ) {
+        self.name = name
+        self.displayName = displayName
+        self.icon = icon
+        self.tags = tags
+        self.kind = kind
+    }
+
+    /// Relative URL the Sub-Store backend serves for this entry. Sparkle uses
+    /// the same `/download/...` path shape, with collections living under
+    /// `/download/collection/...`.
+    public var downloadPath: String {
+        let encodedName = name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name
+        switch kind {
+        case .subscription:
+            return "/download/\(encodedName)"
+        case .collection:
+            return "/download/collection/\(encodedName)"
+        }
+    }
+
+    public var resolvedDisplayName: String {
+        if let displayName, !displayName.isEmpty {
+            return displayName
+        }
+        return name
+    }
+}
+
+public enum SubStoreEntryKind: String, Codable, Sendable {
+    case subscription
+    case collection
 }

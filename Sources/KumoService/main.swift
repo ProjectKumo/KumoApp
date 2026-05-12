@@ -295,6 +295,9 @@ private final class KumoServiceSocketServer: @unchecked Sendable {
             return try json(try await controller.setTunEnabled(true))
         case ("POST", "/tun/disable"):
             return try json(try await controller.setTunEnabled(false))
+        case ("POST", "/tun/settings"):
+            let settings = try JSONDecoder().decode(TunSettings.self, from: request.body)
+            return try json(try await controller.applyTunSettings(settings))
         default:
             return KumoServiceTransportResponse(status: 404, error: "Unknown Kumo service endpoint: \(request.method) \(request.path)")
         }

@@ -69,3 +69,5 @@ Prioritize tests that do not mutate real system state:
 - App update DMG downloads fail closed on SHA-256 mismatch and report a clear error when the current app location is not writable.
 - `kumo doctor --json` reports status, profile, and core candidate information.
 - `kumo backup export <path> --json` creates a manifest-backed backup directory.
+- `kumo substore status --json` reports enabled state, frontend/backend runtime
+  state, resource version, and local URL without launching a dev server.

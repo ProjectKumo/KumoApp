@@ -471,14 +471,18 @@ struct DNSView: View {
 struct TunView: View {
     @Environment(KumoAppStore.self) private var store
     @State private var isConfirmingServiceUninstall = false
+    @State private var tunDraft = TunSettings()
+    @State private var dnsHijackTextDraft = TunSettings().dnsHijack.joined(separator: ",")
+    @State private var routeExcludeTextDraft = ""
+    @State private var nameserversTextDraft = TunSettings().nameservers.joined(separator: "\n")
     let onNavigate: (SidebarDestination) -> Void
 
     var body: some View {
         KumoPage(title: "TUN") {
             Form {
-                Section("Service") {
+                Section("Status") {
                     LabeledContent("Helper", value: helperState)
-                    LabeledContent("Socket", value: store.serviceModeStatus.socketPath.isEmpty ? "-" : store.serviceModeStatus.socketPath)
+                    LabeledContent("TUN", value: store.tunStatus.isRunning ? "Running" : "Stopped")
                     if let message = store.serviceModeStatus.message {
                         Text(message)
                             .font(.caption)
@@ -499,12 +503,11 @@ struct TunView: View {
 
                 Section("Runtime") {
                     Toggle("Enable TUN", isOn: Binding {
-                        tunSettings.isEnabled
+                        currentTunSettings.isEnabled
                     } set: { isEnabled in
                         Task { await store.setTunEnabled(isEnabled) }
                     })
                     .disabled(store.isLoading)
-                    LabeledContent("Running", value: store.tunStatus.isRunning ? "Yes" : "No")
                     if let lastError = store.tunStatus.lastError {
                         Text(lastError)
                             .font(.caption)
@@ -513,18 +516,78 @@ struct TunView: View {
                 }
 
                 Section {
-                    Picker("Stack", selection: stackBinding) {
+                    Picker("Stack", selection: $tunDraft.stack) {
                         Text("Mixed").tag("mixed")
                         Text("gVisor").tag("gvisor")
                         Text("System").tag("system")
                     }
-                    Toggle("Auto Route", isOn: autoRouteBinding)
-                    Toggle("Auto Detect Interface", isOn: autoDetectInterfaceBinding)
-                    Toggle("Strict Route", isOn: strictRouteBinding)
-                    TextField("MTU", value: mtuBinding, format: .number)
-                    TextField("DNS Hijack", text: dnsHijackBinding)
+                    .pickerStyle(.segmented)
+                    Toggle("Auto Route", isOn: $tunDraft.autoRoute)
+                    Toggle("Auto Detect Interface", isOn: $tunDraft.autoDetectInterface)
+                    Toggle("Strict Route", isOn: $tunDraft.strictRoute)
+                    Toggle("ICMP Forwarding", isOn: icmpForwardingBinding)
+                    TextField("MTU", value: $tunDraft.mtu, format: .number)
                 } header: {
-                    Text("TUN Settings")
+                    Text("Routing")
+                } footer: {
+                    Text("Routing changes are staged locally. Apply restarts the core when it is running so Mihomo reloads the generated TUN configuration.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    Toggle("Enable DNS", isOn: $tunDraft.dnsEnabled)
+                    Picker("Enhanced Mode", selection: $tunDraft.dnsEnhancedMode) {
+                        Text("Fake IP").tag("fake-ip")
+                        Text("Redir Host").tag("redir-host")
+                        Text("Normal").tag("normal")
+                    }
+                    .pickerStyle(.segmented)
+                    TextField("Fake IP Range", text: $tunDraft.fakeIPRange)
+                    TextField("DNS Hijack", text: dnsHijackTextBinding)
+                    TextEditor(text: nameserversTextBinding)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 86)
+                        .accessibilityLabel("Nameservers")
+                } header: {
+                    Text("DNS")
+                } footer: {
+                    Text("Enter DNS hijack values separated by commas. Enter nameservers one per line.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    TextEditor(text: routeExcludeTextBinding)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 86)
+                        .accessibilityLabel("Excluded CIDR ranges")
+                } header: {
+                    Text("Route Exclude")
+                } footer: {
+                    Text("Use one CIDR range per line, for example 100.64.0.0/10.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    if let validationMessage = tunDraftValidationMessage {
+                        Text(validationMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Spacer()
+                        Button("Reset") {
+                            updateTunDraft(currentTunSettings)
+                        }
+                        .disabled(!hasTunDraftChanges || store.isLoading)
+
+                        Button("Apply") {
+                            applyTunDraft()
+                        }
+                        .disabled(!canApplyTunDraft)
+                    }
                 } footer: {
                     Text("TUN requires Kumo Helper or a privileged Kumo process so Mihomo can create the utun interface. This path does not use macOS VPN configuration prompts.")
                         .font(.caption)
@@ -544,6 +607,14 @@ struct TunView: View {
         .task {
             store.refreshServiceModeStatus()
             store.refreshTunStatus()
+            updateTunDraft(currentTunSettings)
+        }
+        .onChange(of: currentTunSettings) { _, newValue in
+            if !hasTunDraftChanges {
+                updateTunDraft(newValue)
+            } else {
+                tunDraft.isEnabled = newValue.isEnabled
+            }
         }
         .confirmationDialog(
             "Uninstall Kumo Helper?",
@@ -566,46 +637,142 @@ struct TunView: View {
         return store.serviceModeStatus.isInstalled ? "Installed, Not Running" : "Not Installed"
     }
 
-    private var tunSettings: TunSettings {
+    private var currentTunSettings: TunSettings {
         store.status.runtimeSettings?.tun ?? TunSettings()
     }
 
-    private func updateTunSettings(_ edit: (inout TunSettings) -> Void) {
-        var settings = tunSettings
-        edit(&settings)
-        store.updateTunSettings(settings)
+    private var normalizedTunDraft: TunSettings {
+        normalizedTunSettings(tunDraft)
     }
 
-    private var stackBinding: Binding<String> {
-        Binding { tunSettings.stack } set: { value in updateTunSettings { $0.stack = value } }
+    private var hasTunDraftChanges: Bool {
+        comparableTunSettings(normalizedTunDraft) != comparableTunSettings(currentTunSettings)
     }
 
-    private var autoRouteBinding: Binding<Bool> {
-        Binding { tunSettings.autoRoute } set: { value in updateTunSettings { $0.autoRoute = value } }
+    private var canApplyTunDraft: Bool {
+        hasTunDraftChanges && tunDraftValidationMessage == nil && !store.isLoading
     }
 
-    private var autoDetectInterfaceBinding: Binding<Bool> {
-        Binding { tunSettings.autoDetectInterface } set: { value in updateTunSettings { $0.autoDetectInterface = value } }
+    private var tunDraftValidationMessage: String? {
+        let settings = normalizedTunDraft
+        if settings.dnsHijack.isEmpty {
+            return "DNS Hijack needs at least one value."
+        }
+        if settings.dnsEnabled, settings.nameservers.isEmpty {
+            return "Nameservers need at least one value when DNS is enabled."
+        }
+        if settings.dnsEnabled, settings.dnsEnhancedMode == "fake-ip", !Self.isCIDR(settings.fakeIPRange) {
+            return "Fake IP Range must use CIDR notation."
+        }
+        if let invalidCIDR = settings.routeExcludeAddress.first(where: { !Self.isCIDR($0) }) {
+            return "Route Exclude contains an invalid CIDR: \(invalidCIDR)"
+        }
+        return nil
     }
 
-    private var strictRouteBinding: Binding<Bool> {
-        Binding { tunSettings.strictRoute } set: { value in updateTunSettings { $0.strictRoute = value } }
-    }
-
-    private var mtuBinding: Binding<Int> {
-        Binding { tunSettings.mtu } set: { value in updateTunSettings { $0.mtu = max(576, min(9000, value)) } }
-    }
-
-    private var dnsHijackBinding: Binding<String> {
+    private var icmpForwardingBinding: Binding<Bool> {
         Binding {
-            tunSettings.dnsHijack.joined(separator: ",")
+            !tunDraft.disableICMPForwarding
         } set: { value in
-            updateTunSettings {
-                $0.dnsHijack = value
-                    .split(separator: ",")
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-            }
+            tunDraft.disableICMPForwarding = !value
+        }
+    }
+
+    private var dnsHijackTextBinding: Binding<String> {
+        Binding {
+            dnsHijackTextDraft
+        } set: { value in
+            dnsHijackTextDraft = value
+            tunDraft.dnsHijack = Self.commaSeparatedList(from: value)
+        }
+    }
+
+    private var routeExcludeTextBinding: Binding<String> {
+        Binding {
+            routeExcludeTextDraft
+        } set: { value in
+            routeExcludeTextDraft = value
+            tunDraft.routeExcludeAddress = Self.lineList(from: value)
+        }
+    }
+
+    private var nameserversTextBinding: Binding<String> {
+        Binding {
+            nameserversTextDraft
+        } set: { value in
+            nameserversTextDraft = value
+            tunDraft.nameservers = Self.lineList(from: value)
+        }
+    }
+
+    private func applyTunDraft() {
+        let settings = normalizedTunDraft
+        updateTunDraft(settings)
+        Task { await store.applyTunSettings(settings) }
+    }
+
+    private func updateTunDraft(_ settings: TunSettings) {
+        let settings = normalizedTunSettings(settings)
+        tunDraft = settings
+        dnsHijackTextDraft = settings.dnsHijack.joined(separator: ",")
+        routeExcludeTextDraft = settings.routeExcludeAddress.joined(separator: "\n")
+        nameserversTextDraft = settings.nameservers.joined(separator: "\n")
+    }
+
+    private func normalizedTunSettings(_ settings: TunSettings) -> TunSettings {
+        var settings = settings
+        settings.isEnabled = currentTunSettings.isEnabled
+        settings.stack = ["mixed", "gvisor", "system"].contains(settings.stack) ? settings.stack : "mixed"
+        settings.dnsEnhancedMode = ["fake-ip", "redir-host", "normal"].contains(settings.dnsEnhancedMode)
+            ? settings.dnsEnhancedMode
+            : "fake-ip"
+        settings.mtu = max(576, min(9000, settings.mtu))
+        settings.fakeIPRange = settings.fakeIPRange.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.dnsHijack = Self.normalizedList(settings.dnsHijack)
+        settings.routeExcludeAddress = Self.normalizedList(settings.routeExcludeAddress)
+        settings.nameservers = Self.normalizedList(settings.nameservers)
+        return settings
+    }
+
+    private func comparableTunSettings(_ settings: TunSettings) -> TunSettings {
+        var settings = normalizedTunSettings(settings)
+        settings.isEnabled = false
+        return settings
+    }
+
+    private static func commaSeparatedList(from text: String) -> [String] {
+        normalizedList(text.components(separatedBy: ","))
+    }
+
+    private static func lineList(from text: String) -> [String] {
+        normalizedList(text.components(separatedBy: .newlines))
+    }
+
+    private static func normalizedList(_ values: [String]) -> [String] {
+        values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func isCIDR(_ value: String) -> Bool {
+        let parts = value.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              !parts[0].isEmpty,
+              let prefix = Int(parts[1]) else {
+            return false
+        }
+
+        if parts[0].contains(":") {
+            return (0...128).contains(prefix)
+        }
+
+        let octets = parts[0].split(separator: ".", omittingEmptySubsequences: false)
+        guard octets.count == 4, (0...32).contains(prefix) else {
+            return false
+        }
+        return octets.allSatisfy { octet in
+            guard let value = Int(octet) else { return false }
+            return (0...255).contains(value)
         }
     }
 }
@@ -989,146 +1156,6 @@ private struct NewOverrideSheet: View {
             .padding([.horizontal, .bottom])
         }
         .frame(minWidth: 420)
-    }
-}
-
-struct SubStoreView: View {
-    @Environment(KumoAppStore.self) private var store
-    @State private var frontendURL = ""
-    @State private var backendURL = ""
-
-    var body: some View {
-        KumoPage(title: "Sub-Store") {
-            Form {
-                Section {
-                    Toggle("Enable Sub-Store", isOn: Binding {
-                        store.subStoreStatus.isEnabled
-                    } set: { isEnabled in
-                        Task { await store.setSubStoreEnabled(isEnabled) }
-                    })
-                    Toggle("Use Custom Backend", isOn: customBackendBinding)
-                    Toggle("Allow LAN", isOn: allowLANBinding)
-                    Toggle("Proxy Sub-Store Requests", isOn: useProxyBinding)
-                }
-
-                if store.subStoreStatus.usesCustomBackend {
-                    Section("Custom Backend") {
-                        TextField("Backend URL", text: customBackendURLBinding)
-                    }
-                } else {
-                    Section("Download") {
-                        TextField("Frontend Bundle URL", text: $frontendURL)
-                        HStack {
-                            LabeledContent("Frontend", value: store.subStoreStatus.localFrontendPath.map(shortPath) ?? "Not downloaded")
-                            Spacer()
-                            Button("Download Frontend") {
-                                Task { await store.downloadSubStoreBundle(kind: .frontend, urlString: frontendURL) }
-                            }
-                            .disabled(frontendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isLoading)
-                        }
-
-                        TextField("Backend Bundle URL", text: $backendURL)
-                        HStack {
-                            LabeledContent("Backend", value: store.subStoreStatus.localBackendPath.map(shortPath) ?? "Not downloaded")
-                            Spacer()
-                            Button("Download Backend") {
-                                Task { await store.downloadSubStoreBundle(kind: .backend, urlString: backendURL) }
-                            }
-                            .disabled(backendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isLoading)
-                        }
-                    }
-
-                    Section("Local Service") {
-                        LabeledContent("Backend Port", value: store.subStoreStatus.backendPort.map(String.init) ?? "-")
-                        LabeledContent("Frontend Port", value: store.subStoreStatus.frontendPort.map(String.init) ?? "-")
-                        LabeledContent("Last Updated", value: store.subStoreStatus.lastUpdatedAt?.formatted(date: .abbreviated, time: .shortened) ?? "-")
-                    }
-                }
-
-                if !store.subStoreStatus.usesCustomBackend {
-                    Section("Service") {
-                        Button("Restart Backend") {
-                            Task { await store.restartSubStoreService() }
-                        }
-                        .disabled(!store.subStoreStatus.isEnabled || store.isLoading)
-
-                        Button("View Logs") {
-                            NSWorkspace.shared.open(store.subStoreLogURL)
-                        }
-                    }
-                }
-
-                Section("Open") {
-                    Button("Open Sub-Store") {
-                        if let url = subStoreURL {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .disabled(subStoreURL == nil)
-                }
-            }
-            .formStyle(.grouped)
-        }
-        .task {
-            store.refreshSubStoreStatus()
-            frontendURL = store.subStoreStatus.frontendDownloadURL?.absoluteString ?? frontendURL
-            backendURL = store.subStoreStatus.backendDownloadURL?.absoluteString ?? backendURL
-        }
-    }
-
-    private var subStoreURL: URL? {
-        if store.subStoreStatus.usesCustomBackend {
-            return store.subStoreStatus.customBackendURL
-        }
-        guard let frontendPort = store.subStoreStatus.frontendPort,
-              let backendPort = store.subStoreStatus.backendPort else {
-            return nil
-        }
-        return URL(string: "http://127.0.0.1:\(frontendPort)?api=http://127.0.0.1:\(backendPort)")
-    }
-
-    private var customBackendBinding: Binding<Bool> {
-        Binding {
-            store.subStoreStatus.usesCustomBackend
-        } set: { value in
-            var status = store.subStoreStatus
-            status.usesCustomBackend = value
-            store.updateSubStoreStatus(status)
-        }
-    }
-
-    private var allowLANBinding: Binding<Bool> {
-        Binding {
-            store.subStoreStatus.allowsLAN
-        } set: { value in
-            var status = store.subStoreStatus
-            status.allowsLAN = value
-            store.updateSubStoreStatus(status)
-        }
-    }
-
-    private var useProxyBinding: Binding<Bool> {
-        Binding {
-            store.subStoreStatus.usesProxy
-        } set: { value in
-            var status = store.subStoreStatus
-            status.usesProxy = value
-            store.updateSubStoreStatus(status)
-        }
-    }
-
-    private var customBackendURLBinding: Binding<String> {
-        Binding {
-            store.subStoreStatus.customBackendURL?.absoluteString ?? ""
-        } set: { value in
-            var status = store.subStoreStatus
-            status.customBackendURL = URL(string: value)
-            store.updateSubStoreStatus(status)
-        }
-    }
-
-    private func shortPath(_ path: String) -> String {
-        URL(fileURLWithPath: path).lastPathComponent
     }
 }
 

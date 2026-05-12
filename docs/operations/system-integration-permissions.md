@@ -10,10 +10,10 @@ Kumo ships as a real `.app` bundle generated from `project.yml` via XcodeGen
   menu), `CFBundleDocumentTypes` (`.yaml` profiles), `NSUserActivityTypes`
   (Spotlight handoff), and `NSAppleEventsUsageDescription` /
   `NSSystemAdministrationUsageDescription` (consent strings used when running
-  `networksetup` and spawning the Mihomo / Sub-Store helper processes).
+  `networksetup` and spawning the Mihomo / bundled Node Sub-Store processes).
 - `Resources/KumoApp/KumoApp.entitlements` — `com.apple.security.app-sandbox`
   is **disabled** so that `networksetup` invocations and child processes
-  (Mihomo core, Sub-Store backend, PAC HTTP listener) keep working without a
+  (Mihomo core, Sub-Store backend/frontend listeners, PAC HTTP listener) keep working without a
   separate helper. `com.apple.security.network.client` and
   `com.apple.security.network.server` are enabled. Sandboxing remains a
   follow-up once helper-bundle / XPC architecture lands.

@@ -39,6 +39,34 @@ public struct KumoPaths: Sendable {
         applicationSupportDirectory.appendingPathComponent("substore", isDirectory: true)
     }
 
+    public var subStoreStatusFile: URL {
+        subStoreDirectory.appendingPathComponent("status.json")
+    }
+
+    public var subStoreResourcesDirectory: URL {
+        subStoreDirectory.appendingPathComponent("resources", isDirectory: true)
+    }
+
+    public var subStoreResourceManifestFile: URL {
+        subStoreResourcesDirectory.appendingPathComponent("manifest.json")
+    }
+
+    public var subStoreNodeExecutable: URL {
+        subStoreResourcesDirectory.appendingPathComponent("node/bin/node")
+    }
+
+    public var subStoreBackendBundle: URL {
+        subStoreResourcesDirectory.appendingPathComponent("backend/sub-store.bundle.js")
+    }
+
+    public var subStoreDataDirectory: URL {
+        subStoreDirectory.appendingPathComponent("data", isDirectory: true)
+    }
+
+    public var subStoreTempDirectory: URL {
+        subStoreDirectory.appendingPathComponent("temp", isDirectory: true)
+    }
+
     public var appUpdatesDirectory: URL {
         applicationSupportDirectory.appendingPathComponent("updates", isDirectory: true)
     }
@@ -138,6 +166,14 @@ public struct KumoPaths: Sendable {
         )
         try FileManager.default.createDirectory(
             at: subStoreDirectory,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: subStoreDataDirectory,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: subStoreTempDirectory,
             withIntermediateDirectories: true
         )
         try FileManager.default.createDirectory(

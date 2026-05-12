@@ -38,6 +38,14 @@ make release-dmg VERSION=0.0.1 CHANNEL=stable
 `Kumo.app/Contents/Info.plist` and `latest.yml` use the same app version.
 Override `BUILD_NUMBER` to set `CFBundleVersion`; it defaults to `1`.
 The artifact script validates the built app version before creating the DMG.
+Release builds must also include the bundled Sub-Store payload in
+`KumoCoreKit` resources: Node sidecar, `sub-store.bundle.js`, and
+`manifest.json`. The Sub-Store frontend is no longer bundled; Kumo's SwiftUI
+UI talks to the backend directly. Kumo does not download Sub-Store at
+runtime; app updates are the update channel for the bundled Sub-Store
+resources. The Node sidecar is not tracked in Git; `make app-release` runs
+`Scripts/prepare_substore_runtime.sh` before invoking Xcode so the generated
+runtime is present in the resource bundle without committing the large binary.
 
 The DMG is laid out as a Finder install window. `Assets/dmg-background.png`
 provides the 660×420 paper background with handwritten labels and a

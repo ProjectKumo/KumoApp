@@ -157,8 +157,11 @@ final class RuntimeConfigBuilderTests: XCTestCase {
             tun: TunSettings(
                 isEnabled: true,
                 stack: "mixed",
+                disableICMPForwarding: true,
                 dnsHijack: ["any:53"],
-                device: "utun9"
+                routeExcludeAddress: ["100.64.0.0/10"],
+                device: "utun9",
+                nameservers: ["https://example.com/dns-query"]
             )
         )
         let builder = RuntimeConfigBuilder(runtimeSettings: settings)
@@ -167,9 +170,12 @@ final class RuntimeConfigBuilderTests: XCTestCase {
 
         XCTAssertTrue(runtime.yaml.contains("tun:\n  enable: true"))
         XCTAssertTrue(runtime.yaml.contains("stack: mixed"))
+        XCTAssertTrue(runtime.yaml.contains("disable-icmp-forwarding: true"))
         XCTAssertTrue(runtime.yaml.contains("dns-hijack:\n    - \"any:53\""))
+        XCTAssertTrue(runtime.yaml.contains("route-exclude-address:\n    - 100.64.0.0/10"))
         XCTAssertTrue(runtime.yaml.contains("device: utun9"))
         XCTAssertTrue(runtime.yaml.contains("dns:\n  enable: true"))
+        XCTAssertTrue(runtime.yaml.contains("nameserver:\n    - \"https://example.com/dns-query\""))
         XCTAssertFalse(runtime.yaml.contains("tun:\n  enable: false"))
     }
 
@@ -189,5 +195,33 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         let runtime = builder.build(profile: profile)
 
         XCTAssertTrue(runtime.yaml.contains("tun:\n  enable: true"))
+    }
+
+    func testTunSettingsDecodesMissingNewFieldsWithDefaults() throws {
+        let data = Data(
+            """
+            {
+              "isEnabled": true,
+              "stack": "mixed",
+              "autoRoute": true,
+              "autoDetectInterface": true,
+              "strictRoute": false,
+              "dnsHijack": ["any:53"],
+              "routeExcludeAddress": [],
+              "mtu": 1500,
+              "dnsEnabled": true,
+              "dnsEnhancedMode": "fake-ip",
+              "fakeIPRange": "198.18.0.1/16",
+              "nameservers": ["https://doh.pub/dns-query"]
+            }
+            """.utf8
+        )
+
+        let settings = try JSONDecoder().decode(TunSettings.self, from: data)
+
+        XCTAssertTrue(settings.isEnabled)
+        XCTAssertFalse(settings.autoRedirect)
+        XCTAssertFalse(settings.disableICMPForwarding)
+        XCTAssertEqual(settings.nameservers, ["https://doh.pub/dns-query"])
     }
 }

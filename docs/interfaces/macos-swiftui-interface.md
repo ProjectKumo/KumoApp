@@ -60,6 +60,28 @@ System-facing configuration forms such as Core runtime settings and System
 Proxy settings should stage edits in local SwiftUI state and commit them through
 explicit Apply actions. This avoids writing partially typed ports, hosts, or
 network service names into the shared controller layer.
+The TUN settings page follows the same pattern for stack, routing, MTU, DNS
+hijack, DNS resolver, ICMP forwarding, and route-exclude edits. The TUN enable
+toggle remains an immediate runtime action, while staged advanced settings are
+applied through `KumoCoreKit.applyTunSettings`; if Mihomo is running, Kumo
+restarts the core so the generated runtime YAML and actual TUN interface state
+match the form.
+
+`SubStoreView` is a fully native SwiftUI surface that talks to the bundled
+Sub-Store backend over HTTP. When the backend is reachable the view shows a
+single thin toolbar with a `Subscriptions`/`Collections` segmented picker, an
+overflow `⋯` menu (advanced screens, restart, stop, open log), and a backend
+connection settings popover. The two primary sections each render their own
+list-detail layout. Power-user surfaces (Files, Modules, Artifacts, Archives,
+Share Tokens, Server Settings, Backend Logs) are presented on demand as sheets
+launched from the overflow menu rather than living in a permanent sidebar, so
+the default screen stays focused on subscriptions. Sub-Store data is cached in
+a dedicated `@Observable` `SubStoreStore` so updates do not invalidate the rest
+of the app. There is no embedded web view: management lives entirely in
+SwiftUI, and the bundled Node sidecar continues to serve the JSON API. When the
+backend is not running (or resources are not yet installed), `SubStoreView`
+falls back to a `ContentUnavailableView` with the appropriate Start/Prepare
+action so users never see an empty management chrome.
 
 `AgentSkillsView` installs Kumo's bundled `kumo-cli` Agent Skill into supported
 coding-agent skill directories. The target list, supported scopes, destination
@@ -78,12 +100,17 @@ The implementation provides fallback material backgrounds for older macOS versio
 
 `KumoGlassSurfaceModifier` always passes a `tint: Color` (default `.clear`) so SwiftUI can interpolate hover / selection tints across state changes without rebuilding the modifier chain.
 
+Sub-Store follows the same rule: backend status and connection-settings cards
+use glass surfaces, while detail panes and editor sheets stay on plain native
+materials so high-density list/detail content remains legible.
+
 ## Settings Surface
 
-`SettingsView` is a three-tab `TabView`, with About available as a separate window:
+`SettingsView` is a two-tab `TabView` reserved for app-level preferences, with
+About available as a separate window. Runtime status belongs in the main window
+and status item menu instead of Settings:
 
-- **General** — read-only status (profile, mode, system proxy) plus a lightweight About shortcut.
-- **Preferences** — `Open at Login` (driven by `SMAppService.mainApp`) and `Quit when last window closes` (read by `applicationShouldTerminateAfterLastWindowClosed`).
+- **General** — `Open at Login` (driven by `SMAppService.mainApp`) and `Quit when last window closes` (read by `applicationShouldTerminateAfterLastWindowClosed`).
 - **Updates** — channel picker, optional manifest URL override, and GitHub Releases update checks backed by `AppUpdateManager`.
 - **About Kumo window** — app icon, version/build, author GitHub link, project links, and the same update-check state used by Settings.
 

@@ -23,6 +23,7 @@ kumo sysproxy on --dry-run --json
 kumo service status --json
 kumo service install
 kumo tun enable --json
+kumo substore status --json
 kumo skills status --json
 kumo skills install --agent codex --dry-run --json
 ```
@@ -109,6 +110,8 @@ command names and JSON schemas compatible:
   clearly when no helper or privileged process can manage `utun`.
 - `kumo service install|uninstall|status` reports LaunchDaemon/socket state and
   uses macOS administrator authorization for install and uninstall.
+- `kumo substore status|prepare|start|stop|restart` manages bundled Sub-Store
+  resources and the same local lifecycle used by the SwiftUI app.
 
 App Intents follow the same rule: when service mode lands, intents should
 hit service endpoints rather than `KumoAppStore` directly so they keep

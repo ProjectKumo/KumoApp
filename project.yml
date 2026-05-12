@@ -41,6 +41,20 @@ targets:
         product: KumoCoreKit
       - target: KumoService
     postBuildScripts:
+      - name: Prepare SubStore Runtime
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          bash "${SRCROOT}/Scripts/prepare_substore_runtime.sh"
+          SUBSTORE_NODE_SOURCE="${SRCROOT}/Sources/KumoCoreKit/Resources/SubStore/node/bin/node"
+          SUBSTORE_NODE_DESTINATION="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Kumo_KumoCoreKit.bundle/Contents/Resources/SubStore/node/bin/node"
+          if [ -x "${SUBSTORE_NODE_SOURCE}" ]; then
+            mkdir -p "$(dirname "${SUBSTORE_NODE_DESTINATION}")"
+            cp "${SUBSTORE_NODE_SOURCE}" "${SUBSTORE_NODE_DESTINATION}"
+            chmod 755 "${SUBSTORE_NODE_DESTINATION}"
+          else
+            echo "warning: SubStore Node runtime not found at ${SUBSTORE_NODE_SOURCE}"
+          fi
       - name: Copy KumoService Helper
         basedOnDependencyAnalysis: false
         script: |

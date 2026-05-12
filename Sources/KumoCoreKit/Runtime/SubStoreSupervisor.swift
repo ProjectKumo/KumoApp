@@ -44,6 +44,9 @@ public actor SubStoreSupervisor {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: command.executable)
         process.arguments = command.arguments
+        if let environment = command.environment {
+            process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
+        }
         process.standardOutput = handle
         process.standardError = handle
         try process.run()

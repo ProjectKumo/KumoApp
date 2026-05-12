@@ -139,6 +139,7 @@ public struct RuntimeConfigBuilder: Sendable {
             "  auto-redirect: \(tun.autoRedirect ? "true" : "false")",
             "  auto-detect-interface: \(tun.autoDetectInterface ? "true" : "false")",
             "  strict-route: \(tun.strictRoute ? "true" : "false")",
+            "  disable-icmp-forwarding: \(tun.disableICMPForwarding ? "true" : "false")",
             "  dns-hijack:",
         ]
         lines.append(contentsOf: yamlList(tun.dnsHijack, indent: "    "))

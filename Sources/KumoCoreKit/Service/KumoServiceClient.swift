@@ -239,6 +239,11 @@ public struct KumoServiceClient: Sendable {
         return signedRequest(method: "POST", path: path)
     }
 
+    public func applyTunSettingsRequest(_ settings: TunSettings) throws -> KumoServiceSignedRequest {
+        let body = try JSONEncoder().encode(settings)
+        return signedRequest(method: "POST", path: "/tun/settings", body: body)
+    }
+
     public func statusRequest() -> KumoServiceSignedRequest {
         signedRequest(method: "GET", path: "/status")
     }

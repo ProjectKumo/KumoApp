@@ -156,7 +156,41 @@ struct ProfilesView: View {
             Button("Import File…") {
                 isImportingFile = true
             }
+
+            subStoreImportMenu
         }
+    }
+
+    private var subStoreImportMenu: some View {
+        Menu {
+            Button("Reload Items") {
+                Task { await store.loadSubStoreEntries() }
+            }
+            if store.subStoreEntries.isEmpty {
+                Text(store.subStoreRuntimeStatus.backendURL == nil
+                     ? "Start Sub-Store to load items"
+                     : "No items loaded yet")
+                    .foregroundStyle(.secondary)
+            } else {
+                Divider()
+                ForEach(store.subStoreEntries) { entry in
+                    Button(entry.resolvedDisplayName) {
+                        Task {
+                            await store.importSubStoreProfile(
+                                path: entry.downloadPath,
+                                name: entry.resolvedDisplayName,
+                                useProxy: usesProxyForImport
+                            )
+                        }
+                    }
+                }
+            }
+        } label: {
+            Label("From Sub-Store", systemImage: "square.stack.3d.up")
+        }
+        .menuStyle(.button)
+        .help("Import a profile from the local Sub-Store")
+        .disabled(store.subStoreRuntimeStatus.backendURL == nil)
     }
 
     private func importRemoteProfile() {
@@ -206,6 +240,14 @@ private struct ProfileRow: View {
                             .font(.caption)
                             .foregroundStyle(profile.autoUpdate ? .secondary : .tertiary)
                             .help(profile.autoUpdate ? "Auto update enabled" : "Auto update disabled")
+                    }
+                    if profile.isSubStoreManaged {
+                        Text("Sub-Store")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .kumoSubtleBackground(in: .capsule)
                     }
                 }
                 Text(subtitle)

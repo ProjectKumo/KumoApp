@@ -122,6 +122,8 @@ enum KumoCLI {
             try runServiceCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
         case "tun":
             try await runTunCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
+        case "substore":
+            try await runSubStoreCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
         case "skills":
             try runSkillsCommand(arguments: arguments, controller: controller, wantsJSON: wantsJSON)
         default:
@@ -322,6 +324,46 @@ enum KumoCLI {
         }
     }
 
+    private static func runSubStoreCommand(
+        arguments: [String],
+        controller: KumoController,
+        wantsJSON: Bool
+    ) async throws {
+        guard arguments.count >= 2 else {
+            throw KumoError.invalidArguments("Usage: kumo substore <status|prepare|start|stop|restart> [--json]")
+        }
+
+        switch arguments[1] {
+        case "status":
+            let status = try await controller.subStoreRuntimeStatus()
+            write(status, asJSON: wantsJSON) { status in
+                [
+                    "enabled=\(status.configuration.isEnabled)",
+                    "backend=\(status.isBackendRunning)",
+                    "url=\(status.backendURL?.absoluteString ?? "-")",
+                    "resources=\(status.resourcesInstalled)"
+                ].joined(separator: " ")
+            }
+        case "prepare":
+            let status = try controller.prepareSubStoreResources()
+            write(status, asJSON: wantsJSON) { status in
+                "prepared Sub-Store resources \(status.installedResourceVersion ?? "-")"
+            }
+        case "start":
+            let status = try await controller.setSubStoreEnabled(true)
+            write(status, asJSON: wantsJSON) { _ in "started Sub-Store" }
+        case "stop":
+            let status = try await controller.setSubStoreEnabled(false)
+            write(status, asJSON: wantsJSON) { _ in "stopped Sub-Store" }
+        case "restart":
+            try await controller.restartSubStoreService()
+            let status = try await controller.subStoreRuntimeStatus()
+            write(status, asJSON: wantsJSON) { _ in "restarted Sub-Store" }
+        default:
+            throw KumoError.invalidArguments("Usage: kumo substore <status|prepare|start|stop|restart> [--json]")
+        }
+    }
+
     private static func runSkillsCommand(
         arguments: [String],
         controller: KumoController,
@@ -447,6 +489,7 @@ enum KumoCLI {
               kumo sysproxy <on|off> [--dry-run] [--json]
               kumo service <status|install|uninstall> [--json]
               kumo tun <status|enable|disable> [--json]
+              kumo substore <status|prepare|start|stop|restart> [--json]
               kumo skills <status|install|uninstall> [--agent <agent|all>] [--scope <global|project>] [--dry-run] [--force] [--json]
             """
         )

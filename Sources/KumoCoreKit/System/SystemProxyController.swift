@@ -18,10 +18,12 @@ private final class ConnectionProbeState: @unchecked Sendable {
 public struct ShellCommand: Codable, Equatable, Sendable {
     public var executable: String
     public var arguments: [String]
+    public var environment: [String: String]?
 
-    public init(executable: String, arguments: [String]) {
+    public init(executable: String, arguments: [String], environment: [String: String]? = nil) {
         self.executable = executable
         self.arguments = arguments
+        self.environment = environment
     }
 }
 

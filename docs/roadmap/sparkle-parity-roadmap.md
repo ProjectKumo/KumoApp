@@ -38,8 +38,9 @@ updates, and backup workflows.
 | System Proxy | PAC hosting and guard | planned | `SystemProxyController` / `KumoService` | PAC and auto-restore run only after service-mode support exists. |
 | Service | Privileged service backend | planned | `KumoService` | GUI and CLI can switch backend without public command changes. |
 | Service | Signed local service requests | planned | `KumoService` | Requests use key material, timestamps, nonces, and body hashing. |
-| Sub-Store | Persisted configuration | partial | `SubStoreManager` | Status, local bundle paths, ports, and custom backend settings persist. |
-| Sub-Store | Local lifecycle management | planned | `SubStoreManager` / `KumoService` | Backend and frontend can be installed, started, stopped, and updated. |
+| Sub-Store | Persisted configuration | implemented | `SubStoreManager` | Status, local resource version, backend port, cron settings, proxy mode, LAN mode, and custom backend settings persist. |
+| Sub-Store | Local lifecycle management | implemented | `SubStoreManager` / `SubStoreSupervisor` | Bundled Node sidecar + `sub-store.bundle.js` are prepared on demand; Kumo starts, stops, and restarts the backend. |
+| Sub-Store | Native management UI | implemented | `KumoApp.SubStoreView` / `SubStoreClient` | SwiftUI surfaces subscriptions, collections, files, modules, artifacts, archives, tokens, settings, and logs by talking to the backend over HTTP. |
 | Resources | Proxy/rule provider management | partial | `MihomoControllerClient` | Providers list, update, and show useful metadata in Configure. |
 | Diagnostics | Connections and logs inspection | partial | `MihomoControllerClient` / `KumoAppStore` | Active/closed connections, close actions, filtering, and live logs are available. |
 | Backup | Export/import local state | planned | `KumoCoreKit` | Profiles, overrides, settings, Sub-Store status, and service settings round-trip. |

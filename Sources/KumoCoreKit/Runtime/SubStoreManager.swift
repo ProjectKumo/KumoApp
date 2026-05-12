@@ -2,21 +2,23 @@ import Foundation
 
 public struct SubStoreLaunchPlan: Codable, Equatable, Sendable {
     public var backendCommand: ShellCommand?
-    public var frontendURL: URL?
+    public var backendURL: URL?
 
-    public init(backendCommand: ShellCommand? = nil, frontendURL: URL? = nil) {
+    public init(backendCommand: ShellCommand? = nil, backendURL: URL? = nil) {
         self.backendCommand = backendCommand
-        self.frontendURL = frontendURL
+        self.backendURL = backendURL
     }
 }
 
 public struct SubStoreManager: Sendable {
     private let paths: KumoPaths
+    private let bundledResourceDirectory: URL?
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
-    public init(paths: KumoPaths = KumoPaths()) {
+    public init(paths: KumoPaths = KumoPaths(), bundledResourceDirectory: URL? = nil) {
         self.paths = paths
+        self.bundledResourceDirectory = bundledResourceDirectory
         self.encoder = JSONEncoder()
         self.decoder = JSONDecoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -38,32 +40,62 @@ public struct SubStoreManager: Sendable {
         try data.write(to: statusFile, options: .atomic)
     }
 
-    public func webURL(for status: SubStoreStatus) -> URL? {
+    @discardableResult
+    public func prepareResources() throws -> SubStoreStatus {
+        let sourceDirectory = try sourceResourceDirectory()
+        let manifest = try manifest(in: sourceDirectory)
+
+        try paths.prepare()
+        try FileManager.default.removeItemIfExists(at: paths.subStoreResourcesDirectory)
+        try FileManager.default.createDirectory(
+            at: paths.subStoreResourcesDirectory.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.copyItem(at: sourceDirectory, to: paths.subStoreResourcesDirectory)
+
+        let nodeURL = installedURL(for: manifest.nodeExecutableRelativePath)
+        try validateInstalledResources(manifest)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: nodeURL.path)
+
+        var nextStatus = try status()
+        nextStatus.installedResourceVersion = manifest.version
+        nextStatus.lastResourceInstallAt = Date()
+        nextStatus.lastUpdatedAt = Date()
+        nextStatus.localBackendPath = installedURL(for: manifest.backendBundleRelativePath).path
+        nextStatus.lastError = nil
+        try updateStatus(nextStatus)
+        return nextStatus
+    }
+
+    public func backendURL(for status: SubStoreStatus) -> URL? {
         if status.usesCustomBackend {
             return status.customBackendURL
         }
-        guard let frontendPort = status.frontendPort,
-              let backendPort = status.backendPort else {
+        guard let backendPort = status.backendPort else {
             return nil
         }
-        return URL(string: "http://127.0.0.1:\(frontendPort)?api=http://127.0.0.1:\(backendPort)")
+        return URL(string: "http://\(backendBindHost(for: status)):\(backendPort)")
     }
 
-    public func launchPlan(for status: SubStoreStatus) -> SubStoreLaunchPlan {
-        let frontendURL = webURL(for: status)
-        guard status.isEnabled,
-              !status.usesCustomBackend,
-              let backendPath = status.localBackendPath,
-              let backendPort = status.backendPort else {
-            return SubStoreLaunchPlan(frontendURL: frontendURL)
+    public func launchPlan(for status: SubStoreStatus, mixedPort: Int? = nil) throws -> SubStoreLaunchPlan {
+        guard status.isEnabled, !status.usesCustomBackend else {
+            return SubStoreLaunchPlan(backendURL: backendURL(for: status))
         }
 
+        try validateInstalledResources(try installedManifest())
+        guard let backendPort = status.backendPort else {
+            throw KumoError.invalidArguments("Sub-Store backend port is not configured.")
+        }
+
+        let command = ShellCommand(
+            executable: paths.subStoreNodeExecutable.path,
+            arguments: [paths.subStoreBackendBundle.path],
+            environment: backendEnvironment(for: status, backendPort: backendPort, mixedPort: mixedPort)
+        )
+
         return SubStoreLaunchPlan(
-            backendCommand: ShellCommand(
-                executable: backendPath,
-                arguments: ["--port", "\(backendPort)"]
-            ),
-            frontendURL: frontendURL
+            backendCommand: command,
+            backendURL: backendURL(for: status)
         )
     }
 
@@ -72,45 +104,91 @@ public struct SubStoreManager: Sendable {
         nextStatus.isEnabled = isEnabled
         if isEnabled {
             nextStatus.backendPort = nextStatus.backendPort ?? 38324
-            nextStatus.frontendPort = nextStatus.frontendPort ?? 38323
+            nextStatus.host = backendBindHost(for: nextStatus)
         }
         try updateStatus(nextStatus)
         return nextStatus
     }
 
-    @discardableResult
-    public func downloadBundle(kind: SubStoreBundleKind, from url: URL) async throws -> SubStoreStatus {
-        try paths.prepare()
-        let (temporaryURL, _) = try await URLSession.shared.download(from: url)
-        let destination = bundleURL(for: kind, sourceURL: url)
-        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? FileManager.default.removeItem(at: destination)
-        try FileManager.default.moveItem(at: temporaryURL, to: destination)
-
-        var nextStatus = try status()
-        switch kind {
-        case .frontend:
-            nextStatus.frontendDownloadURL = url
-            nextStatus.localFrontendPath = destination.path
-            nextStatus.frontendPort = nextStatus.frontendPort ?? 38323
-        case .backend:
-            nextStatus.backendDownloadURL = url
-            nextStatus.localBackendPath = destination.path
-            nextStatus.backendPort = nextStatus.backendPort ?? 38324
+    public func resourcesInstalled() -> Bool {
+        guard let manifest = try? installedManifest() else {
+            return false
         }
-        nextStatus.lastUpdatedAt = Date()
-        try updateStatus(nextStatus)
-        return nextStatus
+        return (try? validateInstalledResources(manifest)) != nil
     }
 
     private var statusFile: URL {
-        paths.subStoreDirectory.appendingPathComponent("status.json")
+        paths.subStoreStatusFile
     }
 
-    private func bundleURL(for kind: SubStoreBundleKind, sourceURL: URL) -> URL {
-        let fileName = sourceURL.lastPathComponent.isEmpty ? "\(kind.rawValue).bundle" : sourceURL.lastPathComponent
-        return paths.subStoreDirectory
-            .appendingPathComponent(kind.rawValue, isDirectory: true)
-            .appendingPathComponent(fileName)
+    private func backendBindHost(for status: SubStoreStatus) -> String {
+        status.allowsLAN ? "0.0.0.0" : "127.0.0.1"
+    }
+
+    private func sourceResourceDirectory() throws -> URL {
+        if let bundledResourceDirectory {
+            return bundledResourceDirectory
+        }
+        guard let resourceURL = Bundle.module.resourceURL else {
+            throw KumoError.commandFailed("Sub-Store bundled resources were not found in KumoCoreKit.")
+        }
+        return resourceURL.appendingPathComponent("SubStore", isDirectory: true)
+    }
+
+    private func manifest(in directory: URL) throws -> SubStoreResourceManifest {
+        let url = directory.appendingPathComponent("manifest.json")
+        let data = try Data(contentsOf: url)
+        return try decoder.decode(SubStoreResourceManifest.self, from: data)
+    }
+
+    private func installedManifest() throws -> SubStoreResourceManifest {
+        try manifest(in: paths.subStoreResourcesDirectory)
+    }
+
+    private func installedURL(for relativePath: String) -> URL {
+        paths.subStoreResourcesDirectory.appendingPathComponent(relativePath)
+    }
+
+    private func validateInstalledResources(_ manifest: SubStoreResourceManifest) throws {
+        let nodeURL = installedURL(for: manifest.nodeExecutableRelativePath)
+        let backendURL = installedURL(for: manifest.backendBundleRelativePath)
+
+        guard FileManager.default.fileExists(atPath: nodeURL.path) else {
+            throw KumoError.commandFailed("Bundled Node executable is missing at \(nodeURL.path).")
+        }
+        guard FileManager.default.fileExists(atPath: backendURL.path) else {
+            throw KumoError.commandFailed("Sub-Store backend bundle is missing at \(backendURL.path).")
+        }
+    }
+
+    private func backendEnvironment(for status: SubStoreStatus, backendPort: Int, mixedPort: Int?) -> [String: String] {
+        var environment = [
+            "SUB_STORE_BACKEND_API_PORT": "\(backendPort)",
+            "SUB_STORE_BACKEND_API_HOST": backendBindHost(for: status),
+            "SUB_STORE_DATA_BASE_PATH": paths.subStoreDataDirectory.path,
+            "SUB_STORE_BACKEND_CUSTOM_NAME": "Kumo",
+            "SUB_STORE_BACKEND_SYNC_CRON": status.syncCron,
+            "SUB_STORE_BACKEND_DOWNLOAD_CRON": status.downloadCron,
+            "SUB_STORE_BACKEND_UPLOAD_CRON": status.uploadCron,
+            "SUB_STORE_MMDB_COUNTRY_PATH": paths.workDirectory.appendingPathComponent("country.mmdb").path,
+            "SUB_STORE_MMDB_ASN_PATH": paths.workDirectory.appendingPathComponent("ASN.mmdb").path
+        ]
+
+        if status.usesProxy, let mixedPort, mixedPort > 0 {
+            let proxy = "http://127.0.0.1:\(mixedPort)"
+            environment["HTTP_PROXY"] = proxy
+            environment["HTTPS_PROXY"] = proxy
+            environment["ALL_PROXY"] = proxy
+        }
+
+        return environment
+    }
+}
+
+private extension FileManager {
+    func removeItemIfExists(at url: URL) throws {
+        if fileExists(atPath: url.path) {
+            try removeItem(at: url)
+        }
     }
 }
