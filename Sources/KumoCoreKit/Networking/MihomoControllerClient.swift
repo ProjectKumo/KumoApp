@@ -179,77 +179,30 @@ public struct MihomoControllerClient: Sendable {
     }
 
     public func logStream(level: String = "info") -> AsyncThrowingStream<LogEntry, Error> {
-        AsyncThrowingStream { continuation in
-            let task = session.webSocketTask(with: webSocketURL(path: "/logs", query: ["level": level]))
-            task.resume()
-            Task {
-                do {
-                    while !Task.isCancelled {
-                        let message = try await task.receive()
-                        switch message {
-                        case .string(let text):
-                            if let entry = logEntry(from: text) {
-                                continuation.yield(entry)
-                            }
-                        case .data(let data):
-                            if let text = String(data: data, encoding: .utf8),
-                               let entry = logEntry(from: text) {
-                                continuation.yield(entry)
-                            }
-                        @unknown default:
-                            continue
-                        }
-                    }
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in
-                task.cancel(with: .goingAway, reason: nil)
-            }
-        }
+        // Logs are append-only; callers expect a fresh stream of entries on every (re)connect.
+        streamWebSocket(
+            request: webSocketRequest(path: "/logs", query: ["level": level]),
+            parser: { self.logEntry(from: $0) },
+            idleValue: nil
+        )
     }
 
     public func trafficStream() -> AsyncThrowingStream<TrafficSnapshot, Error> {
-        AsyncThrowingStream { continuation in
-            let task = session.webSocketTask(with: webSocketURL(path: "/traffic", query: [:]))
-            task.resume()
-            Task {
-                do {
-                    while !Task.isCancelled {
-                        if let snapshot = try await receiveSnapshot(from: task, parser: trafficSnapshot(from:)) {
-                            continuation.yield(snapshot)
-                        }
-                    }
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in
-                task.cancel(with: .goingAway, reason: nil)
-            }
-        }
+        // Yield a zero snapshot whenever the websocket disconnects so the UI doesn't keep displaying
+        // stale speeds; mihomo will resume emitting real values once the new connection is up.
+        streamWebSocket(
+            request: webSocketRequest(path: "/traffic"),
+            parser: { self.trafficSnapshot(from: $0) },
+            idleValue: TrafficSnapshot()
+        )
     }
 
     public func memoryStream() -> AsyncThrowingStream<MemorySnapshot, Error> {
-        AsyncThrowingStream { continuation in
-            let task = session.webSocketTask(with: webSocketURL(path: "/memory", query: [:]))
-            task.resume()
-            Task {
-                do {
-                    while !Task.isCancelled {
-                        if let snapshot = try await receiveSnapshot(from: task, parser: memorySnapshot(from:)) {
-                            continuation.yield(snapshot)
-                        }
-                    }
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in
-                task.cancel(with: .goingAway, reason: nil)
-            }
-        }
+        streamWebSocket(
+            request: webSocketRequest(path: "/memory"),
+            parser: { self.memorySnapshot(from: $0) },
+            idleValue: MemorySnapshot()
+        )
     }
 
     public func connections() async throws -> [ConnectionEntry] {
@@ -368,6 +321,96 @@ public struct MihomoControllerClient: Sendable {
         return components.url!
     }
 
+    private func webSocketRequest(path: String, query: [String: String] = [:]) -> URLRequest {
+        var request = URLRequest(url: webSocketURL(path: path, query: query))
+        // Mihomo's external-controller authenticates websocket upgrades the same way it does HTTP
+        // requests when a `secret` is configured; without this header the WS would 401 silently.
+        if !endpoint.secret.isEmpty {
+            request.setValue("Bearer \(endpoint.secret)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
+    /// Long-lived websocket subscription that auto-reconnects on disconnection.
+    ///
+    /// The stream finishes only when the consumer cancels (via `continuation.onTermination` or
+    /// task cancellation). Transient connection failures are swallowed and retried after a short
+    /// delay so a brief mihomo restart or network hiccup doesn't permanently freeze the UI.
+    /// When the connection drops after at least one message has been observed, an `idleValue`
+    /// (if provided) is yielded so consumers can reset speed/memory gauges to zero.
+    private func streamWebSocket<Value: Sendable>(
+        request: URLRequest,
+        parser: @escaping @Sendable (String) -> Value?,
+        idleValue: Value?,
+        reconnectDelayNanoseconds: UInt64 = 1_000_000_000
+    ) -> AsyncThrowingStream<Value, Error> {
+        let session = self.session
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                var sawAnyMessage = false
+                while !Task.isCancelled {
+                    let socket = session.webSocketTask(with: request)
+                    socket.resume()
+
+                    let receivedDuringConnection = await Self.consumeWebSocket(
+                        socket,
+                        parser: parser,
+                        yield: { continuation.yield($0) }
+                    )
+
+                    socket.cancel(with: .goingAway, reason: nil)
+                    if Task.isCancelled { break }
+
+                    // Reset gauges when an established stream drops; skip on first-attempt failures
+                    // to avoid flickering between unknown and zero before any data has been seen.
+                    if (receivedDuringConnection || sawAnyMessage), let idleValue {
+                        continuation.yield(idleValue)
+                    }
+                    sawAnyMessage = sawAnyMessage || receivedDuringConnection
+
+                    do {
+                        try await Task.sleep(nanoseconds: reconnectDelayNanoseconds)
+                    } catch {
+                        break
+                    }
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    private static func consumeWebSocket<Value>(
+        _ task: URLSessionWebSocketTask,
+        parser: (String) -> Value?,
+        yield: (Value) -> Void
+    ) async -> Bool {
+        var receivedAtLeastOne = false
+        while !Task.isCancelled {
+            do {
+                let message = try await task.receive()
+                let text: String?
+                switch message {
+                case .string(let value):
+                    text = value
+                case .data(let data):
+                    text = String(data: data, encoding: .utf8)
+                @unknown default:
+                    text = nil
+                }
+                if let text, let parsed = parser(text) {
+                    yield(parsed)
+                    receivedAtLeastOne = true
+                }
+            } catch {
+                return receivedAtLeastOne
+            }
+        }
+        return receivedAtLeastOne
+    }
+
     private func intValue(_ value: Any?) -> Int? {
         if let int = value as? Int {
             return int
@@ -434,35 +477,24 @@ public struct MihomoControllerClient: Sendable {
         return nil
     }
 
-    private func receiveSnapshot<Snapshot>(
-        from task: URLSessionWebSocketTask,
-        parser: (String) -> Snapshot?
-    ) async throws -> Snapshot? {
-        let message = try await task.receive()
-        switch message {
-        case .string(let text):
-            return parser(text)
-        case .data(let data):
-            guard let text = String(data: data, encoding: .utf8) else {
-                return nil
-            }
-            return parser(text)
-        @unknown default:
-            return nil
-        }
-    }
-
-    private func trafficSnapshot(from text: String) -> TrafficSnapshot? {
+    // Exposed at internal visibility so unit tests can validate WS payload parsing without
+    // standing up a full mock websocket session.
+    func trafficSnapshot(from text: String) -> TrafficSnapshot? {
         guard let object = jsonObject(from: text) else {
             return nil
         }
-        let upload = intValue(object["up"]) ?? intValue(object["upload"]) ?? 0
-        let download = intValue(object["down"]) ?? intValue(object["download"]) ?? 0
+        // Mihomo emits `{up, down, upTotal, downTotal}` where `up`/`down` are bytes-per-second
+        // speeds and `upTotal`/`downTotal` are cumulative byte counters. Older or non-meta cores
+        // may emit only the `{up, down}` pair, in which case we fall back so totals stay zero.
+        let uploadSpeed = intValue(object["up"]) ?? intValue(object["upSpeed"]) ?? intValue(object["uploadSpeed"]) ?? 0
+        let downloadSpeed = intValue(object["down"]) ?? intValue(object["downSpeed"]) ?? intValue(object["downloadSpeed"]) ?? 0
+        let uploadTotal = intValue(object["upTotal"]) ?? intValue(object["upload"]) ?? 0
+        let downloadTotal = intValue(object["downTotal"]) ?? intValue(object["download"]) ?? 0
         return TrafficSnapshot(
-            upload: upload,
-            download: download,
-            uploadSpeed: intValue(object["uploadSpeed"]) ?? intValue(object["upSpeed"]) ?? upload,
-            downloadSpeed: intValue(object["downloadSpeed"]) ?? intValue(object["downSpeed"]) ?? download
+            upload: uploadTotal,
+            download: downloadTotal,
+            uploadSpeed: uploadSpeed,
+            downloadSpeed: downloadSpeed
         )
     }
 

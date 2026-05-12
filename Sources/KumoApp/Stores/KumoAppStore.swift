@@ -687,6 +687,8 @@ final class KumoAppStore {
         trafficStreamTask = Task { [weak self] in
             guard let self else { return }
             do {
+                // The underlying websocket stream supervises its own reconnects and yields a zero
+                // snapshot when the connection drops, so we no longer need to reset on errors here.
                 let stream = try self.controller.trafficStream()
                 for try await snapshot in stream {
                     await MainActor.run {
@@ -696,6 +698,8 @@ final class KumoAppStore {
             } catch is CancellationError {
                 return
             } catch {
+                // Only reachable if KumoController couldn't construct the stream (e.g. state file
+                // unreadable). Surface the disconnected state so the UI doesn't display stale data.
                 await MainActor.run {
                     self.trafficSnapshot = TrafficSnapshot()
                 }

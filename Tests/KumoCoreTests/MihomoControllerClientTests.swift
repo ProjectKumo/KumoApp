@@ -39,6 +39,32 @@ final class MihomoControllerClientTests: XCTestCase {
         XCTAssertEqual(groups.first?.proxies.map(\.delay), [120, 200])
     }
 
+    func testTrafficStreamParserMapsMihomoMetaPayload() throws {
+        // Mihomo Meta emits per-second speeds as `up`/`down` and cumulative totals as
+        // `upTotal`/`downTotal`. Verify the WS parser routes them into the right fields so the
+        // overview's traffic card stops permanently displaying zero.
+        let payload = """
+        {"up":1234,"down":5678,"upTotal":111,"downTotal":222}
+        """
+        let snapshot = try parseTrafficSnapshot(payload)
+        XCTAssertEqual(snapshot.uploadSpeed, 1234)
+        XCTAssertEqual(snapshot.downloadSpeed, 5678)
+        XCTAssertEqual(snapshot.upload, 111)
+        XCTAssertEqual(snapshot.download, 222)
+    }
+
+    func testTrafficStreamParserFallsBackToLegacyFieldNames() throws {
+        // Older mihomo builds (and some forks) only emit `{up, down}` without totals.
+        let payload = """
+        {"up":42,"down":99}
+        """
+        let snapshot = try parseTrafficSnapshot(payload)
+        XCTAssertEqual(snapshot.uploadSpeed, 42)
+        XCTAssertEqual(snapshot.downloadSpeed, 99)
+        XCTAssertEqual(snapshot.upload, 0)
+        XCTAssertEqual(snapshot.download, 0)
+    }
+
     func testConnectionsMapControllerResponse() async throws {
         MockURLProtocol.requestHandler = { request in
             XCTAssertEqual(request.url?.path, "/connections")
@@ -75,6 +101,12 @@ final class MihomoControllerClientTests: XCTestCase {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
         return URLSession(configuration: configuration)
+    }
+
+    private func parseTrafficSnapshot(_ text: String) throws -> TrafficSnapshot {
+        let client = MihomoControllerClient()
+        let snapshot = client.trafficSnapshot(from: text)
+        return try XCTUnwrap(snapshot)
     }
 }
 
