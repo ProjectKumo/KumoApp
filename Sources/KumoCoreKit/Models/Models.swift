@@ -84,6 +84,7 @@ public struct CoreRuntimeSettings: Codable, Equatable, Sendable {
     public var allowLAN: Bool
     public var logLevel: String
     public var ipv6: Bool
+    public var findProcessMode: String
     public var geoData: GeoDataSettings
     public var tun: TunSettings?
 
@@ -92,6 +93,7 @@ public struct CoreRuntimeSettings: Codable, Equatable, Sendable {
         allowLAN: Bool = false,
         logLevel: String = "info",
         ipv6: Bool = false,
+        findProcessMode: String = "always",
         geoData: GeoDataSettings = GeoDataSettings(),
         tun: TunSettings? = nil
     ) {
@@ -99,8 +101,32 @@ public struct CoreRuntimeSettings: Codable, Equatable, Sendable {
         self.allowLAN = allowLAN
         self.logLevel = logLevel
         self.ipv6 = ipv6
+        self.findProcessMode = findProcessMode
         self.geoData = geoData
         self.tun = tun
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case mixedPort
+        case allowLAN
+        case logLevel
+        case ipv6
+        case findProcessMode
+        case geoData
+        case tun
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            mixedPort: try container.decode(Int.self, forKey: .mixedPort),
+            allowLAN: try container.decode(Bool.self, forKey: .allowLAN),
+            logLevel: try container.decode(String.self, forKey: .logLevel),
+            ipv6: try container.decode(Bool.self, forKey: .ipv6),
+            findProcessMode: try container.decodeIfPresent(String.self, forKey: .findProcessMode) ?? "always",
+            geoData: try container.decode(GeoDataSettings.self, forKey: .geoData),
+            tun: try container.decodeIfPresent(TunSettings.self, forKey: .tun)
+        )
     }
 }
 
@@ -595,6 +621,7 @@ public struct ConnectionEntry: Identifiable, Codable, Equatable, Sendable {
     public var id: String
     public var host: String
     public var process: String?
+    public var processPath: String?
     public var rule: String?
     public var chain: [String]
     public var upload: Int
@@ -607,6 +634,7 @@ public struct ConnectionEntry: Identifiable, Codable, Equatable, Sendable {
         id: String,
         host: String,
         process: String? = nil,
+        processPath: String? = nil,
         rule: String? = nil,
         chain: [String] = [],
         upload: Int = 0,
@@ -618,6 +646,7 @@ public struct ConnectionEntry: Identifiable, Codable, Equatable, Sendable {
         self.id = id
         self.host = host
         self.process = process
+        self.processPath = processPath
         self.rule = rule
         self.chain = chain
         self.upload = upload

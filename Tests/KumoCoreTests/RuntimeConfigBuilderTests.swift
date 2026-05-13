@@ -24,6 +24,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertTrue(runtime.yaml.contains("mixed-port: 17890"))
         XCTAssertTrue(runtime.yaml.contains("mode: global"))
         XCTAssertTrue(runtime.yaml.contains("secret: \"secret\""))
+        XCTAssertTrue(runtime.yaml.contains("find-process-mode: always"))
     }
 
     func testBuildReplacesProfileRuntimeSettingsWithControlledSettings() {
@@ -35,6 +36,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
             allow-lan: true
             mode: rule
             log-level: debug
+            find-process-mode: off
             external-controller: 127.0.0.1:9090
             secret: "remote-secret"
             proxies: []
@@ -59,12 +61,14 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertFalse(runtime.yaml.contains("allow-lan: true"))
         XCTAssertFalse(runtime.yaml.contains("mode: rule"))
         XCTAssertFalse(runtime.yaml.contains("log-level: debug"))
+        XCTAssertFalse(runtime.yaml.contains("find-process-mode: off"))
         XCTAssertFalse(runtime.yaml.contains("external-controller: 127.0.0.1:9090"))
         XCTAssertFalse(runtime.yaml.contains("secret: \"remote-secret\""))
         XCTAssertTrue(runtime.yaml.contains("mixed-port: 17890"))
         XCTAssertTrue(runtime.yaml.contains("allow-lan: false"))
         XCTAssertTrue(runtime.yaml.contains("mode: global"))
         XCTAssertTrue(runtime.yaml.contains("log-level: info"))
+        XCTAssertTrue(runtime.yaml.contains("find-process-mode: always"))
         XCTAssertTrue(runtime.yaml.contains("external-controller: 127.0.0.1:19097"))
         XCTAssertTrue(runtime.yaml.contains("secret: \"local-secret\""))
         XCTAssertTrue(runtime.yaml.contains("proxy-groups:"))
@@ -85,6 +89,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
             allowLAN: true,
             logLevel: "debug",
             ipv6: true,
+            findProcessMode: "strict",
             geoData: GeoDataSettings(
                 geoIPURL: "https://example.com/geoip.dat",
                 geoSiteURL: "https://example.com/geosite.dat",
@@ -104,6 +109,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertTrue(runtime.yaml.contains("allow-lan: true"))
         XCTAssertTrue(runtime.yaml.contains("log-level: debug"))
         XCTAssertTrue(runtime.yaml.contains("ipv6: true"))
+        XCTAssertTrue(runtime.yaml.contains("find-process-mode: strict"))
         XCTAssertTrue(runtime.yaml.contains("geo-auto-update: true"))
         XCTAssertTrue(runtime.yaml.contains("geo-update-interval: 12"))
         XCTAssertFalse(runtime.yaml.contains("mixed-port: 7890"))
@@ -223,5 +229,31 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertFalse(settings.autoRedirect)
         XCTAssertFalse(settings.disableICMPForwarding)
         XCTAssertEqual(settings.nameservers, ["https://doh.pub/dns-query"])
+    }
+
+    func testRuntimeSettingsDecodesMissingFindProcessModeWithDefault() throws {
+        let data = Data(
+            """
+            {
+              "mixedPort": 7890,
+              "allowLAN": false,
+              "logLevel": "info",
+              "ipv6": false,
+              "geoData": {
+                "geoIPURL": "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip-lite.dat",
+                "geoSiteURL": "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat",
+                "mmdbURL": "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/country-lite.mmdb",
+                "asnURL": "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/GeoLite2-ASN.mmdb",
+                "autoUpdate": false,
+                "updateIntervalHours": 24,
+                "usesDatMode": false
+              }
+            }
+            """.utf8
+        )
+
+        let settings = try JSONDecoder().decode(CoreRuntimeSettings.self, from: data)
+
+        XCTAssertEqual(settings.findProcessMode, "always")
     }
 }

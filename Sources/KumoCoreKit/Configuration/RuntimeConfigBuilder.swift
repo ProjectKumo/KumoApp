@@ -15,6 +15,7 @@ public struct RuntimeConfigBuilder: Sendable {
         "allow-lan",
         "log-level",
         "ipv6",
+        "find-process-mode",
         "geodata-mode",
         "geo-auto-update",
         "geo-update-interval",
@@ -100,6 +101,7 @@ public struct RuntimeConfigBuilder: Sendable {
         allow-lan: \(runtimeSettings.allowLAN ? "true" : "false")
         log-level: \(runtimeSettings.logLevel)
         ipv6: \(runtimeSettings.ipv6 ? "true" : "false")
+        find-process-mode: \(runtimeSettings.findProcessMode)
         geodata-mode: \(runtimeSettings.geoData.usesDatMode ? "true" : "false")
         geo-auto-update: \(runtimeSettings.geoData.autoUpdate ? "true" : "false")
         geo-update-interval: \(runtimeSettings.geoData.updateIntervalHours)

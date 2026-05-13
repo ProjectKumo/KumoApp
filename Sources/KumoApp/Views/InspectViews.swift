@@ -27,7 +27,7 @@ struct ConnectionsView: View {
                 Table(sortedConnections, selection: $selectedConnectionIDs, sortOrder: $sortOrder) {
                     TableColumn("Host", value: \.host)
                     TableColumn("Process") { connection in
-                        Text(connection.process ?? "-")
+                        ConnectionProcessCell(connection: connection)
                     }
                     TableColumn("Rule") { connection in
                         Text(connection.rule ?? "-")
@@ -146,6 +146,109 @@ struct ConnectionsView: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(string, forType: .string)
+    }
+}
+
+private struct ConnectionProcessCell: View {
+    let connection: ConnectionEntry
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ConnectionProcessIcon(processPath: connection.processPath)
+                .frame(width: 18, height: 18)
+            Text(connection.process ?? "-")
+                .lineLimit(1)
+        }
+        .help(connection.processPath ?? connection.process ?? "Unknown process")
+    }
+}
+
+private struct ConnectionProcessIcon: View {
+    let processPath: String?
+
+    var body: some View {
+        Group {
+            if let icon = ConnectionProcessIconProvider.icon(for: processPath) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: "app")
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+@MainActor
+private enum ConnectionProcessIconProvider {
+    private static let cache = NSCache<NSString, NSImage>()
+
+    static func icon(for processPath: String?) -> NSImage? {
+        guard let normalizedPath = normalizedPath(processPath) else {
+            return nil
+        }
+
+        let cacheKey = normalizedPath as NSString
+        if let cachedIcon = cache.object(forKey: cacheKey) {
+            return cachedIcon
+        }
+
+        let icon: NSImage?
+        if normalizedPath == "mihomo" {
+            icon = NSApp.applicationIconImage
+        } else if let iconURL = iconURL(for: normalizedPath) {
+            icon = NSWorkspace.shared.icon(forFile: iconURL.path)
+        } else {
+            icon = nil
+        }
+
+        guard let icon else {
+            return nil
+        }
+
+        cache.setObject(icon, forKey: cacheKey)
+        return icon
+    }
+
+    private static func normalizedPath(_ path: String?) -> String? {
+        guard let path = path?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else {
+            return nil
+        }
+        return path
+    }
+
+    private static func iconURL(for path: String) -> URL? {
+        let url = URL(fileURLWithPath: path)
+        if let bundleURL = enclosingBundleURL(from: url) {
+            return bundleURL
+        }
+
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+        return url
+    }
+
+    private static func enclosingBundleURL(from url: URL) -> URL? {
+        var candidate = url
+
+        while candidate.path != "/" {
+            let pathExtension = candidate.pathExtension.lowercased()
+            if pathExtension == "app" || pathExtension == "xpc" {
+                return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
+            }
+
+            let parent = candidate.deletingLastPathComponent()
+            guard parent.path != candidate.path else {
+                return nil
+            }
+            candidate = parent
+        }
+
+        return nil
     }
 }
 

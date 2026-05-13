@@ -214,14 +214,21 @@ public struct MihomoControllerClient: Sendable {
             }
             let metadata = connection["metadata"] as? [String: Any] ?? [:]
             let host = metadata["host"] as? String
+                ?? metadata["sniffHost"] as? String
                 ?? metadata["destinationIP"] as? String
                 ?? metadata["remoteDestination"] as? String
                 ?? "-"
+            let isInnerConnection = metadata["type"] as? String == "Inner"
+            let process = metadata["process"] as? String
+                ?? (isInnerConnection ? "mihomo" : nil)
+            let processPath = metadata["processPath"] as? String
+                ?? (isInnerConnection ? "mihomo" : nil)
 
             return ConnectionEntry(
                 id: id,
                 host: host,
-                process: metadata["process"] as? String,
+                process: process,
+                processPath: processPath,
                 rule: connection["rule"] as? String,
                 chain: connection["chains"] as? [String] ?? [],
                 upload: intValue(connection["upload"]) ?? 0,

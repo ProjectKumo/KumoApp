@@ -24,16 +24,14 @@ struct OverviewView: View {
 
                 metricsGrid
 
-                if store.proxyGroups.isEmpty {
+                if store.status.state == .running, store.proxyGroups.isEmpty {
                     KumoInlineState(
-                        title: store.status.state == .running ? "No Proxy Groups" : "Core Stopped",
+                        title: "No Proxy Groups",
                         systemImage: "point.3.connected.trianglepath.dotted",
-                        message: store.status.state == .running
-                            ? "Import a profile with proxy groups."
-                            : "Use the toolbar controls to start Kumo."
+                        message: "Import a profile with proxy groups."
                     ) {}
                     .padding(.top, 8)
-                } else {
+                } else if !store.proxyGroups.isEmpty {
                     proxyGroupStatusSection
                 }
 
@@ -96,101 +94,135 @@ struct OverviewView: View {
     }
 
     private var metricsGridContent: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], alignment: .leading, spacing: 12) {
-            NetworkMetricCard(
-                title: "Connections",
-                value: "\(store.connections.count)",
-                secondaryValue: nil,
-                detail: store.status.state == .running ? "Active now" : "Core stopped",
-                systemImage: "network",
-                actionTitle: "Open Connections"
-            ) {
+        ViewThatFits(in: .horizontal) {
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    connectionsMetricCard
+                    trafficMetricCard
+                }
+
+                HStack(spacing: 12) {
+                    proxyGroupsMetricCard
+                    systemProxyMetricCard
+                }
+
+                controllerMetricCard
+            }
+            .frame(minWidth: 560, maxWidth: .infinity, alignment: .leading)
+
+            VStack(spacing: 12) {
+                connectionsMetricCard
+                trafficMetricCard
+                proxyGroupsMetricCard
+                systemProxyMetricCard
+                controllerMetricCard
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var connectionsMetricCard: some View {
+        NetworkMetricCard(
+            title: "Connections",
+            value: "\(store.connections.count)",
+            secondaryValue: nil,
+            detail: store.status.state == .running ? "Active now" : "Core stopped",
+            systemImage: "network",
+            actionTitle: "Open Connections"
+        ) {
+            onNavigate(.connections)
+        }
+        .contextMenu {
+            Button("Refresh Connections") {
+                Task { await store.loadInspectData() }
+            }
+            Button("Open Connections") {
                 onNavigate(.connections)
             }
-            .contextMenu {
-                Button("Refresh Connections") {
-                    Task { await store.loadInspectData() }
-                }
-                Button("Open Connections") {
-                    onNavigate(.connections)
-                }
-            }
+        }
+    }
 
-            NetworkMetricCard(
-                title: "Traffic",
-                value: "↑ \(uploadSpeed.kumoByteCount)/s",
-                secondaryValue: "↓ \(downloadSpeed.kumoByteCount)/s",
-                detail: nil,
-                systemImage: "speedometer",
-                actionTitle: "Inspect Traffic"
-            ) {
+    private var trafficMetricCard: some View {
+        NetworkMetricCard(
+            title: "Traffic",
+            value: "↑ \(uploadSpeed.kumoByteCount)/s",
+            secondaryValue: "↓ \(downloadSpeed.kumoByteCount)/s",
+            detail: nil,
+            systemImage: "speedometer",
+            actionTitle: "Inspect Traffic"
+        ) {
+            onNavigate(.connections)
+        }
+        .contextMenu {
+            Button("Refresh Traffic") {
+                Task { await store.loadInspectData() }
+            }
+            Button("Open Connections") {
                 onNavigate(.connections)
             }
-            .contextMenu {
-                Button("Refresh Traffic") {
-                    Task { await store.loadInspectData() }
-                }
-                Button("Open Connections") {
-                    onNavigate(.connections)
-                }
-            }
+        }
+    }
 
-            NetworkMetricCard(
-                title: "Proxy Groups",
-                value: "\(store.proxyGroups.count)",
-                secondaryValue: nil,
-                detail: nil,
-                systemImage: "point.3.connected.trianglepath.dotted",
-                actionTitle: "Open Proxies"
-            ) {
+    private var proxyGroupsMetricCard: some View {
+        NetworkMetricCard(
+            title: "Proxy Groups",
+            value: "\(store.proxyGroups.count)",
+            secondaryValue: nil,
+            detail: nil,
+            systemImage: "point.3.connected.trianglepath.dotted",
+            actionTitle: "Open Proxies"
+        ) {
+            onNavigate(.proxies)
+        }
+        .contextMenu {
+            Button("Refresh Proxy Groups") {
+                Task { await store.loadProxyGroups() }
+            }
+            Button("Open Proxies") {
                 onNavigate(.proxies)
             }
-            .contextMenu {
-                Button("Refresh Proxy Groups") {
-                    Task { await store.loadProxyGroups() }
-                }
-                Button("Open Proxies") {
-                    onNavigate(.proxies)
-                }
-            }
+        }
+    }
 
-            NetworkMetricCard(
-                title: "System Proxy",
-                value: store.status.systemProxyEnabled ? "On" : "Off",
-                secondaryValue: nil,
-                detail: "\(store.status.endpoint.host):\(store.status.proxyPorts.mixedPort)",
-                systemImage: "switch.2",
-                actionTitle: "Configure System Proxy"
-            ) {
+    private var systemProxyMetricCard: some View {
+        NetworkMetricCard(
+            title: "System Proxy",
+            value: store.status.systemProxyEnabled ? "On" : "Off",
+            secondaryValue: nil,
+            detail: "\(store.status.endpoint.host):\(store.status.proxyPorts.mixedPort)",
+            systemImage: "switch.2",
+            actionTitle: "Configure System Proxy"
+        ) {
+            onNavigate(.systemProxy)
+        }
+        .contextMenu {
+            Button(store.status.systemProxyEnabled ? "Disable System Proxy" : "Enable System Proxy") {
+                store.setSystemProxyEnabled(!store.status.systemProxyEnabled)
+            }
+            .disabled(store.status.state != .running && !store.status.systemProxyEnabled)
+            Button("Open System Proxy Settings") {
                 onNavigate(.systemProxy)
             }
-            .contextMenu {
-                Button(store.status.systemProxyEnabled ? "Disable System Proxy" : "Enable System Proxy") {
-                    store.setSystemProxyEnabled(!store.status.systemProxyEnabled)
-                }
-                .disabled(store.status.state != .running && !store.status.systemProxyEnabled)
-                Button("Open System Proxy Settings") {
-                    onNavigate(.systemProxy)
-                }
-            }
+        }
+    }
 
-            NetworkMetricCard(
-                title: "Controller",
-                value: "\(store.status.endpoint.port)",
-                secondaryValue: nil,
-                detail: store.status.endpoint.host,
-                systemImage: "slider.horizontal.2.square",
-                actionTitle: "Open Core Settings"
-            ) {
-                onNavigate(.core)
+    private var controllerMetricCard: some View {
+        NetworkMetricCard(
+            title: "Controller",
+            value: "\(store.status.endpoint.port)",
+            secondaryValue: nil,
+            detail: store.status.endpoint.host,
+            systemImage: "slider.horizontal.2.square",
+            actionTitle: "Open Core Settings"
+        ) {
+            onNavigate(.core)
+        }
+        .contextMenu {
+            Button("Refresh Controller") {
+                Task { await store.loadCoreConfiguration() }
             }
-            .contextMenu {
-                Button("Refresh Controller") {
-                    Task { await store.loadCoreConfiguration() }
-                }
-                Button("Open Core Settings") {
-                    onNavigate(.core)
-                }
+            Button("Open Core Settings") {
+                onNavigate(.core)
             }
         }
     }
@@ -207,77 +239,105 @@ struct OverviewView: View {
     }
 
     private var statusMenuContent: some View {
-        HStack(spacing: 10) {
-            StatusMenuPill(
-                title: "Core",
-                value: store.status.state.rawValue.capitalized,
-                systemImage: store.status.state == .running ? "checkmark.circle.fill" : "pause.circle"
-            ) {
-                Button("Refresh Status") {
-                    store.refreshStatus()
-                }
+        ScrollView(.horizontal) {
+            HStack(spacing: 10) {
+                StatusMenuPill(
+                    title: "Core",
+                    value: store.status.state.rawValue.capitalized,
+                    systemImage: store.status.state == .running ? "checkmark.circle.fill" : "pause.circle"
+                ) {
+                    Button("Refresh Status") {
+                        store.refreshStatus()
+                    }
 
-                Button("Scan Core Again") {
-                    store.refreshCoreCandidates()
-                }
+                    Button("Scan Core Again") {
+                        store.refreshCoreCandidates()
+                    }
 
-                if !store.coreCandidates.isEmpty {
-                    Divider()
-                    ForEach(store.coreCandidates) { candidate in
-                        Button {
-                            store.setCorePath(candidate.path)
-                        } label: {
-                            Label(candidate.name, systemImage: store.status.corePath == candidate.path ? "checkmark" : "cpu")
+                    if !store.coreCandidates.isEmpty {
+                        Divider()
+                        ForEach(store.coreCandidates) { candidate in
+                            Button {
+                                store.setCorePath(candidate.path)
+                            } label: {
+                                Label(candidate.name, systemImage: store.status.corePath == candidate.path ? "checkmark" : "cpu")
+                            }
                         }
                     }
                 }
-            }
 
-            StatusMenuPill(
-                title: "Profile",
-                value: store.currentProfile?.name ?? "Default",
-                systemImage: "rectangle.stack"
-            ) {
-                if store.profiles.isEmpty {
-                    Text("No profiles")
-                } else {
-                    ForEach(store.profiles) { profile in
-                        Button {
-                            Task { await store.selectProfile(profile) }
-                        } label: {
-                            Label(profile.name, systemImage: profile.isCurrent ? "checkmark" : "rectangle.stack")
+                StatusMenuPill(
+                    title: "Profile",
+                    value: store.currentProfile?.name ?? "Default",
+                    systemImage: "rectangle.stack"
+                ) {
+                    if store.profiles.isEmpty {
+                        Text("No profiles")
+                    } else {
+                        ForEach(store.profiles) { profile in
+                            Button {
+                                Task { await store.selectProfile(profile) }
+                            } label: {
+                                Label(profile.name, systemImage: profile.isCurrent ? "checkmark" : "rectangle.stack")
+                            }
+                            .disabled(profile.isCurrent || store.isLoading)
                         }
-                        .disabled(profile.isCurrent || store.isLoading)
+                    }
+                }
+
+                StatusMenuPill(
+                    title: "Mode",
+                    value: store.status.mode.displayName,
+                    systemImage: "arrow.triangle.branch"
+                ) {
+                    ForEach(OutboundMode.allCases, id: \.self) { mode in
+                        Button {
+                            Task { await store.setMode(mode) }
+                        } label: {
+                            Label(mode.displayName, systemImage: store.status.mode == mode ? "checkmark" : "circle")
+                        }
+                        .disabled(store.status.mode == mode || store.isLoading || store.isSwitchingMode)
+                    }
+                }
+
+                StatusMenuPill(
+                    title: "System Proxy",
+                    value: store.status.systemProxyEnabled ? "On" : "Off",
+                    systemImage: "switch.2"
+                ) {
+                    Button(store.status.systemProxyEnabled ? "Disable System Proxy" : "Enable System Proxy") {
+                        store.setSystemProxyEnabled(!store.status.systemProxyEnabled)
+                    }
+                    .disabled(store.status.state != .running && !store.status.systemProxyEnabled)
+                }
+
+                StatusMenuPill(
+                    title: "TUN",
+                    value: store.tunStatus.isEnabled ? "On" : "Off",
+                    systemImage: store.tunStatus.isEnabled ? "lock.shield.fill" : "lock.shield"
+                ) {
+                    Button(store.tunStatus.isEnabled ? "Disable TUN" : "Enable TUN") {
+                        Task { await store.setTunEnabled(!store.tunStatus.isEnabled) }
+                    }
+                    .disabled(store.isLoading)
+
+                    Button("Open TUN Settings") {
+                        onNavigate(.tun)
+                    }
+
+                    if store.tunStatus.requiresService {
+                        Divider()
+                        Button("Install / Repair Service") {
+                            Task { await store.installServiceMode() }
+                        }
+                        .disabled(store.isLoading)
                     }
                 }
             }
-
-            StatusMenuPill(
-                title: "Mode",
-                value: store.status.mode.displayName,
-                systemImage: "arrow.triangle.branch"
-            ) {
-                ForEach(OutboundMode.allCases, id: \.self) { mode in
-                    Button {
-                        Task { await store.setMode(mode) }
-                    } label: {
-                        Label(mode.displayName, systemImage: store.status.mode == mode ? "checkmark" : "circle")
-                    }
-                    .disabled(store.status.mode == mode || store.isLoading || store.isSwitchingMode)
-                }
-            }
-
-            StatusMenuPill(
-                title: "System Proxy",
-                value: store.status.systemProxyEnabled ? "On" : "Off",
-                systemImage: "switch.2"
-            ) {
-                Button(store.status.systemProxyEnabled ? "Disable System Proxy" : "Enable System Proxy") {
-                    store.setSystemProxyEnabled(!store.status.systemProxyEnabled)
-                }
-                .disabled(store.status.state != .running && !store.status.systemProxyEnabled)
-            }
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.vertical, 1)
         }
+        .scrollIndicators(.hidden)
     }
 }
 
@@ -353,7 +413,7 @@ private struct NetworkMetricCard: View {
                 }
             }
             .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
             .contentShape(.rect(cornerRadius: 14))
             .kumoInteractiveGlass(cornerRadius: 14, tint: Color.accentColor.opacity(isHovered ? 0.12 : 0))
         }

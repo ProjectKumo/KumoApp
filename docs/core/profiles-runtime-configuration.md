@@ -42,10 +42,14 @@ This lets the app start with a safe empty state instead of crashing on missing c
 - `allow-lan`
 - `log-level`
 - `ipv6`
+- `find-process-mode`
 - Geo data settings
 - TUN and paired DNS settings when Kumo TUN is enabled
 
 The goal is to keep user profiles portable while ensuring Kumo can control the running core.
+Kumo sets `find-process-mode: always` by default so the Mihomo controller
+returns `processPath` metadata for active connections; the macOS Connections
+view uses that path to display native application icons.
 
 ## Overrides
 

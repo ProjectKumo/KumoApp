@@ -872,6 +872,7 @@ public struct KumoController: Sendable {
             "allow-lan": settings.allowLAN,
             "log-level": settings.logLevel,
             "ipv6": settings.ipv6,
+            "find-process-mode": settings.findProcessMode,
             "geodata-mode": settings.geoData.usesDatMode,
             "geo-auto-update": settings.geoData.autoUpdate,
             "geo-update-interval": settings.geoData.updateIntervalHours,
@@ -942,4 +943,3 @@ public struct KumoController: Sendable {
             .filter { !$0.isEmpty }
     }
 }
-

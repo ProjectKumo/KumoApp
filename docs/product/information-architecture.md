@@ -2,11 +2,12 @@
 
 ## Goal
 
-Kumo should feel like a Mac utility that helps users connect quickly, not like a network operations dashboard. The first screen must answer four questions:
+Kumo should feel like a Mac utility that helps users connect quickly, not like a network operations dashboard. The first screen must answer five questions:
 
 - Is Kumo connected?
 - Which outbound mode is active?
 - Is the macOS system proxy enabled?
+- Is TUN enabled?
 - Which profile and proxy group are currently in use?
 
 ## Primary Navigation

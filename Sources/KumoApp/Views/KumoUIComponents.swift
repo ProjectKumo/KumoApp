@@ -59,7 +59,7 @@ struct KumoInlineState<Action: View>: View {
             }
         }
         .padding(16)
-        .frame(maxWidth: 380, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .kumoGlassCard(cornerRadius: 14)
     }
 }
@@ -80,9 +80,12 @@ struct StatusPill: View {
             }
             Text(title)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
             Text(value)
                 .fontWeight(legibilityWeight == .bold ? .bold : .medium)
                 .contentTransition(.numericText())
+                .lineLimit(1)
+                .truncationMode(.middle)
             if showsMenuIndicator {
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.semibold))

@@ -43,6 +43,11 @@ Inspect pages keep toolbar search attached to the page container rather than
 only to populated `Table` / `List` branches. A no-match state must not remove
 the search field, because users need the same toolbar control to clear or edit
 the query.
+The Connections table shows process icons in the Process column when Mihomo
+returns `metadata.processPath`. Icons are resolved with `NSWorkspace` from the
+enclosing `.app` / `.xpc` bundle and cached in the SwiftUI view layer; the
+shared `ConnectionEntry` model carries the process path but `KumoCoreKit` does
+not depend on AppKit.
 
 The Overview metric cards are interactive summaries. They use native `Button`
 controls to navigate into the relevant sidebar destinations and expose focused
@@ -50,6 +55,14 @@ context-menu actions such as refresh, proxy toggle, or opening the matching
 settings page. The Traffic metric uses the controller `/traffic` WebSocket for
 live upload and download speeds, matching Mihomo's `up` / `down` stream values
 rather than deriving speed from connection snapshots.
+Overview status pills stay on one horizontal row for quick scanning. They cover
+Core, Profile, Mode, System Proxy, and TUN; the TUN pill uses the same
+`KumoCoreKit.setTunEnabled` path as the Configure page instead of keeping
+separate SwiftUI state.
+The stopped-core state is not repeated as a separate Overview card because the
+toolbar action, Core pill, and connection metric already communicate that
+state. When the core is running with no proxy groups, Overview still shows a
+single inline empty state so the user has a clear next step.
 
 Overview proxy group menus are intentionally bounded. They provide quick access
 to the first visible proxy choices and route large groups to the full Proxies

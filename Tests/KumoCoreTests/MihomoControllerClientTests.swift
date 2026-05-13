@@ -74,7 +74,11 @@ final class MihomoControllerClientTests: XCTestCase {
                   "connections": [
                     {
                       "id": "abc",
-                      "metadata": { "host": "example.com", "process": "Safari" },
+                      "metadata": {
+                        "host": "example.com",
+                        "process": "Safari",
+                        "processPath": "/Applications/Safari.app/Contents/MacOS/Safari"
+                      },
                       "rule": "MATCH",
                       "chains": ["Proxy", "HK"],
                       "upload": 10,
@@ -94,6 +98,7 @@ final class MihomoControllerClientTests: XCTestCase {
         XCTAssertEqual(connections.first?.id, "abc")
         XCTAssertEqual(connections.first?.host, "example.com")
         XCTAssertEqual(connections.first?.process, "Safari")
+        XCTAssertEqual(connections.first?.processPath, "/Applications/Safari.app/Contents/MacOS/Safari")
         XCTAssertEqual(connections.first?.chain, ["Proxy", "HK"])
     }
 
