@@ -296,6 +296,14 @@ Contributions are welcome. Before opening a PR:
    product behavior, architecture, runtime configuration, persistence,
    permissions, testing expectations, or UI information architecture.
 
+## License
+
+Kumo is licensed under the GNU Affero General Public License v3.0 only
+(AGPL-3.0-only). See [LICENSE](LICENSE) for the full text.
+
+Third-party components bundled or used by Kumo may be licensed under
+different terms. See [THIRD_PARTY_NOTICES.md](docs/THIRD_PARTY_NOTICES.md).
+
 ## Acknowledgements
 
 - [Mihomo](https://github.com/MetaCubeX/mihomo), the proxy core Kumo drives.
