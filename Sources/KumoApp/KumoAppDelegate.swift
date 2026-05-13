@@ -2,13 +2,14 @@ import AppKit
 import Foundation
 import KumoCoreKit
 import ServiceManagement
+import UserNotifications
 
 /// Glue that lets `NSApplication` consult our SwiftUI `KumoAppStore` (via
 /// `KumoAppContext.shared`) for behaviours that SwiftUI does not yet model
 /// natively: window-close termination policy, dock badge, Services menu,
 /// Spotlight indexing, and SMAppService synchronisation.
 @MainActor
-final class KumoAppDelegate: NSObject, NSApplicationDelegate {
+final class KumoAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private let preferencesStore = UserPreferencesStore()
     private var dockBadgeTimer: Timer?
     private var statusItemController: KumoStatusItemController?
@@ -18,6 +19,12 @@ final class KumoAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let notificationCenter = UNUserNotificationCenter.current()
+        notificationCenter.delegate = self
+        AppNotificationCoordinator.shared.registerCategories()
+        Task {
+            await AppNotificationCoordinator.shared.requestAuthorization()
+        }
         statusItemController = KumoStatusItemController()
         synchronizeLaunchAtLogin()
         registerServicesProvider()
@@ -25,6 +32,7 @@ final class KumoAppDelegate: NSObject, NSApplicationDelegate {
         Task {
             await reindexSpotlightProfiles()
         }
+        NSApplication.shared.registerForRemoteNotifications()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -121,6 +129,65 @@ final class KumoAppDelegate: NSObject, NSApplicationDelegate {
             }
             await store.importRemoteProfile(urlString: trimmed, useProxy: false)
             NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    func application(
+        _ application: NSApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        // Token forwarding is handled by external push infrastructure if configured.
+    }
+
+    func application(
+        _ application: NSApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: any Error
+    ) {
+        // APNs is optional for update flow; local notifications remain available.
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.list, .banner, .sound])
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let actionIdentifier = response.actionIdentifier
+        let userInfo = response.notification.request.content.userInfo
+        let manifest = AppNotificationCoordinator.manifest(from: userInfo)
+        let version = AppNotificationCoordinator.version(from: userInfo)
+        completionHandler()
+        Task { @MainActor in
+            self.handleNotificationResponse(
+                actionIdentifier: actionIdentifier,
+                manifest: manifest,
+                version: version
+            )
+        }
+    }
+
+    private func handleNotificationResponse(
+        actionIdentifier: String,
+        manifest: AppUpdateManifest?,
+        version: String?
+    ) {
+        guard let store = KumoAppContext.shared.store else {
+            KumoAppContext.shared.openMainWindow()
+            return
+        }
+        Task {
+            await store.handleNotificationAction(
+                actionIdentifier: actionIdentifier,
+                manifest: manifest,
+                version: version
+            )
         }
     }
 }

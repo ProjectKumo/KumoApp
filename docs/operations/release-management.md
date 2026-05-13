@@ -68,6 +68,26 @@ Upload both files to the GitHub Release. For beta, set `CHANNEL=beta`; the manif
 6. Kumo disables system proxy, stops the core if running, and launches a detached install helper.
 7. The helper waits for the current app process to exit, mounts the DMG, copies `Kumo.app` over the current app, detaches the DMG, and reopens Kumo.
 
+During this flow, Kumo also posts macOS actionable notifications through
+`UNUserNotificationCenter`:
+
+- **Update available** — includes `Install Now` and `Remind Me Later`.
+- **Download/install progress** — uses replacement-style stage/percentage text updates.
+- **Restart ready** — surfaces `Restart Now` when the app is ready to relaunch.
+
+The notification payload and category/action IDs are shared between local
+notifications and APNs payloads (`aps.category`), so remote pushes can trigger
+the same in-app action routing.
+
+## Notification Progress Limit
+
+macOS notifications do not provide a continuously updating native progress bar
+for this update flow. Kumo therefore uses:
+
+- in-app `ProgressView` for precise real-time progress;
+- notification stage text (and coarse percentage buckets) for background
+  awareness without spamming Notification Center.
+
 Automatic replacement requires the current app's parent directory to be writable. If Kumo is in a protected location, the update flow reports a clear error and the user can install manually from the download page.
 
 ## Logs and Cache

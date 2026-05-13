@@ -40,9 +40,11 @@ final class KumoAppStore {
     var lastUpdateCheckResult: AppUpdateCheckResult?
 
     let controller = KumoController()
+    private let appNotificationCoordinator = AppNotificationCoordinator.shared
     private var loadingTaskCount = 0
     private var trafficStreamTask: Task<Void, Never>?
     private var logStreamTask: Task<Void, Never>?
+    private var lastNotifiedDownloadBucket: Int?
 
     func refreshAll() async {
         refreshStatus()
@@ -809,6 +811,11 @@ final class KumoAppStore {
             )
             lastUpdateCheckResult = result
             updateStatusMessage = result.update == nil ? "Kumo is up to date." : nil
+            if let update = result.update {
+                appNotificationCoordinator.postUpdateAvailable(manifest: update)
+            } else {
+                appNotificationCoordinator.clearUpdateNotifications()
+            }
             errorMessage = nil
         } catch {
             errorMessage = displayMessage(for: error)
@@ -816,6 +823,7 @@ final class KumoAppStore {
     }
 
     func downloadAndInstallUpdate(_ manifest: AppUpdateManifest) async {
+        guard !isDownloadingUpdate, !isInstallingUpdate else { return }
         guard manifest.canInstallAutomatically else {
             NSWorkspace.shared.open(manifest.downloadURL)
             return
@@ -823,20 +831,40 @@ final class KumoAppStore {
 
         isDownloadingUpdate = true
         updateDownloadProgress = 0
+        lastNotifiedDownloadBucket = 0
         updateStatusMessage = "Downloading \(manifest.version)..."
+        appNotificationCoordinator.postUpdateProgress(
+            manifest: manifest,
+            message: "Downloading Kumo \(manifest.version)... 0%"
+        )
         defer {
             isDownloadingUpdate = false
             updateDownloadProgress = nil
+            lastNotifiedDownloadBucket = nil
         }
 
         do {
             let downloaded = try await controller.downloadAppUpdate(manifest: manifest) { [weak self] progress in
                 Task { @MainActor in
-                    self?.updateDownloadProgress = progress
+                    guard let self else { return }
+                    self.updateDownloadProgress = progress
+                    let percent = Int(progress * 100)
+                    let bucket = max(0, min(10, percent / 10))
+                    if bucket != self.lastNotifiedDownloadBucket {
+                        self.lastNotifiedDownloadBucket = bucket
+                        self.appNotificationCoordinator.postUpdateProgress(
+                            manifest: manifest,
+                            message: "Downloading Kumo \(manifest.version)... \(bucket * 10)%"
+                        )
+                    }
                 }
             }
 
             updateStatusMessage = "Installing \(manifest.version)..."
+            appNotificationCoordinator.postUpdateProgress(
+                manifest: manifest,
+                message: "Installing Kumo \(manifest.version)..."
+            )
             isInstallingUpdate = true
             if status.systemProxyEnabled {
                 setSystemProxyEnabled(false)
@@ -851,11 +879,41 @@ final class KumoAppStore {
                 processID: ProcessInfo.processInfo.processIdentifier
             )
             updateStatusMessage = "Kumo will relaunch after installing \(manifest.version)."
+            appNotificationCoordinator.postRestartReady(manifest: manifest)
             NSApplication.shared.terminate(nil)
         } catch {
             isInstallingUpdate = false
             updateStatusMessage = nil
+            appNotificationCoordinator.clearUpdateNotifications()
             errorMessage = displayMessage(for: error)
+        }
+    }
+
+    func handleNotificationAction(
+        actionIdentifier: String,
+        manifest: AppUpdateManifest?,
+        version: String?
+    ) async {
+        let action = AppNotificationCoordinator.decodeAction(from: actionIdentifier)
+        switch action {
+        case .startUpdate:
+            if let manifest = lastUpdateCheckResult?.update {
+                await downloadAndInstallUpdate(manifest)
+            } else if let manifest {
+                await downloadAndInstallUpdate(manifest)
+            } else {
+                KumoAppContext.shared.openSettings()
+            }
+        case .remindLater:
+            let version = version ?? lastUpdateCheckResult?.update?.version
+            if let version {
+                appNotificationCoordinator.snoozeReminder(for: version)
+                updateStatusMessage = "Kumo \(version) reminder snoozed for 6 hours."
+            }
+        case .restartNow:
+            NSApplication.shared.terminate(nil)
+        case .openApp:
+            KumoAppContext.shared.openMainWindow()
         }
     }
 
