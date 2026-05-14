@@ -1,8 +1,24 @@
 import AppKit
 import Foundation
 import KumoCoreKit
+import os
 import ServiceManagement
 import UserNotifications
+
+private let terminationLogger = Logger(subsystem: "io.kumo.KumoApp", category: "shutdown")
+
+/// Single-resume gate so the first finisher in a cleanup/timeout race
+/// resumes the continuation and the loser is a no-op. Lives on the main
+/// actor to avoid needing a lock — both racers hop to `@MainActor` first.
+@MainActor
+private final class TerminationGate {
+    private var resumed = false
+    func claim() -> Bool {
+        guard !resumed else { return false }
+        resumed = true
+        return true
+    }
+}
 
 /// Glue that lets `NSApplication` consult our SwiftUI `KumoAppStore` (via
 /// `KumoAppContext.shared`) for behaviours that SwiftUI does not yet model
@@ -13,6 +29,8 @@ final class KumoAppDelegate: NSObject, NSApplicationDelegate, UNUserNotification
     private let preferencesStore = UserPreferencesStore()
     private var dockBadgeTimer: Timer?
     private var statusItemController: KumoStatusItemController?
+    private var isPerformingTerminationCleanup = false
+    private var didCompleteTerminationCleanup = false
 
     nonisolated override init() {
         super.init()
@@ -40,6 +58,52 @@ final class KumoAppDelegate: NSObject, NSApplicationDelegate, UNUserNotification
         dockBadgeTimer = nil
         statusItemController?.invalidate()
         statusItemController = nil
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !didCompleteTerminationCleanup else {
+            return .terminateNow
+        }
+        guard !isPerformingTerminationCleanup else {
+            return .terminateLater
+        }
+
+        isPerformingTerminationCleanup = true
+        Task { @MainActor in
+            await self.runTerminationCleanupWithTimeout(seconds: 5)
+            self.didCompleteTerminationCleanup = true
+            self.isPerformingTerminationCleanup = false
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
+    /// Race the store's `prepareForTermination` against a hard timeout. The
+    /// timeout bounds total quit wait at ~5 s so a hung helper-IPC stop or
+    /// stuck `networksetup` invocation can't keep AppKit in
+    /// `.terminateLater` forever — Sparkle's SIGKILL ladder caps at +6 s,
+    /// this is the Swift analogue at the call site.
+    @MainActor
+    private func runTerminationCleanupWithTimeout(seconds: TimeInterval) async {
+        guard let store = KumoAppContext.shared.store else { return }
+        let cleanup = Task { @MainActor in
+            await store.prepareForTermination()
+        }
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let gate = TerminationGate()
+            Task { @MainActor in
+                _ = await cleanup.value
+                if gate.claim() { continuation.resume() }
+            }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                if gate.claim() {
+                    terminationLogger.error("Kumo termination cleanup exceeded \(Int(seconds))s; proceeding with quit")
+                    continuation.resume()
+                }
+            }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

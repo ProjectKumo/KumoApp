@@ -40,6 +40,25 @@ public enum ProxyCountry {
         return keywordCode(in: name)
     }
 
+    /// Returns a UI display name with embedded country flag emoji removed.
+    ///
+    /// The original node name remains the identity used for Mihomo API calls,
+    /// selection, and search; this helper is only for surfaces that already
+    /// render a separate inferred flag icon and do not want to show the same
+    /// flag twice.
+    public static func displayName(for name: String) -> String {
+        let flagRemoval = removingEmbeddedFlags(from: name)
+        guard flagRemoval.removedFlag else {
+            return name
+        }
+
+        let stripped = flagRemoval.name
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: displayNameBoundarySeparators)
+
+        return stripped.isEmpty ? name : stripped
+    }
+
     /// Builds a flag emoji from a 2-letter ISO region code. Returns `nil` for
     /// inputs that are not exactly two ASCII letters.
     public static func flag(forRegionCode code: String) -> String? {
@@ -93,6 +112,29 @@ public enum ProxyCountry {
         return nil
     }
 
+    private static func removingEmbeddedFlags(from name: String) -> (name: String, removedFlag: Bool) {
+        let scalars = Array(name.unicodeScalars)
+        guard scalars.count >= 2 else {
+            return (name, false)
+        }
+
+        var result = String.UnicodeScalarView()
+        var removedFlag = false
+        var index = 0
+        while index < scalars.count {
+            if index + 1 < scalars.count,
+               isRegionalIndicator(scalars[index]),
+               isRegionalIndicator(scalars[index + 1]) {
+                removedFlag = true
+                index += 2
+                continue
+            }
+            result.append(scalars[index])
+            index += 1
+        }
+        return (String(result), removedFlag)
+    }
+
     private static func isRegionalIndicator(_ scalar: Unicode.Scalar) -> Bool {
         (0x1F1E6...0x1F1FF).contains(scalar.value)
     }
@@ -101,6 +143,9 @@ public enum ProxyCountry {
         let value = scalar.value - 0x1F1E6 + 0x41
         return Character(Unicode.Scalar(value)!)
     }
+
+    private static let displayNameBoundarySeparators = CharacterSet.whitespacesAndNewlines
+        .union(CharacterSet(charactersIn: "-_·•/|｜"))
 
     // MARK: - Keyword matching
 

@@ -227,6 +227,29 @@ final class KumoAppStore {
         }
     }
 
+    func prepareForTermination() async {
+        stopUpdatePolling()
+        stopTrafficStream()
+        stopLogStream()
+        proxyGeoTask?.cancel()
+        proxyGeoTask = nil
+
+        let result = await controller.shutdownActiveRuntime()
+        status = result.status
+        status.systemProxyEnabled = false
+        proxyGroups = []
+        rules = []
+        connections = []
+        proxyProviders = []
+        ruleProviders = []
+        coreConfiguration = CoreConfigurationSnapshot(mode: status.mode, mixedPort: status.proxyPorts.mixedPort)
+        trafficSnapshot = TrafficSnapshot()
+        trafficHistory = []
+        refreshServiceModeStatus()
+        refreshTunStatus()
+        errorMessage = result.diagnostics.first
+    }
+
     func setMode(_ mode: OutboundMode) async {
         guard mode != status.mode else { return }
         guard !isSwitchingMode else { return }

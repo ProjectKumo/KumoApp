@@ -58,6 +58,26 @@ final class ProxyCountryTests: XCTestCase {
         XCTAssertEqual(ProxyCountry.code(for: "🇯🇵 JP Backup-HK"), "JP")
     }
 
+    func testDisplayNameRemovesEmbeddedFlagEmoji() {
+        XCTAssertEqual(ProxyCountry.displayName(for: "🇭🇰 香港 01"), "香港 01")
+        XCTAssertEqual(ProxyCountry.displayName(for: "香港 🇭🇰 01"), "香港 01")
+        XCTAssertEqual(ProxyCountry.displayName(for: "🇭🇰-香港 01"), "香港 01")
+        XCTAssertEqual(ProxyCountry.displayName(for: "🇭🇰 🇯🇵 Relay"), "Relay")
+    }
+
+    func testDisplayNameKeepsNonFlagEmoji() {
+        XCTAssertEqual(ProxyCountry.displayName(for: "🚀 节点选择"), "🚀 节点选择")
+        XCTAssertEqual(ProxyCountry.displayName(for: "🦥 懒人 01"), "🦥 懒人 01")
+    }
+
+    func testDisplayNameDoesNotNormalizeNamesWithoutFlags() {
+        XCTAssertEqual(ProxyCountry.displayName(for: "- Custom   Relay"), "- Custom   Relay")
+    }
+
+    func testDisplayNameFallsBackWhenFlagWasOnlyText() {
+        XCTAssertEqual(ProxyCountry.displayName(for: "🇭🇰"), "🇭🇰")
+    }
+
     func testDataDrivenRegionsAreRecognizedWithoutManualEntries() {
         // These countries are not in `manualAliases` — they should still
         // resolve because the keyword table is derived from Foundation's

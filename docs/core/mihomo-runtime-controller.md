@@ -37,6 +37,31 @@ installed and reachable, `KumoController` routes start, stop, restart, system
 proxy, and TUN operations through the signed Unix socket service backend so the
 privileged helper owns Mihomo.
 
+`KumoAppDelegate.applicationShouldTerminate(_:)` delays app termination while
+`KumoAppStore.prepareForTermination()` runs
+`KumoController.shutdownActiveRuntime()`. The shutdown is best-effort and
+log-and-continue: it disables Kumo-managed system proxy state, then stops the
+running Mihomo core through the helper when it is reachable or through the
+local supervisor otherwise. Each step has a fallback — a synchronous
+`networksetup` invocation backs up the async/helper proxy disable, and a
+direct `CoreSupervisor.stop()` backs up the helper-routed core stop — so a
+single hung IPC call does not leave Mihomo or the user's proxy settings in a
+broken state. Diagnostics from every failed step are collected into a
+`ShutdownResult` and surfaced via `errorMessage`; the post-shutdown UI state
+reset always runs, even when every step failed. This mirrors Sparkle's
+`Promise.all([triggerSysProxy(false), stopCore()])` + `will-quit` →
+`disableSysProxySync()` pattern.
+
+The AppDelegate races `prepareForTermination` against a 5 s timeout so a
+hung helper-IPC stop or stuck `networksetup` invocation cannot keep AppKit
+in `.terminateLater` forever; this is the Swift analogue of Sparkle's
+SIGINT → SIGTERM → SIGKILL ladder (capped at +6 s in `process-control.ts`).
+
+The helper daemon may remain installed and reachable after app quit, but it
+must not leave a helper-owned Mihomo process, TUN route, or DNS interception
+active. Stopping Mihomo is the cleanup boundary for the active TUN route
+and Mihomo-managed DNS interception.
+
 ## TUN Runtime Settings
 
 `CoreRuntimeSettings` can carry `TunSettings`. When TUN is enabled and service

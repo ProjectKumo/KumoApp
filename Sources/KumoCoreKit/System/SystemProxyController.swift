@@ -27,6 +27,57 @@ public struct ShellCommand: Codable, Equatable, Sendable {
     }
 }
 
+public struct SystemProxyCommandRunner: Sendable {
+    public var run: @Sendable (ShellCommand) throws -> Void
+    public var captureOutput: @Sendable (ShellCommand) throws -> String
+
+    public init(
+        run: @escaping @Sendable (ShellCommand) throws -> Void,
+        captureOutput: @escaping @Sendable (ShellCommand) throws -> String
+    ) {
+        self.run = run
+        self.captureOutput = captureOutput
+    }
+
+    public static let live = SystemProxyCommandRunner(
+        run: { command in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: command.executable)
+            process.arguments = command.arguments
+
+            let pipe = Pipe()
+            process.standardError = pipe
+            try process.run()
+            process.waitUntilExit()
+
+            guard process.terminationStatus == 0 else {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                throw KumoError.commandFailed(String(decoding: data, as: UTF8.self))
+            }
+        },
+        captureOutput: { command in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: command.executable)
+            process.arguments = command.arguments
+
+            let output = Pipe()
+            let error = Pipe()
+            process.standardOutput = output
+            process.standardError = error
+            try process.run()
+            process.waitUntilExit()
+
+            guard process.terminationStatus == 0 else {
+                let data = error.fileHandleForReading.readDataToEndOfFile()
+                throw KumoError.commandFailed(String(decoding: data, as: UTF8.self))
+            }
+
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    )
+}
+
 public struct SystemProxyConfiguration: Codable, Equatable, Sendable {
     public var networkService: String
     public var host: String
@@ -55,14 +106,16 @@ public struct SystemProxyConfiguration: Codable, Equatable, Sendable {
 public struct SystemProxyController: Sendable {
     private let stateStore: CoreStateStore
     private let pacServer: PACServer
+    private let commandRunner: SystemProxyCommandRunner
 
-    public init(paths: KumoPaths = KumoPaths()) {
+    public init(paths: KumoPaths = KumoPaths(), commandRunner: SystemProxyCommandRunner = .live) {
         self.stateStore = CoreStateStore(paths: paths)
         self.pacServer = PACServer()
+        self.commandRunner = commandRunner
     }
 
     public func availableNetworkServices() throws -> [String] {
-        let output = try runCapturingOutput(
+        let output = try commandRunner.captureOutput(
             ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-listallnetworkservices"])
         )
         return output
@@ -79,7 +132,7 @@ public struct SystemProxyController: Sendable {
     }
 
     public func activeNetworkService() throws -> String {
-        let routeOutput = try runCapturingOutput(
+        let routeOutput = try commandRunner.captureOutput(
             ShellCommand(executable: "/sbin/route", arguments: ["-n", "get", "default"])
         )
         guard let interface = routeOutput
@@ -92,7 +145,7 @@ public struct SystemProxyController: Sendable {
             throw KumoError.commandFailed("Unable to determine active network interface.")
         }
 
-        let orderOutput = try runCapturingOutput(
+        let orderOutput = try commandRunner.captureOutput(
             ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-listnetworkserviceorder"])
         )
         return try Self.networkService(in: orderOutput, matchingDevice: interface)
@@ -118,16 +171,16 @@ public struct SystemProxyController: Sendable {
     public func snapshot(networkService: String) throws -> SystemProxySnapshot {
         try SystemProxySnapshot(
             networkService: networkService,
-            webProxy: runCapturingOutput(
+            webProxy: commandRunner.captureOutput(
                 ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getwebproxy", networkService])
             ),
-            secureWebProxy: runCapturingOutput(
+            secureWebProxy: commandRunner.captureOutput(
                 ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getsecurewebproxy", networkService])
             ),
-            socksProxy: runCapturingOutput(
+            socksProxy: commandRunner.captureOutput(
                 ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getsocksfirewallproxy", networkService])
             ),
-            bypassDomains: runCapturingOutput(
+            bypassDomains: commandRunner.captureOutput(
                 ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getproxybypassdomains", networkService])
             )
         )
@@ -245,7 +298,7 @@ public struct SystemProxyController: Sendable {
             if isEnabled {
                 try await verifyTargetPort(configuration: configuration)
             }
-            try commands.forEach(run)
+            try commands.forEach(commandRunner.run)
             try verifyAppliedState(isEnabled: isEnabled, configuration: configuration, pacURL: pacURL)
         }
 
@@ -270,6 +323,20 @@ public struct SystemProxyController: Sendable {
         return commands
     }
 
+    @discardableResult
+    public func disableSynchronously(configuration: SystemProxyConfiguration = SystemProxyConfiguration()) throws -> [ShellCommand] {
+        let commands = disableCommands(networkService: configuration.networkService)
+            + pacDisableCommands(networkService: configuration.networkService)
+        try commands.forEach(commandRunner.run)
+
+        var status = try stateStore.load()
+        status.systemProxyEnabled = false
+        status.previousSystemProxySnapshot = nil
+        try stateStore.save(status)
+
+        return commands
+    }
+
     public static func renderPACScript(_ script: String, port: Int) -> String {
         script.replacingOccurrences(of: "%mixed-port%", with: "\(port)")
     }
@@ -285,16 +352,16 @@ public struct SystemProxyController: Sendable {
     }
 
     private func verifyAppliedState(isEnabled: Bool, configuration: SystemProxyConfiguration, pacURL: String?) throws {
-        let webProxy = try runCapturingOutput(
+        let webProxy = try commandRunner.captureOutput(
             ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getwebproxy", configuration.networkService])
         )
-        let secureWebProxy = try runCapturingOutput(
+        let secureWebProxy = try commandRunner.captureOutput(
             ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getsecurewebproxy", configuration.networkService])
         )
-        let socksProxy = try runCapturingOutput(
+        let socksProxy = try commandRunner.captureOutput(
             ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getsocksfirewallproxy", configuration.networkService])
         )
-        let autoProxy = try runCapturingOutput(
+        let autoProxy = try commandRunner.captureOutput(
             ShellCommand(executable: "/usr/sbin/networksetup", arguments: ["-getautoproxyurl", configuration.networkService])
         )
 
@@ -365,40 +432,4 @@ public struct SystemProxyController: Sendable {
         }
     }
 
-    private func run(_ command: ShellCommand) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: command.executable)
-        process.arguments = command.arguments
-
-        let pipe = Pipe()
-        process.standardError = pipe
-        try process.run()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            throw KumoError.commandFailed(String(decoding: data, as: UTF8.self))
-        }
-    }
-
-    private func runCapturingOutput(_ command: ShellCommand) throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: command.executable)
-        process.arguments = command.arguments
-
-        let output = Pipe()
-        let error = Pipe()
-        process.standardOutput = output
-        process.standardError = error
-        try process.run()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            let data = error.fileHandleForReading.readDataToEndOfFile()
-            throw KumoError.commandFailed(String(decoding: data, as: UTF8.self))
-        }
-
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }

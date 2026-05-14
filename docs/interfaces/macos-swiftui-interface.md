@@ -54,7 +54,10 @@ Overview is a two-pane layout (`HSplitView`) inspired by single-window utility
 apps. The left pane is a searchable proxy node list grouped by
 `ProxyGroup`; each row shows a country flag inferred from the node `name` plus
 a delay pill (green < 300 ms, orange otherwise, red on timeout, `—` when
-unknown). Tapping a row commits via `KumoAppStore.selectProxy(group:proxy:)`,
+unknown). When the inferred flag came from an emoji embedded in the node name,
+the row text suppresses that embedded flag so the sidebar does not render the
+same country twice; the original node name is still used for selection, search,
+and Mihomo API calls. Tapping a row commits via `KumoAppStore.selectProxy(group:proxy:)`,
 and a per-group `speedometer` button triggers `testDelay(for:)`. Typing in the
 sidebar search field filters node names and force-expands every matching group
 so users do not have to click twice to see hits.

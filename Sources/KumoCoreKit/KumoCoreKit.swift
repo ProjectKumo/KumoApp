@@ -1,4 +1,25 @@
 import Foundation
+import os
+
+private let shutdownLogger = Logger(subsystem: "io.kumo.KumoApp", category: "shutdown")
+
+/// Result of a best-effort shutdown attempt. `status` is the most recent
+/// observable core status (falls back to the on-disk state store, then a
+/// stopped `CoreStatus()`). `diagnostics` lists every step that failed,
+/// stage-prefixed, so callers can surface or log them without losing the
+/// later errors to the first one — matching Sparkle's
+/// `Promise.all([disable, stopCore])` + per-branch try/catch pattern.
+public struct ShutdownResult: Sendable {
+    public let status: CoreStatus
+    public let diagnostics: [String]
+
+    public init(status: CoreStatus, diagnostics: [String] = []) {
+        self.status = status
+        self.diagnostics = diagnostics
+    }
+
+    public var failed: Bool { !diagnostics.isEmpty }
+}
 
 public struct KumoController: Sendable {
     public let paths: KumoPaths
@@ -17,13 +38,17 @@ public struct KumoController: Sendable {
     private let serviceManager: KumoServiceManager
     private let useServiceBackend: Bool
 
-    public init(paths: KumoPaths = KumoPaths(), useServiceBackend: Bool = true) {
+    public init(
+        paths: KumoPaths = KumoPaths(),
+        useServiceBackend: Bool = true,
+        systemProxyCommandRunner: SystemProxyCommandRunner = .live
+    ) {
         self.paths = paths
         self.profileRepository = ProfileRepository(paths: paths)
         self.overrideRepository = OverrideRepository(paths: paths)
         self.supervisor = CoreSupervisor(paths: paths)
         self.stateStore = CoreStateStore(paths: paths)
-        self.systemProxyController = SystemProxyController(paths: paths)
+        self.systemProxyController = SystemProxyController(paths: paths, commandRunner: systemProxyCommandRunner)
         self.coreInstaller = CoreInstaller(paths: paths)
         self.subStoreManager = SubStoreManager(paths: paths)
         self.backupManager = KumoBackupManager(paths: paths)
@@ -111,6 +136,81 @@ public struct KumoController: Sendable {
             return try client.sendDecodable(client.stopCoreRequest(), as: CoreStatus.self)
         }
         return try supervisor.stop()
+    }
+
+    /// Best-effort shutdown of whichever runtime is active (helper-routed
+    /// when the privileged service is up, in-app supervisor otherwise).
+    /// Disables Kumo-managed system proxy state and stops the running
+    /// Mihomo core. Never throws — every failed step is recorded in the
+    /// returned `ShutdownResult.diagnostics` and the next step is still
+    /// attempted, so the caller is free to clear UI state and exit even
+    /// when an error occurred. Includes synchronous-networksetup and local
+    /// supervisor fallbacks for the helper-IPC failure case.
+    @discardableResult
+    public func shutdownActiveRuntime() async -> ShutdownResult {
+        var diagnostics: [String] = []
+        var latestStatus: CoreStatus
+        do {
+            latestStatus = try status()
+        } catch {
+            diagnostics.append(formatDiagnostic(stage: "status", error: error))
+            latestStatus = (try? stateStore.load()) ?? CoreStatus()
+        }
+
+        if latestStatus.systemProxyEnabled {
+            do {
+                _ = try await setSystemProxy(false)
+                latestStatus.systemProxyEnabled = false
+            } catch {
+                diagnostics.append(formatDiagnostic(stage: "system-proxy", error: error))
+                do {
+                    let configuration = fallbackSystemProxyConfiguration(for: latestStatus)
+                    _ = try systemProxyController.disableSynchronously(configuration: configuration)
+                    latestStatus.systemProxyEnabled = false
+                } catch {
+                    diagnostics.append(formatDiagnostic(stage: "system-proxy-fallback", error: error))
+                }
+            }
+        }
+
+        latestStatus = (try? status()) ?? latestStatus
+        if latestStatus.state == .running || latestStatus.pid != nil {
+            do {
+                latestStatus = try stop()
+            } catch {
+                diagnostics.append(formatDiagnostic(stage: "stop", error: error))
+                do {
+                    latestStatus = try supervisor.stop()
+                } catch {
+                    diagnostics.append(formatDiagnostic(stage: "stop-fallback", error: error))
+                }
+            }
+        }
+
+        latestStatus = (try? status()) ?? latestStatus
+        return ShutdownResult(status: latestStatus, diagnostics: diagnostics)
+    }
+
+    private func formatDiagnostic(stage: String, error: Error) -> String {
+        let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        let line = "\(stage): \(message)"
+        shutdownLogger.error("\(line, privacy: .public)")
+        return line
+    }
+
+    private func fallbackSystemProxyConfiguration(for status: CoreStatus) -> SystemProxyConfiguration {
+        let stored = status.systemProxySettings?.networkService
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedService: String
+        if let stored, !stored.isEmpty, stored != "Automatic" {
+            resolvedService = stored
+        } else if let active = try? systemProxyController.activeNetworkService(),
+                  !active.isEmpty {
+            resolvedService = active
+        } else {
+            resolvedService = "Wi-Fi"
+        }
+        return SystemProxyConfiguration(networkService: resolvedService)
     }
 
     public func restart(corePath: String? = nil) throws -> CoreStatus {

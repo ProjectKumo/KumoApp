@@ -283,7 +283,7 @@ private struct ProxyNodeRow: View {
                 CountryFlagIcon(name: proxy.name, detectedCountry: proxy.detectedCountry)
                     .frame(width: 22, alignment: .center)
 
-                Text(proxy.name)
+                Text(displayName)
                     .font(.system(size: 12))
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -317,7 +317,7 @@ private struct ProxyNodeRow: View {
         }
         .contextMenu {
             if !isReadOnly {
-                Button("Select \(proxy.name)") {
+                Button("Select \(displayName)") {
                     Task { await store.selectProxy(group: group, proxy: proxy) }
                 }
                 .disabled(isSelected)
@@ -328,9 +328,13 @@ private struct ProxyNodeRow: View {
                 .disabled(store.isTestingDelay)
             }
         }
-        .accessibilityLabel(proxy.name)
+        .accessibilityLabel(displayName)
         .accessibilityValue(accessibilityValue)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var displayName: String {
+        ProxyCountry.displayName(for: proxy.name)
     }
 
     private var rowFill: Color {
