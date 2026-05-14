@@ -8,10 +8,20 @@ import KumoCoreKit
 final class KumoAppStore {
     var status = CoreStatus()
     var proxyGroups: [ProxyGroup] = []
+    /// Read-only proxy groups parsed from the current profile YAML, used as
+    /// a fallback render source for the Overview sidebar while the core is
+    /// stopped. Refreshed alongside `refreshProfiles()` and after every
+    /// `loadProxyGroups()` call so the preview is always current.
+    var profilePreviewGroups: [ProxyGroup] = []
     var profiles: [ProfileSummary] = []
     var currentProfile: ProfileSummary?
     var coreConfiguration = CoreConfigurationSnapshot()
     var trafficSnapshot = TrafficSnapshot()
+    /// Rolling 60-sample buffer of throughput data points (~60 s at
+    /// mihomo's 1 Hz `/traffic` stream). Used by the Overview Traffic card
+    /// to render a sparkline when expanded. Reset whenever the core stops
+    /// or the stream errors out.
+    var trafficHistory: [TrafficSample] = []
     var rules: [RuleEntry] = []
     var connections: [ConnectionEntry] = []
     var logs: [LogEntry] = []
@@ -41,10 +51,16 @@ final class KumoAppStore {
 
     let controller = KumoController()
     private let appNotificationCoordinator = AppNotificationCoordinator.shared
+    private let proxyGeoLookup: ProxyGeoLookup
     private var loadingTaskCount = 0
     private var trafficStreamTask: Task<Void, Never>?
     private var logStreamTask: Task<Void, Never>?
     private var lastNotifiedDownloadBucket: Int?
+    private var proxyGeoTask: Task<Void, Never>?
+
+    init() {
+        self.proxyGeoLookup = ProxyGeoLookup(cacheURL: controller.paths.proxyGeoCacheFile)
+    }
 
     func refreshAll() async {
         refreshStatus()
@@ -142,22 +158,35 @@ final class KumoAppStore {
         } catch {
             errorMessage = displayMessage(for: error)
         }
+        refreshProfilePreview()
     }
 
     func startCore() async {
-        await performLoadingTask { [self] in
-            let installResult = try await self.installManagedCoreIfNeeded()
-            self.status = try self.controller.start()
-            try await self.controller.waitForControllerReady()
-            self.startTrafficStream()
-            self.refreshProfiles()
-            await self.loadProxyGroups()
-            await self.loadCoreConfiguration()
-            await self.loadResources()
-            self.refreshOverrides()
+        beginLoading()
+        defer { endLoading() }
+
+        do {
+            let installResult = try await installManagedCoreIfNeeded()
+            status = try controller.start()
+            try await controller.waitForControllerReady()
+            startTrafficStream()
+            refreshProfiles()
+            await loadProxyGroups()
+            await loadCoreConfiguration()
+            await loadResources()
+            refreshOverrides()
             if let installResult {
-                self.status.message = "Installed Mihomo core \(installResult.version) and started."
+                status.message = "Installed Mihomo core \(installResult.version) and started."
             }
+            errorMessage = nil
+            appNotificationCoordinator.clearCoreStateNotifications()
+        } catch {
+            let message = displayMessage(for: error)
+            errorMessage = message
+            // Surface the failure as a system notification so users notice
+            // it even when the main window is occluded or the menu bar
+            // status item isn't visible.
+            appNotificationCoordinator.postCoreStartFailed(error: message)
         }
     }
 
@@ -168,9 +197,13 @@ final class KumoAppStore {
             status = try controller.stop()
             proxyGroups = []
             trafficSnapshot = TrafficSnapshot()
+            trafficHistory = []
             errorMessage = nil
+            appNotificationCoordinator.clearCoreStateNotifications()
         } catch {
-            errorMessage = displayMessage(for: error)
+            let message = displayMessage(for: error)
+            errorMessage = message
+            appNotificationCoordinator.postCoreStopFailed(error: message)
         }
     }
 
@@ -209,6 +242,8 @@ final class KumoAppStore {
     func loadProxyGroups() async {
         guard status.state == .running else {
             proxyGroups = []
+            proxyGeoTask?.cancel()
+            proxyGeoTask = nil
             return
         }
 
@@ -218,6 +253,98 @@ final class KumoAppStore {
         } catch {
             errorMessage = displayMessage(for: error)
         }
+
+        applyCachedCountries()
+        scheduleCountryDetection()
+        refreshProfilePreview()
+    }
+
+    /// Re-parses the current profile YAML into a list of read-only proxy
+    /// groups (`profilePreviewGroups`). Used by the Overview sidebar to
+    /// render the user's configured nodes while mihomo is stopped. Failures
+    /// are intentionally swallowed — there's no actionable error to surface
+    /// for a missing or malformed `proxy-groups:` section, and the empty
+    /// fallback already provides a clear UI state.
+    private func refreshProfilePreview() {
+        guard let profileID = currentProfile?.id else {
+            profilePreviewGroups = []
+            return
+        }
+        guard let yaml = try? controller.profileContent(id: profileID) else {
+            profilePreviewGroups = []
+            return
+        }
+        guard let groups = try? ProfileNodeParser.parseProxyGroups(yaml: yaml) else {
+            profilePreviewGroups = []
+            return
+        }
+        profilePreviewGroups = groups
+    }
+
+    /// Reads cached `server → country` codes for every node in the current
+    /// `proxyGroups` and writes them onto `detectedCountry` synchronously,
+    /// so the UI shows known flags immediately without waiting on the
+    /// async lookup task.
+    private func applyCachedCountries() {
+        guard let serverMap = currentProfileServerMap(), !serverMap.isEmpty else {
+            return
+        }
+        Task { @MainActor [proxyGeoLookup] in
+            var updates: [String: String] = [:]
+            for server in Set(serverMap.values) {
+                if let code = await proxyGeoLookup.cachedCountry(for: server) {
+                    updates[server] = code
+                }
+            }
+            guard !updates.isEmpty else { return }
+            self.writeBackCountries(serverMap: serverMap, codes: updates)
+        }
+    }
+
+    /// Spawns a single async task that resolves country codes for every
+    /// known node server in the current profile, deduplicating across nodes
+    /// that share a server and writing the result back to `proxyGroups`.
+    /// Re-entrancy is guarded by `proxyGeoTask` — calling this again while
+    /// a previous lookup is still in flight cancels the previous task.
+    private func scheduleCountryDetection() {
+        proxyGeoTask?.cancel()
+        guard let serverMap = currentProfileServerMap(), !serverMap.isEmpty else {
+            return
+        }
+        let hosts = Array(Set(serverMap.values))
+        let lookup = proxyGeoLookup
+        proxyGeoTask = Task { @MainActor [weak self] in
+            let codes = await lookup.countries(for: hosts)
+            guard !Task.isCancelled, let self else { return }
+            self.writeBackCountries(serverMap: serverMap, codes: codes)
+        }
+    }
+
+    private func writeBackCountries(serverMap: [String: String], codes: [String: String]) {
+        guard !codes.isEmpty else { return }
+        var updated = proxyGroups
+        var didChange = false
+        for groupIndex in updated.indices {
+            for proxyIndex in updated[groupIndex].proxies.indices {
+                let proxyName = updated[groupIndex].proxies[proxyIndex].name
+                guard let server = serverMap[proxyName] else { continue }
+                guard let code = codes[server.lowercased()] ?? codes[server] else { continue }
+                if updated[groupIndex].proxies[proxyIndex].detectedCountry != code {
+                    updated[groupIndex].proxies[proxyIndex].detectedCountry = code
+                    didChange = true
+                }
+            }
+        }
+        if didChange {
+            proxyGroups = updated
+        }
+    }
+
+    private func currentProfileServerMap() -> [String: String]? {
+        guard let profileID = currentProfile?.id else { return nil }
+        guard let yaml = try? controller.profileContent(id: profileID) else { return nil }
+        guard let nodes = try? ProfileNodeParser.parseNodes(yaml: yaml) else { return nil }
+        return nodes.mapValues(\.server)
     }
 
     func loadCoreConfiguration() async {
@@ -761,6 +888,7 @@ final class KumoAppStore {
                 for try await snapshot in stream {
                     await MainActor.run {
                         self.trafficSnapshot = snapshot
+                        self.appendTrafficSample(from: snapshot)
                     }
                 }
             } catch is CancellationError {
@@ -770,6 +898,7 @@ final class KumoAppStore {
                 // unreadable). Surface the disconnected state so the UI doesn't display stale data.
                 await MainActor.run {
                     self.trafficSnapshot = TrafficSnapshot()
+                    self.trafficHistory = []
                 }
             }
         }
@@ -779,6 +908,20 @@ final class KumoAppStore {
         trafficStreamTask?.cancel()
         trafficStreamTask = nil
         trafficSnapshot = TrafficSnapshot()
+        trafficHistory = []
+    }
+
+    private func appendTrafficSample(from snapshot: TrafficSnapshot) {
+        let sample = TrafficSample(
+            timestamp: Date(),
+            upload: snapshot.uploadSpeed,
+            download: snapshot.downloadSpeed
+        )
+        trafficHistory.append(sample)
+        let capacity = 60
+        if trafficHistory.count > capacity {
+            trafficHistory.removeFirst(trafficHistory.count - capacity)
+        }
     }
 
     func clearLogs() {

@@ -526,11 +526,22 @@ public struct ProxyNode: Identifiable, Codable, Equatable, Sendable {
     public var name: String
     public var type: String?
     public var delay: Int?
+    /// ISO 3166-1 alpha-2 region code inferred from the upstream server IP,
+    /// populated asynchronously by `ProxyGeoLookup`. UI uses this as a
+    /// fallback when parsing the node's display name cannot determine the
+    /// country. `nil` means "not yet looked up" or "lookup failed".
+    public var detectedCountry: String?
 
-    public init(name: String, type: String? = nil, delay: Int? = nil) {
+    public init(
+        name: String,
+        type: String? = nil,
+        delay: Int? = nil,
+        detectedCountry: String? = nil
+    ) {
         self.name = name
         self.type = type
         self.delay = delay
+        self.detectedCountry = detectedCountry
     }
 }
 

@@ -10,6 +10,7 @@ final class AppNotificationCoordinator {
         static let updateAvailable = "UPDATE_AVAILABLE"
         static let updateProgress = "UPDATE_PROGRESS"
         static let restartReady = "RESTART_READY"
+        static let coreState = "CORE_STATE"
     }
 
     enum ActionID {
@@ -22,6 +23,8 @@ final class AppNotificationCoordinator {
         static let updateAvailable = "io.kumo.notification.update.available"
         static let updateProgress = "io.kumo.notification.update.progress"
         static let restartReady = "io.kumo.notification.update.restart"
+        static let coreStartFailed = "io.kumo.notification.core.start-failed"
+        static let coreStopFailed = "io.kumo.notification.core.stop-failed"
     }
 
     enum UserInfoKey {
@@ -78,8 +81,22 @@ final class AppNotificationCoordinator {
             intentIdentifiers: [],
             options: []
         )
+        // Informational only — no actionable buttons. The notification's
+        // dismiss / tap default behaviours surface the app, which is
+        // exactly what we want for a "Kumo failed to start" alert.
+        let coreStateCategory = UNNotificationCategory(
+            identifier: CategoryID.coreState,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
 
-        center.setNotificationCategories([updateAvailableCategory, updateProgressCategory, restartReadyCategory])
+        center.setNotificationCategories([
+            updateAvailableCategory,
+            updateProgressCategory,
+            restartReadyCategory,
+            coreStateCategory
+        ])
     }
 
     func requestAuthorization() async {
@@ -144,6 +161,51 @@ final class AppNotificationCoordinator {
             RequestID.updateProgress,
             RequestID.restartReady
         ])
+    }
+
+    /// Posts a system notification when the user tried to start Kumo but it
+    /// failed. Successful starts are not notified — the UI already reflects
+    /// them via the Start/Stop toolbar button and the cards on Overview.
+    func postCoreStartFailed(error: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Kumo failed to start"
+        content.body = trimmedReason(error)
+        content.sound = .default
+        content.categoryIdentifier = CategoryID.coreState
+        replaceNotification(
+            requestID: RequestID.coreStartFailed,
+            content: content
+        )
+    }
+
+    /// Posts a system notification when the user tried to stop Kumo but it
+    /// failed. Same rationale as `postCoreStartFailed(error:)`.
+    func postCoreStopFailed(error: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Kumo failed to stop"
+        content.body = trimmedReason(error)
+        content.sound = .default
+        content.categoryIdentifier = CategoryID.coreState
+        replaceNotification(
+            requestID: RequestID.coreStopFailed,
+            content: content
+        )
+    }
+
+    func clearCoreStateNotifications() {
+        center.removePendingNotificationRequests(withIdentifiers: [
+            RequestID.coreStartFailed,
+            RequestID.coreStopFailed
+        ])
+        center.removeDeliveredNotifications(withIdentifiers: [
+            RequestID.coreStartFailed,
+            RequestID.coreStopFailed
+        ])
+    }
+
+    private func trimmedReason(_ error: String) -> String {
+        let cleaned = error.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? "Check Kumo for details." : cleaned
     }
 
     func snoozeReminder(for version: String, hours: Int = 6) {

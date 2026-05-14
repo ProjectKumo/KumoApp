@@ -136,11 +136,9 @@ struct ContentView: View {
         } detail: {
             detailView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationTitle(navigation.selection.rawValue)
         }
         .navigationDestination(for: SidebarDestination.self) { destination in
             detailView(for: destination)
-                .navigationTitle(destination.rawValue)
         }
     }
 

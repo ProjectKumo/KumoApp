@@ -13,9 +13,13 @@ let package = Package(
         .executable(name: "kumo", targets: ["KumoCLI"]),
         .executable(name: "KumoService", targets: ["KumoService"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/jpsim/Yams.git", from: "5.1.0")
+    ],
     targets: [
         .target(
             name: "KumoCoreKit",
+            dependencies: ["Yams"],
             resources: [
                 .copy("Resources/KumoAgentSkills"),
                 .copy("Resources/SubStore")

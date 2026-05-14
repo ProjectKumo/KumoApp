@@ -139,6 +139,10 @@ public struct KumoPaths: Sendable {
         overridesDirectory.appendingPathComponent("overrides.json")
     }
 
+    public var proxyGeoCacheFile: URL {
+        applicationSupportDirectory.appendingPathComponent("proxy-geo-cache.json")
+    }
+
     public func prepare() throws {
         try FileManager.default.createDirectory(
             at: applicationSupportDirectory,

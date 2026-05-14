@@ -50,24 +50,104 @@ enclosing `.app` / `.xpc` bundle and cached in the SwiftUI view layer; the
 shared `ConnectionEntry` model carries the process path but `KumoCoreKit` does
 not depend on AppKit.
 
-The Overview metric cards are interactive summaries. They use native `Button`
-controls to navigate into the relevant sidebar destinations and expose focused
-context-menu actions such as refresh, proxy toggle, or opening the matching
-settings page. The Traffic metric uses the controller `/traffic` WebSocket for
-live upload and download speeds, matching Mihomo's `up` / `down` stream values
-rather than deriving speed from connection snapshots.
-Overview status pills stay on one horizontal row for quick scanning. They cover
-Core, Profile, Mode, System Proxy, and TUN; the TUN pill uses the same
-`KumoCoreKit.setTunEnabled` path as the Configure page instead of keeping
-separate SwiftUI state.
-The stopped-core state is not repeated as a separate Overview card because the
-toolbar action, Core pill, and connection metric already communicate that
-state. When the core is running with no proxy groups, Overview still shows a
-single inline empty state so the user has a clear next step.
+Overview is a two-pane layout (`HSplitView`) inspired by single-window utility
+apps. The left pane is a searchable proxy node list grouped by
+`ProxyGroup`; each row shows a country flag inferred from the node `name` plus
+a delay pill (green < 300 ms, orange otherwise, red on timeout, `—` when
+unknown). Tapping a row commits via `KumoAppStore.selectProxy(group:proxy:)`,
+and a per-group `speedometer` button triggers `testDelay(for:)`. Typing in the
+sidebar search field filters node names and force-expands every matching group
+so users do not have to click twice to see hits.
 
-Overview proxy group menus are intentionally bounded. They provide quick access
-to the first visible proxy choices and route large groups to the full Proxies
-page instead of creating oversized status menus.
+Country flags resolve in three layers, in order:
+
+1. **Name parsing** (`KumoCoreKit.ProxyCountry`) — a pure value-type helper
+   that first returns any flag emoji already embedded in the name, then
+   falls back to a two-phase keyword match. Phase 1 scans long keywords
+   (ICU localized region names from `en_US / zh_Hans / zh_Hant / ja_JP`,
+   plus a tiny `manualAliases` list for forms ICU does not return such as
+   `USA / UK / 香港 / 狮城`). Phase 2 splits the name into ASCII letter
+   tokens and resolves the first one that matches an ISO 3166-1 alpha-2
+   code, disambiguating ambiguous names like `us-la-02` toward `US`.
+2. **GeoIP fallback** (`ProxyNode.detectedCountry`) — when name parsing
+   returns nothing, the UI renders the country code asynchronously filled
+   in by `KumoCoreKit.ProxyGeoLookup`. The store reads the current
+   profile's YAML through `ProfileNodeParser` to get `[name → server]`,
+   then the lookup actor resolves each server to a country code via
+   `ipwho.is` (HTTPS, accepts both IPs and hostnames), caching results to
+   `~/Library/Application Support/Kumo/proxy-geo-cache.json` with a 30-day
+   TTL and a 5-minute failure cooldown. Concurrent requests dedupe and
+   coalesce, so a profile with thousands of nodes sharing 50 unique
+   servers makes 50 HTTP calls, not thousands.
+3. **`globe` SF Symbol placeholder** — shown only when both layers come up
+   empty. We never invent a country.
+
+`ProxyCountry` is in `KumoCoreKit` so CLI or tests can reuse the same
+heuristic; unit coverage lives in `Tests/KumoCoreTests/ProxyCountryTests.swift`,
+`ProfileNodeParserTests.swift`, and `ProxyGeoLookupTests.swift` and covers
+embedded-flag passthrough, ISO / English / CJK keyword hits, ASCII boundary
+false positives, Phase 2 token disambiguation, YAML edge cases, and the
+lookup actor's cache + cooldown + dedup behaviour.
+
+When the core is stopped, the Overview sidebar does not collapse to an empty
+state. It renders a read-only preview of the user's `proxy-groups:` parsed
+offline by `ProfileNodeParser.parseProxyGroups(yaml:)` into
+`KumoAppStore.profilePreviewGroups`. The preview is refreshed after
+`refreshProfiles()` and `loadProxyGroups()` so it stays consistent with the
+selected profile. The sidebar dims the rows to ~55 % opacity and disables
+row tap, context menus, and per-group `speedometer` actions; flags continue
+to resolve from `ProxyCountry` plus any cached `detectedCountry` lookups.
+Selection state is intentionally not displayed in the preview because
+mihomo decides the actual selection at startup (saved selections,
+URLTest / Fallback group types) and showing the YAML default would be
+misleading. The moment the core transitions to `running`, the sidebar
+swaps in the live `proxyGroups` from `/proxies` without rearranging rows
+because both sources sort by `name.localizedCaseInsensitiveCompare`.
+
+The stopped state is no longer surfaced as an in-pane banner — the toolbar
+Start / Stop button, menu bar status item, and the cards on the right pane
+(zero traffic, profile metadata still visible) already communicate it.
+Failures, however, do escalate: `KumoAppStore.startCore` / `stopCore` post a
+macOS system notification through `AppNotificationCoordinator`
+(`postCoreStartFailed(error:)` / `postCoreStopFailed(error:)`, category
+`CORE_STATE`) so the user notices even when the main window is occluded.
+Successful start / stop is not notified — the UI already reflects it.
+
+The right pane stacks four Liquid Glass cards using `kumoGlassCard`. Start /
+stop and the mode picker are intentionally not duplicated here because the
+toolbar already owns them:
+
+- A **Profile** card with the current profile's name, `sourceDescription`,
+  kind capsule (`Local` / `Remote` / `Inline`, plus `Sub-Store` when
+  `isSubStoreManaged`), relative-time `updatedAt`, auto-update interval,
+  and — for remote subscriptions that report `subscriptionUserInfo` — a
+  used / total `ProgressView` plus optional expiry date. Bottom row exposes
+  a `Refresh` button calling `refreshProfile(_:)` and a deep link to the
+  Profiles destination via `onNavigate(.profiles)`.
+- A **Traffic** card with vertical `↑ Upload` / `↓ Download` rows sourced
+  from `KumoAppStore.trafficSnapshot`, which is fed by the controller
+  `/traffic` WebSocket. Stopped reads as `0 KB/s` on both rows — a calm
+  signal that nothing is flowing. The card is collapsible: tapping the
+  header reveals an 80pt-tall `Charts.AreaMark` sparkline of combined
+  throughput over the last 60 seconds (sparkle-style — monotone curve,
+  vertical accent-color gradient, no axes / legend). The chart reads from
+  `KumoAppStore.trafficHistory`, a rolling 60-sample buffer appended in
+  the existing `startTrafficStream()` snapshot handler and cleared on
+  `stopTrafficStream()` / `stopCore()`. When the buffer is empty (core
+  hasn't run this session) the expanded area shows a "Start Kumo to see
+  traffic history" placeholder so the card doesn't pop.
+- A **System Proxy** card that exposes the master `Toggle` directly
+  (`setSystemProxyEnabled`), shows endpoint, mode, and network service from
+  `status.systemProxySettings`, and deep-links to the Configure page for
+  staged edits.
+- A **TUN** card with the master `Toggle` (`setTunEnabled`), stack / auto-route
+  summary from `status.runtimeSettings.tun`, the last error from `tunStatus`
+  when present, and the same deep-link affordance.
+
+Detailed staged-edit forms still live in `SystemProxyView` and `TunView` (see
+Configure). Overview only exposes the immediate enable toggles so the daily
+workflow stays one click away from start, stop, mode switch, system proxy,
+and TUN.
 
 The Configure views may begin as small setting surfaces, but user-visible controls must correspond to shared `KumoCoreKit` behavior. Do not add a SwiftUI-only setting that bypasses the runtime builder, state store, or controller facade.
 System-facing configuration forms such as Core runtime settings and System
