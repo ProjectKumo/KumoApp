@@ -46,6 +46,7 @@ final class AppNotificationCoordinator {
 
     private let center = UNUserNotificationCenter.current()
     private let reminderDefaults = UserDefaults.standard
+    private let lastNotifiedVersionKey = "io.kumo.notification.update.last-notified-version"
 
     private init() {}
 
@@ -212,6 +213,8 @@ final class AppNotificationCoordinator {
         let key = reminderKey(for: version)
         let nextDate = Date().addingTimeInterval(TimeInterval(hours) * 3600)
         reminderDefaults.set(nextDate, forKey: key)
+        center.removePendingNotificationRequests(withIdentifiers: [RequestID.updateAvailable])
+        center.removeDeliveredNotifications(withIdentifiers: [RequestID.updateAvailable])
     }
 
     nonisolated static func decodeAction(from actionIdentifier: String) -> UpdateAction {
@@ -252,10 +255,10 @@ final class AppNotificationCoordinator {
 
     private func shouldNotifyForVersion(_ version: String) -> Bool {
         let key = reminderKey(for: version)
-        guard let remindAt = reminderDefaults.object(forKey: key) as? Date else {
-            return true
+        if let remindAt = reminderDefaults.object(forKey: key) as? Date {
+            return remindAt <= Date()
         }
-        return remindAt <= Date()
+        return reminderDefaults.string(forKey: lastNotifiedVersionKey) != version
     }
 
     private func reminderKey(for version: String) -> String {
@@ -270,6 +273,15 @@ final class AppNotificationCoordinator {
         center.removeDeliveredNotifications(withIdentifiers: [requestID])
         let request = UNNotificationRequest(identifier: requestID, content: content, trigger: nil)
         center.add(request)
+        if requestID == RequestID.updateAvailable,
+           let version = content.userInfo[UserInfoKey.version] as? String {
+            markUpdateAvailableNotificationSent(for: version)
+        }
+    }
+
+    private func markUpdateAvailableNotificationSent(for version: String) {
+        reminderDefaults.set(version, forKey: lastNotifiedVersionKey)
+        reminderDefaults.removeObject(forKey: reminderKey(for: version))
     }
 
     private func userInfo(for manifest: AppUpdateManifest) -> [String: Any] {

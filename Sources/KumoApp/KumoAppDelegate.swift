@@ -32,10 +32,10 @@ final class KumoAppDelegate: NSObject, NSApplicationDelegate, UNUserNotification
         Task {
             await reindexSpotlightProfiles()
         }
-        NSApplication.shared.registerForRemoteNotifications()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        KumoAppContext.shared.store?.stopUpdatePolling()
         dockBadgeTimer?.invalidate()
         dockBadgeTimer = nil
         statusItemController?.invalidate()
@@ -130,20 +130,6 @@ final class KumoAppDelegate: NSObject, NSApplicationDelegate, UNUserNotification
             await store.importRemoteProfile(urlString: trimmed, useProxy: false)
             NSApp.activate(ignoringOtherApps: true)
         }
-    }
-
-    func application(
-        _ application: NSApplication,
-        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
-    ) {
-        // Token forwarding is handled by external push infrastructure if configured.
-    }
-
-    func application(
-        _ application: NSApplication,
-        didFailToRegisterForRemoteNotificationsWithError error: any Error
-    ) {
-        // APNs is optional for update flow; local notifications remain available.
     }
 
     nonisolated func userNotificationCenter(

@@ -1,8 +1,12 @@
 # Release Management
 
-Kumo publishes macOS app updates through GitHub Releases. The app checks a small
-release manifest, downloads a DMG, verifies its SHA-256 checksum, then launches a
-detached installer helper that replaces the current `Kumo.app` and relaunches it.
+Kumo publishes macOS app updates through GitHub Releases. Release artifacts
+include a signed app DMG and a small manifest consumed by the runtime update
+system.
+
+Runtime discovery, five-minute asynchronous polling, local update
+notifications, checksum verification, and installer-helper behavior are
+documented in [App Updates](app-updates/README.md).
 
 ## Release Channels
 
@@ -24,7 +28,9 @@ releaseNotes: |
   See https://github.com/ProjectKumo/KumoApp/releases/tag/0.0.1
 ```
 
-The app also accepts the same fields as JSON for local testing and backwards compatibility.
+The app also accepts the same fields as JSON for local testing and backwards
+compatibility. See [App Updates](app-updates/README.md) for the runtime
+manifest contract and automatic-install requirements.
 
 ## Building Artifacts
 
@@ -60,39 +66,10 @@ Upload both files to the GitHub Release. For beta, set `CHANNEL=beta`; the manif
 
 ## Runtime Update Flow
 
-1. `AppUpdateManager` downloads the manifest for the selected channel.
-2. Kumo compares the manifest version with `CFBundleShortVersionString`.
-3. If an update exists, About and Settings show `Download and Install` when the manifest points to a DMG and includes `sha256`.
-4. The DMG is downloaded into `~/Library/Application Support/Kumo/updates/downloads/`.
-5. Kumo computes SHA-256 and deletes the download if it does not match the manifest.
-6. Kumo disables system proxy, stops the core if running, and launches a detached install helper.
-7. The helper waits for the current app process to exit, mounts the DMG, copies `Kumo.app` over the current app, detaches the DMG, and reopens Kumo.
+For runtime behavior, see [App Updates](app-updates/README.md). That document
+owns the app-side polling, notification throttling, download cache, and
+installer-helper details.
 
-During this flow, Kumo also posts macOS actionable notifications through
-`UNUserNotificationCenter`:
-
-- **Update available** — includes `Install Now` and `Remind Me Later`.
-- **Download/install progress** — uses replacement-style stage/percentage text updates.
-- **Restart ready** — surfaces `Restart Now` when the app is ready to relaunch.
-
-The notification payload and category/action IDs are shared between local
-notifications and APNs payloads (`aps.category`), so remote pushes can trigger
-the same in-app action routing.
-
-## Notification Progress Limit
-
-macOS notifications do not provide a continuously updating native progress bar
-for this update flow. Kumo therefore uses:
-
-- in-app `ProgressView` for precise real-time progress;
-- notification stage text (and coarse percentage buckets) for background
-  awareness without spamming Notification Center.
-
-Automatic replacement requires the current app's parent directory to be writable. If Kumo is in a protected location, the update flow reports a clear error and the user can install manually from the download page.
-
-## Logs and Cache
-
-- Downloads: `~/Library/Application Support/Kumo/updates/downloads/`
-- Installer log: `~/Library/Application Support/Kumo/logs/app-update-installer.log`
-
-The installer helper is intentionally external because an app cannot safely overwrite its own bundle while it is running.
+Automatic replacement requires the current app's parent directory to be
+writable. If Kumo is in a protected location, the update flow reports a clear
+error and the user can install manually from the download page.

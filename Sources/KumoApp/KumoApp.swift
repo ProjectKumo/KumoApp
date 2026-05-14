@@ -153,6 +153,7 @@ private struct KumoRootView: View {
                 } openAboutWindow: {
                     openWindow(id: "about")
                 }
+                store.startUpdatePolling()
             }
     }
 }

@@ -52,11 +52,19 @@ final class KumoAppStore {
     let controller = KumoController()
     private let appNotificationCoordinator = AppNotificationCoordinator.shared
     private let proxyGeoLookup: ProxyGeoLookup
+    private static let updatePollingIntervalNanoseconds: UInt64 = 5 * 60 * 1_000_000_000
     private var loadingTaskCount = 0
     private var trafficStreamTask: Task<Void, Never>?
     private var logStreamTask: Task<Void, Never>?
     private var lastNotifiedDownloadBucket: Int?
     private var proxyGeoTask: Task<Void, Never>?
+    private var updatePollingTask: Task<Void, Never>?
+    private var isPollingForUpdates = false
+
+    private enum AppUpdateCheckSource {
+        case manual
+        case polling
+    }
 
     init() {
         self.proxyGeoLookup = ProxyGeoLookup(cacheURL: controller.paths.proxyGeoCacheFile)
@@ -942,9 +950,48 @@ final class KumoAppStore {
         }
     }
 
+    func startUpdatePolling() {
+        guard updatePollingTask == nil else { return }
+        updatePollingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: Self.updatePollingIntervalNanoseconds)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                await self?.checkForUpdate(source: .polling)
+            }
+        }
+    }
+
+    func stopUpdatePolling() {
+        updatePollingTask?.cancel()
+        updatePollingTask = nil
+    }
+
     func checkForUpdate() async {
-        isCheckingForUpdates = true
-        defer { isCheckingForUpdates = false }
+        await checkForUpdate(source: .manual)
+    }
+
+    private func checkForUpdate(source: AppUpdateCheckSource) async {
+        guard !isCheckingForUpdates, !isPollingForUpdates else { return }
+        guard !isDownloadingUpdate, !isInstallingUpdate else { return }
+
+        switch source {
+        case .manual:
+            isCheckingForUpdates = true
+        case .polling:
+            isPollingForUpdates = true
+        }
+        defer {
+            switch source {
+            case .manual:
+                isCheckingForUpdates = false
+            case .polling:
+                isPollingForUpdates = false
+            }
+        }
 
         do {
             let result = try await controller.checkAppUpdate(
@@ -953,15 +1000,21 @@ final class KumoAppStore {
                 channel: preferences.updateChannel
             )
             lastUpdateCheckResult = result
-            updateStatusMessage = result.update == nil ? "Kumo is up to date." : nil
+            if source == .manual {
+                updateStatusMessage = result.update == nil ? "Kumo is up to date." : nil
+            }
             if let update = result.update {
                 appNotificationCoordinator.postUpdateAvailable(manifest: update)
             } else {
                 appNotificationCoordinator.clearUpdateNotifications()
             }
-            errorMessage = nil
+            if source == .manual {
+                errorMessage = nil
+            }
         } catch {
-            errorMessage = displayMessage(for: error)
+            if source == .manual {
+                errorMessage = displayMessage(for: error)
+            }
         }
     }
 
