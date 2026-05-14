@@ -4,6 +4,18 @@
 
 The `kumo` executable provides a stable control surface for humans, shell scripts, and coding agents. It uses the same `KumoCoreKit` facade as the SwiftUI app.
 
+## Installing `kumo` on PATH
+
+`Kumo.app/Contents/Helpers/kumo` ships with the app bundle (`Helpers/` rather
+than `MacOS/` so the CLI does not collide with the GUI's case-insensitive
+`Contents/MacOS/Kumo`). The recommended install path is the first-run
+onboarding sheet (also reachable via Settings > General > Command Line Tool),
+which symlinks the bundled binary to `/usr/local/bin/kumo` after a one-time
+macOS administrator authorization prompt. The same flow is wrapped by
+`KumoController.cliLinkStatus()` / `installCLILink()` / `uninstallCLILink()`
+for programmatic use. Manual `ln -s` is supported but no longer required for
+new installs.
+
 ## Command Design
 
 Commands are intentionally close to user goals:

@@ -18,10 +18,19 @@ The current implementation starts Mihomo with a generated work directory. The ge
 - Preparing application support directories.
 - Writing the runtime configuration.
 - Starting Mihomo with `Process`.
-- Recording the process identifier in state.
-- Stopping a running process with a graceful signal escalation path.
+- Recording the process identifier in state and `work/core.pid`.
+- Stopping recorded processes with a graceful signal escalation path.
 - Detecting stale process identifiers.
 - Recording runtime lifecycle events.
+
+Stop uses both the persisted status PID and the `work/core.pid` fallback, then
+escalates through `SIGINT`, `SIGTERM`, and `SIGKILL`. For child processes
+started by the current process, `CoreSupervisor` uses `waitpid(..., WNOHANG)`
+while waiting so exited children are reaped instead of being mistaken for
+still-running zombie processes. When a stop succeeds, the PID file and stored
+PID are cleared together. Status checks also consult `work/core.pid`, so Kumo
+can recover a running state when the JSON state lost its PID but the managed
+core is still alive.
 
 This is still available as the local-process fallback. When Kumo Helper is
 installed and reachable, `KumoController` routes start, stop, restart, system

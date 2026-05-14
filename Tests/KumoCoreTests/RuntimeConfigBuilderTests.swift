@@ -2,7 +2,7 @@ import XCTest
 @testable import KumoCoreKit
 
 final class RuntimeConfigBuilderTests: XCTestCase {
-    func testBuildAppendsControlledRuntimeSettings() {
+    func testBuildAppendsControlledRuntimeSettings() throws {
         let profile = Profile(
             name: "Test",
             source: .inline,
@@ -18,7 +18,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
             mode: .global
         )
 
-        let runtime = builder.build(profile: profile)
+        let runtime = try builder.build(profile: profile)
 
         XCTAssertTrue(runtime.yaml.contains("external-controller: 127.0.0.1:19097"))
         XCTAssertTrue(runtime.yaml.contains("mixed-port: 17890"))
@@ -27,7 +27,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertTrue(runtime.yaml.contains("find-process-mode: always"))
     }
 
-    func testBuildReplacesProfileRuntimeSettingsWithControlledSettings() {
+    func testBuildReplacesProfileRuntimeSettingsWithControlledSettings() throws {
         let profile = Profile(
             name: "Remote",
             source: .inline,
@@ -55,7 +55,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
             mode: .global
         )
 
-        let runtime = builder.build(profile: profile)
+        let runtime = try builder.build(profile: profile)
 
         XCTAssertFalse(runtime.yaml.contains("mixed-port: 7890"))
         XCTAssertFalse(runtime.yaml.contains("allow-lan: true"))
@@ -74,7 +74,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertTrue(runtime.yaml.contains("proxy-groups:"))
     }
 
-    func testBuildIncludesRuntimeSettingsAndOverridesBeforeControlledKeys() {
+    func testBuildIncludesRuntimeSettingsAndOverridesBeforeControlledKeys() throws {
         let profile = Profile(
             name: "Test",
             source: .inline,
@@ -102,7 +102,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         )
         let builder = RuntimeConfigBuilder(runtimeSettings: settings)
 
-        let runtime = builder.build(profile: profile, overrideYAMLs: ["proxy-groups: []"])
+        let runtime = try builder.build(profile: profile, overrideYAMLs: ["proxy-groups: []"])
 
         XCTAssertTrue(runtime.yaml.contains("proxy-groups: []"))
         XCTAssertTrue(runtime.yaml.contains("mixed-port: 19090"))
@@ -115,7 +115,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertFalse(runtime.yaml.contains("mixed-port: 7890"))
     }
 
-    func testOverridesReplaceEarlierTopLevelBlocks() {
+    func testOverridesReplaceEarlierTopLevelBlocks() throws {
         let profile = Profile(
             name: "Test",
             source: .inline,
@@ -129,7 +129,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         )
         let builder = RuntimeConfigBuilder()
 
-        let runtime = builder.build(
+        let runtime = try builder.build(
             profile: profile,
             overrideYAMLs: [
                 """
@@ -145,7 +145,149 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertTrue(runtime.yaml.contains("rules:"))
     }
 
-    func testBuildInjectsControlledTunAndDNSWhenEnabled() {
+    func testOverridesAppendAndPrependRulesWithSparkleOperators() throws {
+        let profile = Profile(
+            name: "Test",
+            source: .inline,
+            rawYAML: """
+            rules:
+              - DOMAIN-SUFFIX,base.example,Proxy
+            """
+        )
+        let builder = RuntimeConfigBuilder()
+
+        let runtime = try builder.build(
+            profile: profile,
+            overrideYAMLs: [
+                """
+                rules+:
+                  - MATCH,DIRECT
+                """,
+                """
+                +rules:
+                  - DOMAIN-SUFFIX,first.example,DIRECT
+                """
+            ]
+        )
+
+        XCTAssertLineOrder(
+            runtime.yaml,
+            [
+                "DOMAIN-SUFFIX,first.example,DIRECT",
+                "DOMAIN-SUFFIX,base.example,Proxy",
+                "MATCH,DIRECT"
+            ]
+        )
+        XCTAssertFalse(runtime.yaml.contains("rules+:"))
+        XCTAssertFalse(runtime.yaml.contains("+rules:"))
+    }
+
+    func testOverridesApplyVergeStyleRuleSequenceOperators() throws {
+        let profile = Profile(
+            name: "Test",
+            source: .inline,
+            rawYAML: """
+            rules:
+              - DOMAIN-SUFFIX,remove.example,Proxy
+              - DOMAIN-SUFFIX,base.example,Proxy
+            """
+        )
+        let builder = RuntimeConfigBuilder()
+
+        let runtime = try builder.build(
+            profile: profile,
+            overrideYAMLs: [
+                """
+                prepend-rules:
+                  - DOMAIN-SUFFIX,first.example,DIRECT
+                append-rules:
+                  - MATCH,DIRECT
+                delete-rules:
+                  - DOMAIN-SUFFIX,remove.example,Proxy
+                """
+            ]
+        )
+
+        XCTAssertLineOrder(
+            runtime.yaml,
+            [
+                "DOMAIN-SUFFIX,first.example,DIRECT",
+                "DOMAIN-SUFFIX,base.example,Proxy",
+                "MATCH,DIRECT"
+            ]
+        )
+        XCTAssertFalse(runtime.yaml.contains("remove.example"))
+        XCTAssertFalse(runtime.yaml.contains("prepend-rules:"))
+        XCTAssertFalse(runtime.yaml.contains("append-rules:"))
+        XCTAssertFalse(runtime.yaml.contains("delete-rules:"))
+    }
+
+    func testOverridesDeepMergeNestedMappings() throws {
+        let profile = Profile(
+            name: "Test",
+            source: .inline,
+            rawYAML: """
+            sniffer:
+              enable: true
+              sniff:
+                HTTP:
+                  ports:
+                    - 80
+            """
+        )
+        let builder = RuntimeConfigBuilder()
+
+        let runtime = try builder.build(
+            profile: profile,
+            overrideYAMLs: [
+                """
+                sniffer:
+                  sniff:
+                    TLS:
+                      ports:
+                        - 443
+                """
+            ]
+        )
+
+        XCTAssertTrue(runtime.yaml.contains("enable: true"))
+        XCTAssertTrue(runtime.yaml.contains("HTTP:"))
+        XCTAssertTrue(runtime.yaml.contains("TLS:"))
+        XCTAssertTrue(runtime.yaml.contains("- 80"))
+        XCTAssertTrue(runtime.yaml.contains("- 443"))
+    }
+
+    func testBangOverrideReplacesNestedMapping() throws {
+        let profile = Profile(
+            name: "Test",
+            source: .inline,
+            rawYAML: """
+            sniffer:
+              enable: true
+              sniff:
+                HTTP:
+                  ports:
+                    - 80
+            """
+        )
+        let builder = RuntimeConfigBuilder()
+
+        let runtime = try builder.build(
+            profile: profile,
+            overrideYAMLs: [
+                """
+                sniffer!:
+                  enable: false
+                """
+            ]
+        )
+
+        XCTAssertTrue(runtime.yaml.contains("enable: false"))
+        XCTAssertFalse(runtime.yaml.contains("HTTP:"))
+        XCTAssertFalse(runtime.yaml.contains("- 80"))
+    }
+
+    func testBuildInjectsControlledTunAndDNSWhenEnabled() throws {
         let profile = Profile(
             name: "Test",
             source: .inline,
@@ -172,7 +314,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         )
         let builder = RuntimeConfigBuilder(runtimeSettings: settings)
 
-        let runtime = builder.build(profile: profile)
+        let runtime = try builder.build(profile: profile)
 
         XCTAssertTrue(runtime.yaml.contains("tun:\n  enable: true"))
         XCTAssertTrue(runtime.yaml.contains("stack: mixed"))
@@ -185,7 +327,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertFalse(runtime.yaml.contains("tun:\n  enable: false"))
     }
 
-    func testBuildPreservesProfileTunWhenKumoTunIsDisabled() {
+    func testBuildPreservesProfileTunWhenKumoTunIsDisabled() throws {
         let profile = Profile(
             name: "Test",
             source: .inline,
@@ -198,7 +340,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         )
         let builder = RuntimeConfigBuilder(runtimeSettings: CoreRuntimeSettings(tun: TunSettings(isEnabled: false)))
 
-        let runtime = builder.build(profile: profile)
+        let runtime = try builder.build(profile: profile)
 
         XCTAssertTrue(runtime.yaml.contains("tun:\n  enable: true"))
     }
@@ -255,5 +397,21 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         let settings = try JSONDecoder().decode(CoreRuntimeSettings.self, from: data)
 
         XCTAssertEqual(settings.findProcessMode, "always")
+    }
+
+    private func XCTAssertLineOrder(
+        _ yaml: String,
+        _ fragments: [String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        var lowerBound = yaml.startIndex
+        for fragment in fragments {
+            guard let range = yaml.range(of: fragment, range: lowerBound..<yaml.endIndex) else {
+                XCTFail("Missing or out-of-order fragment: \(fragment)", file: file, line: line)
+                return
+            }
+            lowerBound = range.upperBound
+        }
     }
 }

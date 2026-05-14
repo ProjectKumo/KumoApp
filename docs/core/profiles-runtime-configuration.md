@@ -68,18 +68,26 @@ generated runtime configuration.
 
 ## Current Merge Strategy
 
-The current implementation merges YAML at top-level block granularity:
+The current implementation parses YAML into structured values before merging:
 
 1. The selected profile provides the base document.
-2. Later overrides replace earlier blocks with the same top-level key.
-3. Kumo-owned runtime keys are removed from user-provided documents.
-4. Kumo-controlled runtime settings are appended last and always win.
+2. Later overrides recursively merge mapping values.
+3. Array and scalar values replace earlier values by default.
+4. Explicit sequence operators can prepend, append, or delete array entries.
+5. Kumo-owned runtime keys are removed from user-provided documents.
+6. Kumo-controlled runtime settings are appended last and always win.
+
+Kumo supports Sparkle-style sequence operators (`+rules`, `rules+`, and the
+same shape for other array keys) and Clash Verge Rev-style rule operators
+(`prepend-rules`, `append-rules`, `delete-rules`). These operator keys are
+consumed during generation and are not written to the final runtime
+configuration. A key ending in `!` replaces the target value directly instead
+of recursively merging nested mappings.
 
 This gives deterministic precedence for common Mihomo configuration sections
 without introducing JavaScript transforms or a privileged service dependency.
-Future work should move from top-level block merging to a full YAML AST so
-comments, anchors, nested map merges, and formatting can be preserved more
-precisely.
+Full YAML comments and formatting are not preserved because the generated
+runtime file is serialized from structured values.
 
 TUN advanced setting edits are persisted to `CoreRuntimeSettings.tun`. Applying
 them while Mihomo is running restarts the core, matching Mihomo's expectation
@@ -88,8 +96,6 @@ rather than patched piecemeal.
 
 ## Future Work
 
-- Add full YAML AST parsing.
-- Preserve comments where possible.
 - Track subscription user info from response headers.
 - Add profile metadata and multiple profile selection.
 - Add advanced YAML override files.

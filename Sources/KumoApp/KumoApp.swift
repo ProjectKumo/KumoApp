@@ -134,7 +134,7 @@ private extension KumoApp {
 private struct KumoRootView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
-    let store: KumoAppStore
+    @Bindable var store: KumoAppStore
     let subStore: SubStoreStore
     let navigation: KumoNavigationState
 
@@ -144,6 +144,10 @@ private struct KumoRootView: View {
             .environment(subStore)
             .environment(navigation)
             .frame(minWidth: 820, minHeight: 560)
+            .sheet(isPresented: $store.showOnboarding) {
+                OnboardingView()
+                    .environment(store)
+            }
             .task {
                 KumoAppContext.shared.attach(store: store)
                 KumoAppContext.shared.attachWindowActions {

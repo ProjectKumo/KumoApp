@@ -20,6 +20,9 @@ struct SettingsView: View {
 private struct GeneralSettingsTab: View {
     @Environment(KumoAppStore.self) private var store
     @State private var launchAtLoginErrorMessage: String?
+    @State private var cliStatus: CLILinkStatus?
+    @State private var cliBusy = false
+    @State private var cliErrorMessage: String?
 
     var body: some View {
         Form {
@@ -37,11 +40,110 @@ private struct GeneralSettingsTab: View {
             } header: {
                 Text("Window")
             }
+
+            Section("Setup") {
+                LabeledContent("First-Run Setup") {
+                    Button("Run Setup Again") {
+                        store.reopenOnboarding()
+                    }
+                }
+
+                LabeledContent("Command Line Tool") {
+                    HStack(spacing: 10) {
+                        cliStatusBadge
+
+                        if cliBusy {
+                            ProgressView().controlSize(.small)
+                        }
+
+                        if let cliStatus, cliStatus.isInstalled {
+                            Button("Remove") {
+                                Task { await uninstallCLI() }
+                            }
+                            .disabled(cliBusy)
+                        } else {
+                            Button(cliStatus?.state == .bundledCLIMissing ? "Unavailable" : "Install") {
+                                Task { await installCLI() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(cliBusy || cliStatus?.state == .bundledCLIMissing)
+                        }
+                    }
+                }
+
+                if let cliErrorMessage {
+                    Text(cliErrorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                } else if let cliStatus, !cliStatus.message.isEmpty {
+                    Text(cliStatus.message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
         }
         .formStyle(.grouped)
         .scenePadding()
         .task {
             store.loadPreferences()
+            refreshCLIStatus()
+        }
+    }
+
+    @ViewBuilder
+    private var cliStatusBadge: some View {
+        if let cliStatus {
+            switch cliStatus.state {
+            case .installed:
+                Label("Installed", systemImage: "checkmark.seal.fill")
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.green)
+                    .font(.caption)
+            case .notInstalled:
+                Label("Not Installed", systemImage: "terminal")
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            case .differentSymlink, .occupiedByOther:
+                Label("Conflict", systemImage: "exclamationmark.triangle")
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.orange)
+                    .font(.caption)
+            case .bundledCLIMissing:
+                Label("Unavailable", systemImage: "questionmark.diamond")
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+        }
+    }
+
+    private func refreshCLIStatus() {
+        cliStatus = store.controller.cliLinkStatus()
+    }
+
+    private func installCLI() async {
+        guard !cliBusy else { return }
+        cliBusy = true
+        cliErrorMessage = nil
+        defer { cliBusy = false }
+        do {
+            cliStatus = try store.controller.installCLILink()
+        } catch {
+            cliErrorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func uninstallCLI() async {
+        guard !cliBusy else { return }
+        cliBusy = true
+        cliErrorMessage = nil
+        defer { cliBusy = false }
+        do {
+            cliStatus = try store.controller.uninstallCLILink()
+        } catch {
+            cliErrorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 

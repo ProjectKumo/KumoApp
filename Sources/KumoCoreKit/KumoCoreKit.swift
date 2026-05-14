@@ -786,6 +786,27 @@ public struct KumoController: Sendable {
         try preferencesStore.save(preferences)
     }
 
+    /// Reports the on-disk state of the `kumo` CLI symlink. Always cheap; the
+    /// shipping app calls this on every onboarding refresh and in Settings.
+    public func cliLinkStatus() -> CLILinkStatus {
+        CLILinkInstaller().status()
+    }
+
+    /// Creates the `kumo` CLI symlink at the default PATH location. Surfaces a
+    /// macOS administrator authorization prompt when the target directory
+    /// requires elevated privileges (the default `/usr/local/bin` does).
+    @discardableResult
+    public func installCLILink() throws -> CLILinkStatus {
+        try CLILinkInstaller().install()
+    }
+
+    /// Removes the `kumo` CLI symlink. Refuses to delete a symlink that is not
+    /// managed by Kumo to avoid removing a user-installed CLI shim.
+    @discardableResult
+    public func uninstallCLILink() throws -> CLILinkStatus {
+        try CLILinkInstaller().uninstall()
+    }
+
     private func logLevel(in message: String) -> String {
         let lowercased = message.lowercased()
         if lowercased.contains("error") { return "error" }

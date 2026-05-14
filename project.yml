@@ -40,6 +40,7 @@ targets:
       - package: Kumo
         product: KumoCoreKit
       - target: KumoService
+      - target: kumo
     postBuildScripts:
       - name: Prepare SubStore Runtime
         basedOnDependencyAnalysis: false
@@ -67,6 +68,22 @@ targets:
             chmod 755 "${HELPER_DESTINATION}"
           else
             echo "warning: KumoService helper not found at ${HELPER_SOURCE}"
+          fi
+      - name: Copy Kumo CLI
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          CLI_SOURCE="${BUILT_PRODUCTS_DIR}/kumo"
+          # Use Contents/Helpers/kumo because macOS volumes are case-insensitive
+          # by default; Contents/MacOS/kumo would collide with the GUI main
+          # binary Contents/MacOS/Kumo and silently overwrite it.
+          CLI_DESTINATION="${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Contents/Helpers/kumo"
+          if [ -x "${CLI_SOURCE}" ]; then
+            mkdir -p "$(dirname "${CLI_DESTINATION}")"
+            cp "${CLI_SOURCE}" "${CLI_DESTINATION}"
+            chmod 755 "${CLI_DESTINATION}"
+          else
+            echo "warning: Kumo CLI not found at ${CLI_SOURCE}"
           fi
     settings:
       base:
@@ -120,6 +137,7 @@ schemes:
       targets:
         KumoApp: all
         KumoService: all
+        kumo: all
       parallelizeBuild: true
       buildImplicitDependencies: true
     run:

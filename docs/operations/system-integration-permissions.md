@@ -52,6 +52,32 @@ being pointed at a stale or failed listener. After applying `networksetup`
 commands, Kumo reads the OS proxy state back and only marks the feature enabled
 when manual or PAC settings match the requested mode.
 
+## Command Line Tool Symlink
+
+`Kumo.app/Contents/Helpers/kumo` is the source of truth for the bundled CLI;
+it is copied into the app bundle by the `Copy Kumo CLI` post-build script in
+`project.yml` (and the equivalent `cp` step in `Makefile`). The helper path is
+intentional: macOS volumes are case-insensitive by default, so dropping the
+CLI as `Contents/MacOS/kumo` would silently overwrite the GUI main binary
+`Contents/MacOS/Kumo`. The first-run onboarding sheet and Settings > General >
+Command Line Tool both use `CLILinkInstaller` to manage a symlink at
+`/usr/local/bin/kumo` that points at the bundled binary.
+
+`CLILinkInstaller` reuses the `osascript ... with administrator privileges`
+pattern used by `KumoServiceManager` because `/usr/local/bin` is not writable
+for ordinary users. Install runs `/bin/ln -sfn <bundled> /usr/local/bin/kumo`
+inside the elevated shell call; uninstall runs `/bin/rm -f` and refuses to
+delete a symlink that does not point at the bundled CLI, so unrelated CLI
+shims are not affected. macOS will request administrator authorization once
+per operation, the same way the Kumo Helper install does, and the prompt is
+separate from any VPN configuration prompt.
+
+The target path is reported through `KumoController.cliLinkStatus()` so the
+UI and CLI can show whether the symlink is installed, points elsewhere, or is
+shadowed by a regular file. There is no automatic update — running the CLI
+installer again repoints the symlink at whatever `kumo` ships inside the
+current `Kumo.app`.
+
 ## LaunchAgent (Open at Login)
 
 `KumoAppDelegate` keeps `SMAppService.mainApp` in sync with

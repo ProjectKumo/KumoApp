@@ -259,25 +259,3 @@ private struct AgentSkillTargetRow: View {
     }
 }
 
-private struct AgentBrandIcon: View {
-    let target: AgentSkillsTarget
-
-    var body: some View {
-        Group {
-            if let assetName = target.brandAssetName {
-                Image(assetName)
-                    .renderingMode(.original)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                Image(systemName: target.symbolName)
-                    .resizable()
-                    .scaledToFit()
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(width: 18, height: 18)
-        .accessibilityHidden(true)
-    }
-}

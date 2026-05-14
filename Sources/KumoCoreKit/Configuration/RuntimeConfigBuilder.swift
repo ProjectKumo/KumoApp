@@ -1,4 +1,5 @@
 import Foundation
+import Yams
 
 public struct RuntimeConfig: Equatable, Sendable {
     public var yaml: String
@@ -43,14 +44,14 @@ public struct RuntimeConfigBuilder: Sendable {
         self.runtimeSettings = effectiveRuntimeSettings
     }
 
-    public func build(profile: Profile, overrideYAMLs: [String] = []) -> RuntimeConfig {
-        let yaml = mergedRuntimeYAML(profileYAML: profile.rawYAML, overrideYAMLs: overrideYAMLs)
+    public func build(profile: Profile, overrideYAMLs: [String] = []) throws -> RuntimeConfig {
+        let yaml = try mergedRuntimeYAML(profileYAML: profile.rawYAML, overrideYAMLs: overrideYAMLs)
 
         return RuntimeConfig(yaml: yaml, endpoint: endpoint, proxyPorts: proxyPorts)
     }
 
     public func write(profile: Profile, overrideYAMLs: [String] = [], to url: URL) throws -> RuntimeConfig {
-        let config = build(profile: profile, overrideYAMLs: overrideYAMLs)
+        let config = try build(profile: profile, overrideYAMLs: overrideYAMLs)
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -59,36 +60,21 @@ public struct RuntimeConfigBuilder: Sendable {
         return config
     }
 
-    private func mergedRuntimeYAML(profileYAML: String, overrideYAMLs: [String]) -> String {
-        var document = TopLevelYAMLDocument(rawYAML: profileYAML)
+    private func mergedRuntimeYAML(profileYAML: String, overrideYAMLs: [String]) throws -> String {
+        var document = try StructuredYAMLDocument(rawYAML: profileYAML)
 
         for overrideYAML in overrideYAMLs {
-            document.merge(TopLevelYAMLDocument(rawYAML: overrideYAML))
+            try document.merge(StructuredYAMLDocument(rawYAML: overrideYAML))
         }
 
         document.removeTopLevelKeys(controlledTopLevelKeys())
 
         return [
-            document.renderedYAML(),
+            try document.renderedYAML(),
             controlledConfigYAML()
         ]
         .filter { !$0.isEmpty }
         .joined(separator: "\n\n")
-    }
-
-    fileprivate static func topLevelKey(in line: String) -> String? {
-        guard !line.isEmpty, line == line.trimmingPrefix(while: \.isWhitespace) else {
-            return nil
-        }
-
-        let trimmedLine = line.trimmingCharacters(in: .whitespaces)
-        guard !trimmedLine.hasPrefix("#"),
-              let separatorIndex = trimmedLine.firstIndex(of: ":") else {
-            return nil
-        }
-
-        let key = String(trimmedLine[..<separatorIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
-        return key.isEmpty ? nil : key
     }
 
     private func controlledConfigYAML() -> String {
@@ -188,87 +174,137 @@ public struct RuntimeConfigBuilder: Sendable {
     }
 }
 
-private struct TopLevelYAMLDocument {
-    fileprivate struct Block {
-        var key: String?
-        var lines: [String]
-    }
+private struct StructuredYAMLDocument {
+    private var mapping: [String: Any]
 
-    private var blocks: [Block]
-
-    init(rawYAML: String) {
-        self.blocks = Self.parse(rawYAML)
-    }
-
-    mutating func merge(_ override: TopLevelYAMLDocument) {
-        for block in override.blocks where !block.isEmpty {
-            guard let key = block.key,
-                  let index = blocks.firstIndex(where: { $0.key == key }) else {
-                blocks.append(block)
-                continue
-            }
-
-            blocks[index] = block
+    init(rawYAML: String) throws {
+        let trimmed = rawYAML.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            self.mapping = [:]
+            return
         }
+
+        guard let loaded = try Yams.load(yaml: rawYAML) else {
+            self.mapping = [:]
+            return
+        }
+
+        self.mapping = loaded as? [String: Any] ?? [:]
+    }
+
+    mutating func merge(_ override: StructuredYAMLDocument) {
+        mapping.mergeRuntimeOverride(override.mapping)
     }
 
     mutating func removeTopLevelKeys(_ keys: Set<String>) {
-        blocks.removeAll { block in
-            guard let key = block.key else {
-                return false
-            }
-            return keys.contains(key)
+        for key in keys {
+            mapping.removeValue(forKey: key)
         }
     }
 
-    func renderedYAML() -> String {
-        blocks
-            .filter { !$0.isEmpty }
-            .map { $0.rendered }
-            .joined(separator: "\n\n")
+    func renderedYAML() throws -> String {
+        guard !mapping.isEmpty else {
+            return ""
+        }
+
+        return try Yams.dump(object: mapping)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func parse(_ rawYAML: String) -> [Block] {
-        var blocks: [Block] = []
-        var currentBlock: Block?
-
-        func finishCurrentBlock() {
-            guard let block = currentBlock, !block.isEmpty else {
-                currentBlock = nil
-                return
-            }
-            blocks.append(block)
-            currentBlock = nil
-        }
-
-        for line in rawYAML.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
-            if let key = RuntimeConfigBuilder.topLevelKey(in: line) {
-                finishCurrentBlock()
-                currentBlock = Block(key: key, lines: [line])
-                continue
-            }
-
-            if currentBlock == nil {
-                currentBlock = Block(key: nil, lines: [])
-            }
-
-            currentBlock?.lines.append(line)
-        }
-
-        finishCurrentBlock()
-        return blocks
     }
 }
 
-private extension TopLevelYAMLDocument.Block {
-    var isEmpty: Bool {
-        lines.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+private extension Dictionary where Key == String, Value == Any {
+    mutating func mergeRuntimeOverride(_ override: [String: Any]) {
+        for (rawKey, overrideValue) in override {
+            if applySequenceOperator(rawKey: rawKey, overrideValue: overrideValue) {
+                continue
+            }
+
+            let key = Self.unwrappedKey(rawKey)
+            if rawKey.hasSuffix("!") {
+                self[key] = overrideValue
+                continue
+            }
+
+            if var current = self[key] as? [String: Any],
+               let nestedOverride = overrideValue as? [String: Any] {
+                current.mergeRuntimeOverride(nestedOverride)
+                self[key] = current
+            } else {
+                self[key] = overrideValue
+            }
+        }
     }
 
-    var rendered: String {
-        lines
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    private mutating func applySequenceOperator(rawKey: String, overrideValue: Any) -> Bool {
+        if rawKey.hasPrefix("+"), let values = overrideValue as? [Any] {
+            prepend(values, to: Self.unwrappedKey(String(rawKey.dropFirst())))
+            return true
+        }
+
+        if rawKey.hasSuffix("+"), let values = overrideValue as? [Any] {
+            append(values, to: Self.unwrappedKey(String(rawKey.dropLast())))
+            return true
+        }
+
+        if rawKey.hasPrefix("prepend-"), let values = overrideValue as? [Any] {
+            prepend(values, to: String(rawKey.dropFirst("prepend-".count)))
+            return true
+        }
+
+        if rawKey.hasPrefix("append-"), let values = overrideValue as? [Any] {
+            append(values, to: String(rawKey.dropFirst("append-".count)))
+            return true
+        }
+
+        if rawKey.hasPrefix("delete-"), let values = overrideValue as? [Any] {
+            delete(values, from: String(rawKey.dropFirst("delete-".count)))
+            return true
+        }
+
+        return false
+    }
+
+    private mutating func prepend(_ values: [Any], to key: String) {
+        let existing = self[key] as? [Any] ?? []
+        self[key] = values + existing
+    }
+
+    private mutating func append(_ values: [Any], to key: String) {
+        let existing = self[key] as? [Any] ?? []
+        self[key] = existing + values
+    }
+
+    private mutating func delete(_ values: [Any], from key: String) {
+        let namesToDelete = Set(values.compactMap(Self.sequenceItemName))
+        guard !namesToDelete.isEmpty else {
+            return
+        }
+
+        let existing = self[key] as? [Any] ?? []
+        self[key] = existing.filter { item in
+            guard let name = Self.sequenceItemName(item) else {
+                return true
+            }
+            return !namesToDelete.contains(name)
+        }
+    }
+
+    private static func sequenceItemName(_ value: Any) -> String? {
+        if let value = value as? String {
+            return value
+        }
+        if let mapping = value as? [String: Any],
+           let name = mapping["name"] as? String {
+            return name
+        }
+        return nil
+    }
+
+    private static func unwrappedKey(_ key: String) -> String {
+        let key = key.hasSuffix("!") ? String(key.dropLast()) : key
+        guard key.hasPrefix("<"), key.hasSuffix(">") else {
+            return key
+        }
+        return String(key.dropFirst().dropLast())
     }
 }

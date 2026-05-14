@@ -14,6 +14,8 @@ APP_PATH_DEBUG := $(DERIVED_DATA)/Build/Products/Debug/Kumo.app
 APP_PATH_RELEASE := $(DERIVED_DATA)/Build/Products/Release/Kumo.app
 SERVICE_PATH_DEBUG := $(DERIVED_DATA)/Build/Products/Debug/KumoService
 SERVICE_PATH_RELEASE := $(DERIVED_DATA)/Build/Products/Release/KumoService
+CLI_PATH_DEBUG := $(DERIVED_DATA)/Build/Products/Debug/kumo
+CLI_PATH_RELEASE := $(DERIVED_DATA)/Build/Products/Release/kumo
 RELEASE_OUTPUT := $(DERIVED_DATA)/release
 DESTINATION ?= platform=macOS
 BUILD_NUMBER ?= 1
@@ -42,6 +44,11 @@ app: generate ## Build the Kumo .app bundle in Debug to build/Build/Products/Deb
 		cp "$(SERVICE_PATH_DEBUG)" "$(APP_PATH_DEBUG)/Contents/MacOS/KumoService"; \
 		chmod 755 "$(APP_PATH_DEBUG)/Contents/MacOS/KumoService"; \
 	fi
+	@if [ -x "$(CLI_PATH_DEBUG)" ]; then \
+		mkdir -p "$(APP_PATH_DEBUG)/Contents/Helpers"; \
+		cp "$(CLI_PATH_DEBUG)" "$(APP_PATH_DEBUG)/Contents/Helpers/kumo"; \
+		chmod 755 "$(APP_PATH_DEBUG)/Contents/Helpers/kumo"; \
+	fi
 
 .PHONY: app-release
 app-release: generate ## Build the Kumo .app bundle in Release to build/Build/Products/Release.
@@ -51,6 +58,11 @@ app-release: generate ## Build the Kumo .app bundle in Release to build/Build/Pr
 		mkdir -p "$(APP_PATH_RELEASE)/Contents/MacOS"; \
 		cp "$(SERVICE_PATH_RELEASE)" "$(APP_PATH_RELEASE)/Contents/MacOS/KumoService"; \
 		chmod 755 "$(APP_PATH_RELEASE)/Contents/MacOS/KumoService"; \
+	fi
+	@if [ -x "$(CLI_PATH_RELEASE)" ]; then \
+		mkdir -p "$(APP_PATH_RELEASE)/Contents/Helpers"; \
+		cp "$(CLI_PATH_RELEASE)" "$(APP_PATH_RELEASE)/Contents/Helpers/kumo"; \
+		chmod 755 "$(APP_PATH_RELEASE)/Contents/Helpers/kumo"; \
 	fi
 
 .PHONY: require-release-version

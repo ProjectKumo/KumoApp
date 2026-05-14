@@ -99,6 +99,10 @@ public struct KumoPaths: Sendable {
         workDirectory.appendingPathComponent("config.yaml")
     }
 
+    public var corePIDFile: URL {
+        workDirectory.appendingPathComponent("core.pid")
+    }
+
     public var coreLogFile: URL {
         logsDirectory.appendingPathComponent("core.log")
     }

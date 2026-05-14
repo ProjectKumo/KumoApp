@@ -20,8 +20,8 @@ updates, and backup workflows.
 | Core | Local Mihomo process start/stop/restart | implemented | `CoreSupervisor` | `kumo start --json`, `kumo stop --json`, and stale PID recovery work. |
 | Core | Managed Mihomo core install | partial | `CoreInstaller` | Stable and preview channels can install, verify, cache, and report versions. |
 | Core | Startup readiness states | partial | `CoreSupervisor` | UI can distinguish launched, controller ready, providers ready, and failed. |
-| Core | Graceful shutdown with timeout escalation | planned | `CoreSupervisor` | Stop attempts graceful termination before force kill and persists failures. |
-| Runtime | Structured runtime config merge | planned | `RuntimeConfigBuilder` | Profile, overrides, and Kumo-owned keys merge with deterministic precedence. |
+| Core | Graceful shutdown with timeout escalation | implemented | `CoreSupervisor` | Stop attempts graceful termination before force kill, uses a PID file fallback, and persists failures. |
+| Runtime | Structured runtime config merge | implemented | `RuntimeConfigBuilder` | Profile, overrides, and Kumo-owned keys merge with deterministic precedence. |
 | Runtime | Config cleanup and normalization | planned | `RuntimeConfigBuilder` | Empty/default Mihomo fields are removed before writing runtime YAML. |
 | Profiles | Local profile import and edit | implemented | `ProfileRepository` | Local YAML can be imported, edited, selected, and deleted safely. |
 | Profiles | Remote profile refresh | implemented | `ProfileRepository` | Remote subscriptions refresh manually and on due intervals. |

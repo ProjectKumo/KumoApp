@@ -204,11 +204,33 @@ materials so high-density list/detail content remains legible.
 About available as a separate window. Runtime status belongs in the main window
 and status item menu instead of Settings:
 
-- **General** — `Open at Login` (driven by `SMAppService.mainApp`) and `Quit when last window closes` (read by `applicationShouldTerminateAfterLastWindowClosed`).
+- **General** — `Open at Login` (driven by `SMAppService.mainApp`), `Quit when last window closes` (read by `applicationShouldTerminateAfterLastWindowClosed`), and a Setup section with `Run Setup Again` plus a `Command Line Tool` row (install/remove `/usr/local/bin/kumo`).
 - **Updates** — channel picker, optional manifest URL override, and GitHub Releases update checks backed by `AppUpdateManager`.
 - **About Kumo window** — app icon, version/build, author GitHub link, project links, and the same update-check state used by Settings.
 
 Preferences persist to `~/Library/Application Support/Kumo/preferences.json` via `UserPreferencesStore`. See [Persistence and Logging](../operations/persistence-logging.md) for fields.
+
+## First-Run Onboarding
+
+`OnboardingView` is a four-step sheet attached to `KumoRootView` and gated by
+`UserPreferences.hasCompletedOnboarding`. It walks the user through optional
+helpers without forcing any of them:
+
+1. **Welcome** — short feature summary; users can dismiss with Skip.
+2. **Command Line Tool** — calls `KumoController.cliLinkStatus()` and offers
+   `Install` (or `Remove`) for the `/usr/local/bin/kumo` symlink. The install
+   step triggers a macOS administrator authorization prompt via `osascript`
+   because the default `/usr/local/bin` requires elevated privileges.
+3. **Agent Skill** — lists every `AgentSkillsTarget`, all unselected by
+   default, and installs the bundled Kumo skill into each selected agent's
+   `~/.<agent>/skills` directory through `AgentSkillsInstaller`.
+4. **Done** — summarises what was installed and saves
+   `hasCompletedOnboarding = true` through `KumoAppStore.completeOnboarding()`.
+
+Settings exposes `Run Setup Again` (`KumoAppStore.reopenOnboarding()`) so users
+can rerun the flow without resetting the persisted flag. The sheet is also the
+preferred path for installing the CLI — direct symlinks created outside Kumo
+are still detected, but the GUI step is the documented entry point.
 
 ## Accessibility
 

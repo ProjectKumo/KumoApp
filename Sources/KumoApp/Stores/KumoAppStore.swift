@@ -35,6 +35,11 @@ final class KumoAppStore {
     var tunStatus = TunStatus()
     var coreCandidates: [CoreCandidate] = []
     var preferences = UserPreferences()
+    /// Drives the first-run onboarding sheet attached at the root view.
+    /// `loadPreferences()` flips this on when `preferences.hasCompletedOnboarding`
+    /// is false; `completeOnboarding()` and `reopenOnboarding()` are the only
+    /// authorized state transitions.
+    var showOnboarding = false
     var errorMessage: String?
     var isLoading = false
     var isSwitchingMode = false
@@ -204,8 +209,15 @@ final class KumoAppStore {
             stopLogStream()
             status = try controller.stop()
             proxyGroups = []
+            rules = []
+            connections = []
+            proxyProviders = []
+            ruleProviders = []
+            coreConfiguration = CoreConfigurationSnapshot(mode: status.mode, mixedPort: status.proxyPorts.mixedPort)
             trafficSnapshot = TrafficSnapshot()
             trafficHistory = []
+            refreshServiceModeStatus()
+            refreshTunStatus()
             errorMessage = nil
             appNotificationCoordinator.clearCoreStateNotifications()
         } catch {
@@ -938,6 +950,9 @@ final class KumoAppStore {
 
     func loadPreferences() {
         preferences = controller.userPreferences()
+        if !preferences.hasCompletedOnboarding {
+            showOnboarding = true
+        }
     }
 
     func updatePreferences(_ next: UserPreferences) {
@@ -948,6 +963,22 @@ final class KumoAppStore {
         } catch {
             errorMessage = displayMessage(for: error)
         }
+    }
+
+    /// Persists onboarding completion and dismisses the sheet. Called when the
+    /// user reaches the final Done step or explicitly skips it.
+    func completeOnboarding() {
+        var next = preferences
+        next.hasCompletedOnboarding = true
+        updatePreferences(next)
+        showOnboarding = false
+    }
+
+    /// Lets Settings reopen the onboarding flow without resetting the
+    /// persisted completion flag. The flag will be re-saved when the user
+    /// finishes the sheet again.
+    func reopenOnboarding() {
+        showOnboarding = true
     }
 
     func startUpdatePolling() {

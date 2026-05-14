@@ -1,4 +1,34 @@
 import SwiftUI
+import KumoCoreKit
+
+/// Shared icon view for an `AgentSkillsTarget`. Prefers the bundled brand PNG
+/// in `Assets.xcassets` (cursor / claude / codex / gemini) and falls back to a
+/// hierarchical SF Symbol when the target has no brand asset (`agents`). Used
+/// by the Agent Skills Configure page and the first-run Onboarding sheet so
+/// the icon language stays identical across both surfaces.
+struct AgentBrandIcon: View {
+    let target: AgentSkillsTarget
+    var size: CGFloat = 18
+
+    var body: some View {
+        Group {
+            if let assetName = target.brandAssetName {
+                Image(assetName)
+                    .renderingMode(.original)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: target.symbolName)
+                    .resizable()
+                    .scaledToFit()
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
 
 struct KumoPage<Content: View>: View {
     let title: String

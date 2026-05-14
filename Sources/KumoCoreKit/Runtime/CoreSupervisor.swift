@@ -43,9 +43,10 @@ public struct CoreSupervisor: Sendable {
         try paths.prepare()
 
         let currentStatus = try stateStore.load()
-        if let pid = currentStatus.pid, isProcessAlive(pid) {
+        if let pid = recordedPIDs(status: currentStatus).first(where: isProcessAlive) {
             throw KumoError.coreAlreadyRunning(pid)
         }
+        try removeCorePIDFile()
 
         let corePath = try resolveCorePath(configuration.corePath)
         try appendRuntimeEvent(kind: "core.starting", message: "Starting Mihomo core at \(corePath).")
@@ -74,9 +75,11 @@ public struct CoreSupervisor: Sendable {
             throw error
         }
 
+        let processID = Int32(process.processIdentifier)
+        try writeCorePID(processID)
         let status = CoreStatus(
             state: .running,
-            pid: Int32(process.processIdentifier),
+            pid: processID,
             corePath: corePath,
             mode: configuration.mode,
             endpoint: runtime.endpoint,
@@ -91,24 +94,30 @@ public struct CoreSupervisor: Sendable {
             message: "Mihomo core started."
         )
         try stateStore.save(status)
-        try appendRuntimeEvent(kind: "core.started", message: "Mihomo core started with pid \(process.processIdentifier).")
+        try appendRuntimeEvent(kind: "core.started", message: "Mihomo core started with pid \(processID).")
         return status
     }
 
     @discardableResult
     public func stop() throws -> CoreStatus {
         var status = try stateStore.load()
-        guard let pid = status.pid else {
+        let pids = recordedPIDs(status: status)
+        guard !pids.isEmpty else {
             status.state = .stopped
+            status.pid = nil
             status.readiness = nil
+            try removeCorePIDFile()
             try stateStore.save(status)
             try appendRuntimeEvent(kind: "core.stopped", message: "Mihomo core was already stopped.")
             return status
         }
 
-        if isProcessAlive(pid), !terminateProcess(pid) {
+        let failedPIDs = pids.filter { pid in
+            isProcessAlive(pid) && !terminateProcess(pid)
+        }
+        if !failedPIDs.isEmpty {
             status.state = .failed
-            status.message = "Failed to stop Mihomo core with pid \(pid)."
+            status.message = "Failed to stop Mihomo core with pid \(failedPIDs.map(String.init).joined(separator: ", "))."
             try stateStore.save(status)
             try appendRuntimeEvent(kind: "core.stop_failed", message: status.message ?? "Failed to stop Mihomo core.")
             return status
@@ -118,6 +127,7 @@ public struct CoreSupervisor: Sendable {
         status.pid = nil
         status.readiness = nil
         status.message = "Mihomo core stopped."
+        try removeCorePIDFile()
         try stateStore.save(status)
         try appendRuntimeEvent(kind: "core.stopped", message: "Mihomo core stopped.")
         return status
@@ -125,13 +135,27 @@ public struct CoreSupervisor: Sendable {
 
     public func status() throws -> CoreStatus {
         var status = try stateStore.load()
-        if let pid = status.pid, !isProcessAlive(pid) {
+        let pids = recordedPIDs(status: status)
+        if let pid = pids.first(where: isProcessAlive) {
+            if status.pid != pid || status.state != .running {
+                status.state = .running
+                status.pid = pid
+                status.readiness = status.readiness ?? .processLaunched
+                status.message = "Mihomo core is running."
+                try stateStore.save(status)
+                try appendRuntimeEvent(kind: "core.pid_recovered", message: "Recovered running Mihomo pid \(pid).")
+            }
+            return status
+        }
+
+        if !pids.isEmpty {
             status.state = .stopped
             status.pid = nil
             status.readiness = nil
             status.message = "Mihomo core is not running."
+            try removeCorePIDFile()
             try stateStore.save(status)
-            try appendRuntimeEvent(kind: "core.stale_pid", message: "Cleared stale Mihomo pid \(pid).")
+            try appendRuntimeEvent(kind: "core.stale_pid", message: "Cleared stale Mihomo pid records.")
         }
         return status
     }
@@ -237,12 +261,59 @@ public struct CoreSupervisor: Sendable {
     private func waitForExit(_ pid: Int32, timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if !isProcessAlive(pid) {
+            if hasProcessExited(pid) {
                 return true
             }
             usleep(100_000)
         }
+        return hasProcessExited(pid)
+    }
+
+    private func hasProcessExited(_ pid: Int32) -> Bool {
+        var status: Int32 = 0
+        let result = Darwin.waitpid(pid, &status, WNOHANG)
+        if result == pid {
+            return true
+        }
+        if result == 0 {
+            return false
+        }
         return !isProcessAlive(pid)
+    }
+
+    private func recordedPIDs(status: CoreStatus) -> [Int32] {
+        var result: [Int32] = []
+        var seen = Set<Int32>()
+
+        func append(_ pid: Int32?) {
+            guard let pid, pid > 0, seen.insert(pid).inserted else {
+                return
+            }
+            result.append(pid)
+        }
+
+        append(status.pid)
+        append(readCorePID())
+        return result
+    }
+
+    private func readCorePID() -> Int32? {
+        guard let content = try? String(contentsOf: paths.corePIDFile, encoding: .utf8) else {
+            return nil
+        }
+        return Int32(content.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private func writeCorePID(_ pid: Int32) throws {
+        try FileManager.default.createDirectory(at: paths.workDirectory, withIntermediateDirectories: true)
+        try "\(pid)\n".write(to: paths.corePIDFile, atomically: true, encoding: .utf8)
+    }
+
+    private func removeCorePIDFile() throws {
+        guard FileManager.default.fileExists(atPath: paths.corePIDFile.path) else {
+            return
+        }
+        try FileManager.default.removeItem(at: paths.corePIDFile)
     }
 
     private func logFileHandle() throws -> FileHandle {
