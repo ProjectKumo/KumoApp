@@ -159,6 +159,35 @@ The main UI intentionally does not expose full logs on the Overview screen. Full
 
 Live Mihomo logs should be treated as an event stream with a bounded in-memory cache. The local `core.log` file remains a fallback and diagnostic artifact.
 
+The CLI has a separate debug-log channel under:
+
+```text
+logs/cli/
+```
+
+Each `kumo` invocation may create a `*-kumo-debug-0.log` file with command-level
+diagnostics. `--logs-max <count>` controls retention, and `--logs-max=0`
+disables CLI debug log files for sensitive environments. `--logs-dir <path>`
+can redirect these files for temporary diagnostics.
+
+`kumo --timing` writes a process-specific `*-kumo-timing.json` file in the same
+directory. Timing files are for performance diagnostics and should not be mixed
+with runtime event streams.
+
+CLI terminal output follows npm-style log levels:
+
+```text
+silent < error < warn < notice < http < info < verbose < silly
+```
+
+Normal command results go to stdout. Logs, warnings, progress, timing summaries,
+and debug-log paths go to stderr. `--json` keeps stdout as plain JSON only.
+
+Before writing terminal or file logs, CLI diagnostics redact controller secrets,
+authorization headers, basic auth passwords, subscription tokens, and token-like
+query parameters. Redaction is a safety net, not a reason to paste logs into
+public places without review.
+
 ## Overrides
 
 Overrides are planned under:
@@ -179,6 +208,5 @@ YAML overrides are applied before Kumo-controlled runtime settings. JavaScript o
 - Rotate logs.
 - Add separate app and service logs.
 - Add structured JSONL event logs for agents.
-- Add `kumo logs` and `kumo doctor`.
 - Add privacy review for logs before sharing diagnostics.
 - Add log rotation and Sub-Store log retention controls.

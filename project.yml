@@ -110,7 +110,7 @@ targets:
       - path: Sources/KumoCLI
     dependencies:
       - package: Kumo
-        product: KumoCoreKit
+        product: KumoCLIKit
     settings:
       base:
         PRODUCT_NAME: kumo

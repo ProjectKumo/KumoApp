@@ -16,6 +16,10 @@ macOS administrator authorization prompt. The same flow is wrapped by
 for programmatic use. Manual `ln -s` is supported but no longer required for
 new installs.
 
+`swift run kumo` is only a source-tree development smoke test. User-facing
+installs must be validated through the bundled helper binary and, when
+installed, the `/usr/local/bin/kumo` symlink that points at it.
+
 ## Command Design
 
 Commands are intentionally close to user goals:
@@ -38,7 +42,26 @@ kumo tun enable --json
 kumo substore status --json
 kumo skills status --json
 kumo skills install --agent codex --dry-run --json
+kumo completion zsh
+kumo logs cli --limit 5
 ```
+
+## CLI Interaction Conventions
+
+Kumo follows the parts of npm's CLI interaction model that make command-line
+tools discoverable and scriptable:
+
+- `kumo --help` / `kumo -h` shows common tasks, all command names, and next-step
+  help prompts.
+- `kumo -l` / `kumo --long` expands command descriptions, usage, options, and
+  aliases.
+- `kumo <command> -h` and `kumo help <term>` provide command-level help.
+- `kumo --version` prints only the version string.
+- `kumo completion <zsh|bash|fish>` writes a shell completion script to stdout.
+- Conservative aliases are allowed for low-risk read paths: `status` → `st`,
+  `proxies` → `proxy`, and `config` → `c`.
+- Commands that can write system or user state should support `--dry-run` where
+  a meaningful preview is possible.
 
 ## Output Modes
 
@@ -53,6 +76,53 @@ The default output is readable text. `--json` returns a stable wrapper:
 ```
 
 Errors use the same wrapper with `ok: false`.
+
+`--json` output is always plain JSON on stdout. It must not include ANSI escape
+codes, progress text, warnings, or diagnostic logs. Human-readable diagnostics
+go to stderr in text mode.
+
+## Terminal Rendering
+
+Text mode uses light ANSI styling only when stdout/stderr are interactive TTYs.
+Rendering is disabled when output is piped or redirected, when `--json` is used,
+when `NO_COLOR` is set, when `CLICOLOR=0`, or when `--color never` is passed.
+`--color always|auto|never` defaults to `auto`.
+
+Visible status labels are ASCII so color is never the only signal:
+
+- `[ok]` for healthy success.
+- `[warn]` for warnings or partial readiness.
+- `[error]` for failures.
+- `[dry-run]` for previews.
+
+## CLI Logging
+
+Kumo uses npm-style log controls:
+
+- `--loglevel <silent|error|warn|notice|http|info|verbose|silly>` controls
+  terminal diagnostics. The default is `notice`.
+- `--silent` is equivalent to `--loglevel silent`; `--verbose` is equivalent to
+  `--loglevel verbose`; `-d` is equivalent to `--loglevel info`.
+- Normal command results are written to stdout. Logs, warnings, progress, timing
+  output, and diagnostics are written to stderr.
+- `--logs-dir <path>` overrides the CLI debug log directory. By default CLI logs
+  live under `logs/cli/`.
+- `--logs-max <count>` limits retained CLI debug logs. `--logs-max=0` disables
+  debug log files.
+- `--timing` writes a process-specific timing JSON file and may print a timing
+  summary to stderr in text mode.
+- Logs redact profile URL tokens, controller secrets, authorization headers,
+  basic auth passwords, and similar credentials before writing terminal or file
+  output.
+
+`kumo logs` has two log surfaces:
+
+- `kumo logs [runtime] [--limit <count>] [--level <level>] [--json]` shows
+  Mihomo/runtime logs.
+- `kumo logs cli [--limit <count>] [--level <level>] [--json]` shows Kumo CLI
+  debug log summaries.
+- `kumo logs path` prints the logs directory.
+- `kumo logs clean [--dry-run] [--json]` cleans old CLI debug and timing logs.
 
 ## Agent-Friendly Behavior
 
@@ -93,6 +163,9 @@ Install is non-destructive by default. If a destination skill directory already
 exists and was not recorded as installed by Kumo, the command fails unless the
 caller explicitly passes `--force`.
 
+`codex` and `gemini` do not support project scope. `--agent all --scope project`
+targets only agents with project-scope support.
+
 ## App Intents (GUI surface)
 
 The macOS app additionally exposes the following App Intents (via
@@ -131,5 +204,4 @@ working when the GUI is closed.
 
 ## Future Work
 
-- Add shell completion.
 - Add JSON schemas for automation consumers.

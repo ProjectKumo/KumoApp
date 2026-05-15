@@ -8,6 +8,9 @@ description: Drive Kumo from coding agents and automation through the `kumo` com
 ## Quick Start
 
 Run `kumo doctor --json` first when diagnosing state. Use `--json` whenever parsing output.
+Use the installed `kumo` command, which should resolve to `/usr/local/bin/kumo`
+and then to `Kumo.app/Contents/Helpers/kumo`. `swift run kumo` is only for
+source-tree development checks.
 
 ## When to Use
 
@@ -17,10 +20,20 @@ Run `kumo doctor --json` first when diagnosing state. Use `--json` whenever pars
 
 ## Output Contract
 
-- JSON responses use `{ "ok": true|false, "data": ..., "error": ... }`.
+- JSON responses use `{ "ok": true|false, "data": ..., "error": ... }` and
+  always include all three keys.
 - Exit code `0` means success.
 - Exit code `1` means failure; read `error` when `ok` is false.
 - Prefer stable command names and JSON fields over parsing human-readable output.
+- `--json` stdout is always plain JSON with no ANSI color, progress, or logs.
+- Diagnostics and log output go to stderr in text mode.
+
+## Discoverability
+
+- `kumo --help` or `kumo -h` shows common commands.
+- `kumo -l` shows long command usage.
+- `kumo <command> -h` and `kumo help <term>` show focused help.
+- `kumo completion zsh|bash|fish` emits shell completion scripts.
 
 ## Command Workflow
 
@@ -38,6 +51,17 @@ Run `kumo doctor --json` first when diagnosing state. Use `--json` whenever pars
 - `kumo skills uninstall --agent cursor --scope global --dry-run --json`
 
 Supported agents are `cursor`, `claude`, `codex`, `gemini`, `agents`, and `all` where documented.
+`codex` and `gemini` do not support project scope.
+
+## Logging Commands
+
+- `kumo logs path`
+- `kumo logs cli --limit 5`
+- `kumo logs clean --dry-run --json`
+
+Use `--loglevel <silent|error|warn|notice|http|info|verbose|silly>` to adjust
+diagnostic verbosity. Prefer `--silent --json` for automation that only needs
+machine-readable results.
 
 ## Safety Rules
 

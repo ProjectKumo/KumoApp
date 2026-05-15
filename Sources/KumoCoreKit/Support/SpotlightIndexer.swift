@@ -6,7 +6,8 @@ import UniformTypeIdentifiers
 /// them via Cmd+Space. Each indexed item exposes a `uniqueIdentifier` of the
 /// profile id, and an associated `NSUserActivity` activity type that the app
 /// delegate uses to jump back into the matching profile.
-public actor SpotlightIndexer {
+@MainActor
+public final class SpotlightIndexer {
     public static let shared = SpotlightIndexer()
 
     private let domain = "io.kumo.KumoApp.profiles"
@@ -36,7 +37,7 @@ public actor SpotlightIndexer {
             return item
         }
 
-        try? await index.indexSearchableItems(items)
+        try? await indexItems(items, in: index)
     }
 
     public var openProfileActivityType: String { activityType }
@@ -44,6 +45,18 @@ public actor SpotlightIndexer {
     private func deleteAllItems(in index: CSSearchableIndex) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             index.deleteSearchableItems(withDomainIdentifiers: [domain]) { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    private func indexItems(_ items: [CSSearchableItem], in index: CSSearchableIndex) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            index.indexSearchableItems(items) { error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {

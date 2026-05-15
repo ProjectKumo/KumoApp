@@ -9,11 +9,13 @@ let package = Package(
     ],
     products: [
         .library(name: "KumoCoreKit", targets: ["KumoCoreKit"]),
+        .library(name: "KumoCLIKit", targets: ["KumoCLIKit"]),
         .executable(name: "KumoApp", targets: ["KumoApp"]),
         .executable(name: "kumo", targets: ["KumoCLI"]),
         .executable(name: "KumoService", targets: ["KumoService"])
     ],
     dependencies: [
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.7.1"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.1.0")
     ],
     targets: [
@@ -29,9 +31,16 @@ let package = Package(
             name: "KumoApp",
             dependencies: ["KumoCoreKit"]
         ),
+        .target(
+            name: "KumoCLIKit",
+            dependencies: [
+                "KumoCoreKit",
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ]
+        ),
         .executableTarget(
             name: "KumoCLI",
-            dependencies: ["KumoCoreKit"]
+            dependencies: ["KumoCLIKit"]
         ),
         .executableTarget(
             name: "KumoService",
@@ -40,6 +49,10 @@ let package = Package(
         .testTarget(
             name: "KumoCoreTests",
             dependencies: ["KumoCoreKit"]
+        ),
+        .testTarget(
+            name: "KumoCLITests",
+            dependencies: ["KumoCLIKit", "KumoCoreKit"]
         )
     ]
 )

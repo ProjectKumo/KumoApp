@@ -746,6 +746,27 @@ public struct CLIResponse<T: Encodable>: Encodable {
         self.data = data
         self.error = error
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case ok
+        case data
+        case error
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(ok, forKey: .ok)
+        if let data {
+            try container.encode(data, forKey: .data)
+        } else {
+            try container.encodeNil(forKey: .data)
+        }
+        if let error {
+            try container.encode(error, forKey: .error)
+        } else {
+            try container.encodeNil(forKey: .error)
+        }
+    }
 }
 
 public struct ProviderSubscriptionInfo: Codable, Equatable, Sendable {

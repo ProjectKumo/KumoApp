@@ -10,6 +10,8 @@ The first test suite covers:
 - Mihomo controller response mapping with mocked URL loading.
 - Backup export/import round trips.
 - Service request signing.
+- CLI argument parsing, JSON envelope stability, color/log rendering rules, and
+  npm-style help behavior.
 
 These tests target `KumoCoreKit` because that layer carries the most important shared behavior.
 
@@ -18,12 +20,17 @@ These tests target `KumoCoreKit` because that layer carries the most important s
 Use:
 
 ```bash
-swift build
+swift build --product kumo
 swift test
-swift run kumo status --json
+.build/debug/kumo --help
+.build/debug/kumo status --json
+.build/debug/kumo skills install --agent codex --scope global --dry-run --json
 ```
 
 Do not start a development server. This project is a Swift package, not a web app.
+For user-facing release checks, prefer the bundled helper at
+`Kumo.app/Contents/Helpers/kumo` and the `/usr/local/bin/kumo` symlink over
+`swift run kumo`.
 
 ## Test Strategy
 
@@ -36,8 +43,6 @@ Prioritize tests that do not mutate real system state:
 
 ## Areas That Need More Coverage
 
-- CLI argument parsing.
-- JSON output stability.
 - Profile import and remote refresh errors.
 - Missing core path errors.
 - UI store behavior.
@@ -56,6 +61,14 @@ Prioritize tests that do not mutate real system state:
 ## Manual QA Checklist
 
 - `kumo status --json` returns valid JSON.
+- `kumo --help`, `kumo -l`, `kumo help json`, and `kumo completion zsh` return
+  npm-style discoverability output.
+- `kumo status --color never` contains no ANSI escapes, and `kumo status --json`
+  remains plain JSON even when `--color always` is supplied.
+- `kumo status --silent` succeeds without successful text output.
+- `kumo doctor --timing` writes timing diagnostics without polluting JSON output.
+- `kumo logs cli --limit 5` and `kumo logs clean --dry-run --json` operate on
+  CLI debug logs without touching runtime logs.
 - Missing Mihomo core shows a clear error.
 - Empty profile still generates a safe direct config.
 - System proxy dry-run prints the expected commands.
