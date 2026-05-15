@@ -278,11 +278,15 @@ private final class KumoServiceSocketServer: @unchecked Sendable {
         case ("GET", "/status"), ("GET", "/sysproxy/status"):
             return try json(controller.status())
         case ("POST", "/core/start"):
-            return try json(controller.start())
+            _ = try controller.start()
+            try await controller.waitForControllerReady()
+            return try json(controller.status())
         case ("POST", "/core/stop"):
             return try json(controller.stop())
         case ("POST", "/core/restart"):
-            return try json(controller.restart())
+            _ = try controller.restart()
+            try await controller.waitForControllerReady()
+            return try json(controller.status())
         case ("POST", "/sysproxy/enable"):
             _ = try await controller.setSystemProxy(true)
             return try json(controller.status())

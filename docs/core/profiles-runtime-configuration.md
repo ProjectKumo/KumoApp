@@ -37,6 +37,7 @@ This lets the app start with a safe empty state instead of crashing on missing c
 
 - `external-controller`
 - `secret`
+- profile-provided `port`, `socks-port`, `redir-port`, and `tproxy-port`
 - `mixed-port`
 - `mode`
 - `allow-lan`
@@ -63,7 +64,10 @@ Kumo plans an ordered override layer:
 3. Global overrides.
 4. Kumo-controlled runtime settings.
 
-The final layer always wins for controller address, ports, mode, and other Kumo-owned keys.
+The final layer always wins for controller address, ports, mode, and other
+Kumo-owned keys. Kumo removes profile-provided HTTP, SOCKS, redir, and tproxy
+listener ports and exposes the configured local proxy surface through its
+controlled `mixed-port`.
 When Kumo TUN, DNS, or Sniffer is enabled, the final layer owns the respective
 top-level blocks (`tun`, `dns`, `sniffer`) so UI settings are reflected in the
 generated runtime configuration. The `hosts` block is also controlled when the

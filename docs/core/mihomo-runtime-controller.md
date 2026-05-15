@@ -9,7 +9,7 @@ Kumo manages a Mihomo core executable. The core can come from:
 - A bundled `mihomo` resource.
 - Common Homebrew or system paths.
 
-The current implementation starts Mihomo with a generated work directory. The generated `config.yaml` contains Kumo-controlled controller and proxy settings.
+The current implementation starts Mihomo with a generated work directory. The generated `config.yaml` contains Kumo-controlled controller and proxy settings, and the supervisor also passes the controller endpoint with Mihomo's `-ext-ctl` flag plus `-secret` when a secret is configured. This keeps the UI and CLI controller surface reachable even when a profile or Mihomo build treats controller YAML differently from listener settings.
 
 ## Process Supervision
 
@@ -35,7 +35,9 @@ core is still alive.
 This is still available as the local-process fallback. When Kumo Helper is
 installed and reachable, `KumoController` routes start, stop, restart, system
 proxy, and TUN operations through the signed Unix socket service backend so the
-privileged helper owns Mihomo.
+privileged helper owns Mihomo. Helper-routed start and restart requests wait
+for Mihomo's controller endpoint to answer before returning, so callers do not
+observe a running process whose control surface is still unavailable.
 
 `KumoAppDelegate.applicationShouldTerminate(_:)` delays app termination while
 `KumoAppStore.prepareForTermination()` runs

@@ -11,6 +11,10 @@ public struct RuntimeConfigBuilder: Sendable {
     private static let controlledTopLevelKeys: Set<String> = [
         "external-controller",
         "secret",
+        "port",
+        "socks-port",
+        "redir-port",
+        "tproxy-port",
         "mixed-port",
         "mode",
         "allow-lan",
@@ -20,9 +24,7 @@ public struct RuntimeConfigBuilder: Sendable {
         "geodata-mode",
         "geo-auto-update",
         "geo-update-interval",
-        "geox-url",
-        "dns",
-        "sniffer"
+        "geox-url"
     ]
 
     public var endpoint: ControllerEndpoint
@@ -302,12 +304,12 @@ public struct RuntimeConfigBuilder: Sendable {
         dict.sorted(by: { $0.key < $1.key }).flatMap { key, value -> [String] in
             switch value {
             case .single(let s):
-                return ["\(indent)\(key): \(escapedScalar(s))"]
+                return ["\(indent)\(key): \(quotedScalar(s))"]
             case .multiple(let arr):
                 if arr.isEmpty {
                     return ["\(indent)\(key): []"]
                 }
-                return ["\(indent)\(key):"] + arr.map { "\(indent)  - \(escapedScalar($0))" }
+                return ["\(indent)\(key):"] + arr.map { "\(indent)  - \(quotedScalar($0))" }
             }
         }
     }
@@ -318,14 +320,18 @@ public struct RuntimeConfigBuilder: Sendable {
             case .bool(let b):
                 return ["\(indent)\(key): \(b ? "true" : "false")"]
             case .single(let s):
-                return ["\(indent)\(key): \(escapedScalar(s))"]
+                return ["\(indent)\(key): \(quotedScalar(s))"]
             case .multiple(let arr):
                 if arr.isEmpty {
                     return ["\(indent)\(key): []"]
                 }
-                return ["\(indent)\(key):"] + arr.map { "\(indent)  - \(escapedScalar($0))" }
+                return ["\(indent)\(key):"] + arr.map { "\(indent)  - \(quotedScalar($0))" }
             }
         }
+    }
+
+    private func quotedScalar(_ value: String) -> String {
+        "\"\(escaped(value))\""
     }
 
     private func escapedScalar(_ value: String) -> String {

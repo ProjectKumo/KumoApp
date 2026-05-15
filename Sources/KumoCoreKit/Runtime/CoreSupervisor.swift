@@ -59,7 +59,7 @@ public struct CoreSupervisor: Sendable {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: corePath)
-        process.arguments = ["-d", paths.workDirectory.path]
+        process.arguments = launchArguments(for: runtime)
         process.standardOutput = try logFileHandle()
         process.standardError = try logFileHandle()
         do {
@@ -235,6 +235,21 @@ public struct CoreSupervisor: Sendable {
         }
 
         throw KumoError.coreNotFound(configuredPath ?? "mihomo")
+    }
+
+    private func launchArguments(for runtime: RuntimeConfig) -> [String] {
+        var arguments = [
+            "-d",
+            paths.workDirectory.path,
+            "-ext-ctl",
+            "\(runtime.endpoint.host):\(runtime.endpoint.port)"
+        ]
+
+        if !runtime.endpoint.secret.isEmpty {
+            arguments.append(contentsOf: ["-secret", runtime.endpoint.secret])
+        }
+
+        return arguments
     }
 
     private func isProcessAlive(_ pid: Int32) -> Bool {

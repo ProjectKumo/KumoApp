@@ -32,6 +32,10 @@ final class RuntimeConfigBuilderTests: XCTestCase {
             name: "Remote",
             source: .inline,
             rawYAML: """
+            port: 47890
+            socks-port: 47891
+            redir-port: 47892
+            tproxy-port: 47893
             mixed-port: 7890
             allow-lan: true
             mode: rule
@@ -57,6 +61,10 @@ final class RuntimeConfigBuilderTests: XCTestCase {
 
         let runtime = try builder.build(profile: profile)
 
+        XCTAssertFalse(runtime.yaml.contains("port: 47890"))
+        XCTAssertFalse(runtime.yaml.contains("socks-port: 47891"))
+        XCTAssertFalse(runtime.yaml.contains("redir-port: 47892"))
+        XCTAssertFalse(runtime.yaml.contains("tproxy-port: 47893"))
         XCTAssertFalse(runtime.yaml.contains("mixed-port: 7890"))
         XCTAssertFalse(runtime.yaml.contains("allow-lan: true"))
         XCTAssertFalse(runtime.yaml.contains("mode: rule"))
