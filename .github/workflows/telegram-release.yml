@@ -27,12 +27,12 @@ jobs:
               release = json.load(f)["release"]
 
           body = release.get("body", "") or ""
-          text = f"🚀 <b>{release['name']}</b>\n\n{body}"
+          text = f"<b>{release['name']}</b>\n\n{body}"
 
           if len(text) > 4000:
               text = text[:3950] + "\n\n<i>... (truncated)</i>"
 
-          text += f"\n\n🔗 <a href='{release['html_url']}'>View on GitHub</a>"
+          text += f"\n\n<a href='{release['html_url']}'>View on GitHub</a>"
 
           # Send release note
           req = urllib.request.Request(
@@ -54,7 +54,7 @@ jobs:
               payload = json.dumps({
                   "chat_id": CHANNEL_ID,
                   "document": asset["browser_download_url"],
-                  "caption": f"📎 <code>{asset['name']}</code> ({size_kb}KB)",
+                  "caption": f"<code>{asset['name']}</code> ({size_kb}KB)",
                   "parse_mode": "HTML",
                   "reply_to_message_id": msg_id,
               }).encode()
@@ -68,5 +68,5 @@ jobs:
               except urllib.error.HTTPError as e:
                   print(f"Failed to send {asset['name']}: {e.read().decode()}")
 
-          print("✅ Telegram notification sent")
+          print("Done: Telegram notification sent")
           PYEOF
