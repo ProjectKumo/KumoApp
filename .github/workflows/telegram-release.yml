@@ -1,0 +1,72 @@
+name: Publish Release to Telegram
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send release note and assets to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+        run: |
+          python3 << 'PYEOF'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          BOT_TOKEN = os.environ["BOT_TOKEN"]
+          CHANNEL_ID = os.environ["CHANNEL_ID"]
+          EVENT_PATH = os.environ["GITHUB_EVENT_PATH"]
+
+          with open(EVENT_PATH) as f:
+              release = json.load(f)["release"]
+
+          body = release.get("body", "") or ""
+          text = f"🚀 <b>{release['name']}</b>\n\n{body}"
+
+          if len(text) > 4000:
+              text = text[:3950] + "\n\n<i>... (truncated)</i>"
+
+          text += f"\n\n🔗 <a href='{release['html_url']}'>View on GitHub</a>"
+
+          # Send release note
+          req = urllib.request.Request(
+              f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+              data=json.dumps({
+                  "chat_id": CHANNEL_ID,
+                  "text": text,
+                  "parse_mode": "HTML",
+                  "disable_web_page_preview": False,
+              }).encode(),
+              headers={"Content-Type": "application/json"},
+          )
+          resp = urllib.request.urlopen(req)
+          msg_id = json.load(resp)["result"]["message_id"]
+
+          # Send assets as replies
+          for asset in release.get("assets", []):
+              size_kb = asset.get("size", 0) // 1024
+              payload = json.dumps({
+                  "chat_id": CHANNEL_ID,
+                  "document": asset["browser_download_url"],
+                  "caption": f"📎 <code>{asset['name']}</code> ({size_kb}KB)",
+                  "parse_mode": "HTML",
+                  "reply_to_message_id": msg_id,
+              }).encode()
+
+              try:
+                  urllib.request.urlopen(urllib.request.Request(
+                      f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument",
+                      data=payload,
+                      headers={"Content-Type": "application/json"},
+                  ))
+              except urllib.error.HTTPError as e:
+                  print(f"Failed to send {asset['name']}: {e.read().decode()}")
+
+          print("✅ Telegram notification sent")
+          PYEOF
