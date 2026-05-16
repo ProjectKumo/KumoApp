@@ -48,6 +48,20 @@ jobs:
           resp = urllib.request.urlopen(req)
           msg_id = json.load(resp)["result"]["message_id"]
 
+          # Pin release message
+          try:
+              urllib.request.urlopen(urllib.request.Request(
+                  f"https://api.telegram.org/bot{BOT_TOKEN}/pinChatMessage",
+                  data=json.dumps({
+                      "chat_id": CHANNEL_ID,
+                      "message_id": msg_id,
+                      "disable_notification": True,
+                  }).encode(),
+                  headers={"Content-Type": "application/json"},
+              ))
+          except urllib.error.HTTPError as e:
+              print(f"Failed to pin message: {e.read().decode()}")
+
           # Send assets as replies
           for asset in release.get("assets", []):
               size_kb = asset.get("size", 0) // 1024
