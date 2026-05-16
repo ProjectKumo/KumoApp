@@ -1,7 +1,7 @@
 import Foundation
 import os
 
-private let shutdownLogger = Logger(subsystem: "io.kumo.KumoApp", category: "shutdown")
+let shutdownLogger = Logger(subsystem: "io.kumo.KumoApp", category: "shutdown")
 
 /// Result of a best-effort shutdown attempt. `status` is the most recent
 /// observable core status (falls back to the on-disk state store, then a
@@ -23,20 +23,20 @@ public struct ShutdownResult: Sendable {
 
 public struct KumoController: Sendable {
     public let paths: KumoPaths
-    private let profileRepository: ProfileRepository
-    private let overrideRepository: OverrideRepository
-    private let supervisor: CoreSupervisor
-    private let stateStore: CoreStateStore
-    private let systemProxyController: SystemProxyController
-    private let coreInstaller: CoreInstaller
-    private let subStoreManager: SubStoreManager
-    private let backupManager: KumoBackupManager
-    private let appUpdateManager: AppUpdateManager
-    private let appUpdateInstaller: AppUpdateInstaller
-    private let preferencesStore: UserPreferencesStore
-    private let subStoreSupervisor: SubStoreSupervisor
-    private let serviceManager: KumoServiceManager
-    private let useServiceBackend: Bool
+    let profileRepository: ProfileRepository
+    let overrideRepository: OverrideRepository
+    let supervisor: CoreSupervisor
+    let stateStore: CoreStateStore
+    let systemProxyController: SystemProxyController
+    let coreInstaller: CoreInstaller
+    let subStoreManager: SubStoreManager
+    let backupManager: KumoBackupManager
+    let appUpdateManager: AppUpdateManager
+    let appUpdateInstaller: AppUpdateInstaller
+    let preferencesStore: UserPreferencesStore
+    let subStoreSupervisor: SubStoreSupervisor
+    let serviceManager: KumoServiceManager
+    let useServiceBackend: Bool
 
     public init(
         paths: KumoPaths = KumoPaths(),
@@ -189,28 +189,6 @@ public struct KumoController: Sendable {
 
         latestStatus = (try? status()) ?? latestStatus
         return ShutdownResult(status: latestStatus, diagnostics: diagnostics)
-    }
-
-    private func formatDiagnostic(stage: String, error: Error) -> String {
-        let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        let line = "\(stage): \(message)"
-        shutdownLogger.error("\(line, privacy: .public)")
-        return line
-    }
-
-    private func fallbackSystemProxyConfiguration(for status: CoreStatus) -> SystemProxyConfiguration {
-        let stored = status.systemProxySettings?.networkService
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedService: String
-        if let stored, !stored.isEmpty, stored != "Automatic" {
-            resolvedService = stored
-        } else if let active = try? systemProxyController.activeNetworkService(),
-                  !active.isEmpty {
-            resolvedService = active
-        } else {
-            resolvedService = "Wi-Fi"
-        }
-        return SystemProxyConfiguration(networkService: resolvedService)
     }
 
     public func restart(corePath: String? = nil) throws -> CoreStatus {
@@ -549,6 +527,96 @@ public struct KumoController: Sendable {
         )
     }
 
+    public func dnsSettings() throws -> DnsSettings {
+        let status = try stateStore.load()
+        return status.runtimeSettings?.dns ?? DnsSettings()
+    }
+
+    public func updateDnsSettings(_ settings: DnsSettings) throws {
+        var status = try stateStore.load()
+        var runtimeSettings = self.runtimeSettings(for: status)
+        runtimeSettings.dns = settings
+        status.runtimeSettings = runtimeSettings
+        try stateStore.save(status)
+    }
+
+    @discardableResult
+    public func applyDnsSettings(_ settings: DnsSettings) async throws -> DnsSettings {
+        let normalizedSettings = normalizedDnsSettings(settings)
+        try updateDnsSettings(normalizedSettings)
+
+        let status = try stateStore.load()
+        if status.state == .running {
+            _ = try restart()
+            try await waitForControllerReady()
+        }
+
+        return normalizedSettings
+    }
+
+    @discardableResult
+    public func setDnsEnabled(_ isEnabled: Bool) async throws -> DnsSettings {
+        var status = try stateStore.load()
+        var runtimeSettings = self.runtimeSettings(for: status)
+        var dns = runtimeSettings.dns ?? DnsSettings()
+        dns.isEnabled = isEnabled
+        runtimeSettings.dns = dns
+        status.runtimeSettings = runtimeSettings
+        try stateStore.save(status)
+
+        if status.state == .running {
+            _ = try restart()
+            try await waitForControllerReady()
+        }
+
+        return dns
+    }
+
+    public func snifferSettings() throws -> SnifferSettings {
+        let status = try stateStore.load()
+        return status.runtimeSettings?.sniffer ?? SnifferSettings()
+    }
+
+    public func updateSnifferSettings(_ settings: SnifferSettings) throws {
+        var status = try stateStore.load()
+        var runtimeSettings = self.runtimeSettings(for: status)
+        runtimeSettings.sniffer = settings
+        status.runtimeSettings = runtimeSettings
+        try stateStore.save(status)
+    }
+
+    @discardableResult
+    public func applySnifferSettings(_ settings: SnifferSettings) async throws -> SnifferSettings {
+        let normalizedSettings = normalizedSnifferSettings(settings)
+        try updateSnifferSettings(normalizedSettings)
+
+        let status = try stateStore.load()
+        if status.state == .running {
+            _ = try restart()
+            try await waitForControllerReady()
+        }
+
+        return normalizedSettings
+    }
+
+    @discardableResult
+    public func setSnifferEnabled(_ isEnabled: Bool) async throws -> SnifferSettings {
+        var status = try stateStore.load()
+        var runtimeSettings = self.runtimeSettings(for: status)
+        var sniffer = runtimeSettings.sniffer ?? SnifferSettings()
+        sniffer.isEnabled = isEnabled
+        runtimeSettings.sniffer = sniffer
+        status.runtimeSettings = runtimeSettings
+        try stateStore.save(status)
+
+        if status.state == .running {
+            _ = try restart()
+            try await waitForControllerReady()
+        }
+
+        return sniffer
+    }
+
     public func updateTunSettings(_ settings: TunSettings) throws {
         var status = try stateStore.load()
         var runtimeSettings = runtimeSettings(for: status)
@@ -763,77 +831,6 @@ public struct KumoController: Sendable {
     }
 
     @discardableResult
-    private func startSubStoreServices(status: SubStoreStatus, restartBackend: Bool = false) async throws -> SubStoreStatus {
-        var nextStatus = subStoreManager.resourcesInstalled() ? status : try subStoreManager.prepareResources()
-        nextStatus.isEnabled = status.isEnabled
-        nextStatus.usesCustomBackend = status.usesCustomBackend
-        nextStatus.customBackendURL = status.customBackendURL
-        nextStatus.allowsLAN = status.allowsLAN
-        nextStatus.usesProxy = status.usesProxy
-        nextStatus.syncCron = status.syncCron
-        nextStatus.downloadCron = status.downloadCron
-        nextStatus.uploadCron = status.uploadCron
-        let allowLAN = status.allowsLAN
-        let backendPort = try await SubStorePortAllocator.availablePort(
-            startingAt: status.backendPort ?? 38324,
-            allowLAN: allowLAN
-        )
-
-        nextStatus.backendPort = backendPort
-        nextStatus.host = allowLAN ? "0.0.0.0" : "127.0.0.1"
-        try subStoreManager.updateStatus(nextStatus)
-
-        let plan = try subStoreManager.launchPlan(
-            for: nextStatus,
-            mixedPort: try? self.status().proxyPorts.mixedPort
-        )
-
-        if restartBackend {
-            try await subStoreSupervisor.restart(plan: plan)
-        } else {
-            try await subStoreSupervisor.start(plan: plan)
-        }
-
-        return nextStatus
-    }
-
-    private func subStoreProfileDownloadURL(path subStorePath: String, useProxy: Bool) throws -> URL {
-        let status = try subStoreManager.status()
-        let baseURL: URL
-        if let absoluteURL = URL(string: subStorePath), absoluteURL.scheme != nil {
-            baseURL = absoluteURL
-        } else if let backendURL = subStoreManager.backendURL(for: status),
-                  let relativeURL = URL(string: subStorePath, relativeTo: backendURL)?.absoluteURL {
-            baseURL = relativeURL
-        } else {
-            throw KumoError.invalidArguments("Sub-Store backend is not configured.")
-        }
-
-        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else {
-            throw KumoError.invalidArguments("Enter a valid Sub-Store path.")
-        }
-        var queryItems = components.queryItems ?? []
-        queryItems.removeAll { ["target", "noCache", "proxy"].contains($0.name) }
-        queryItems.append(URLQueryItem(name: "target", value: "ClashMeta"))
-        queryItems.append(URLQueryItem(name: "noCache", value: "true"))
-
-        let mixedPort = (try? self.status().proxyPorts.mixedPort) ?? 0
-        if useProxy, mixedPort > 0 {
-            queryItems.append(URLQueryItem(name: "proxy", value: "http://127.0.0.1:\(mixedPort)"))
-        }
-        components.queryItems = queryItems
-
-        guard let url = components.url else {
-            throw KumoError.invalidArguments("Enter a valid Sub-Store path.")
-        }
-        return url
-    }
-
-    private func subStoreDisplayName(for path: String) -> String {
-        URL(string: path)?.lastPathComponent.removingPercentEncoding ?? "Sub-Store Profile"
-    }
-
-    @discardableResult
     public func exportBackup(to destination: URL) throws -> KumoBackupResult {
         try backupManager.exportBackup(to: destination)
     }
@@ -907,160 +904,4 @@ public struct KumoController: Sendable {
         try CLILinkInstaller().uninstall()
     }
 
-    private func logLevel(in message: String) -> String {
-        let lowercased = message.lowercased()
-        if lowercased.contains("error") { return "error" }
-        if lowercased.contains("warn") { return "warning" }
-        if lowercased.contains("debug") { return "debug" }
-        return "info"
-    }
-
-    private func recentTunPermissionError() -> String? {
-        guard let logs = try? recentLogs(limit: 80) else {
-            return nil
-        }
-        let permissionError = "Start TUN listening error: configure tun interface: operation not permitted"
-        return logs.last(where: { $0.message.contains(permissionError) }).map { _ in
-            "TUN could not create the macOS network interface. Install or repair the privileged helper, then enable TUN again."
-        }
-    }
-
-    private func runtimeSettings(for status: CoreStatus) -> CoreRuntimeSettings {
-        var settings = status.runtimeSettings ?? CoreRuntimeSettings(mixedPort: status.proxyPorts.mixedPort)
-        settings.mixedPort = status.proxyPorts.mixedPort
-        return settings
-    }
-
-    private func normalizedStatusForLaunch() throws -> CoreStatus {
-        var status = try stateStore.load()
-        let service = serviceManager.status()
-        status.serviceModeStatus = service
-        if var runtimeSettings = status.runtimeSettings,
-           var tun = runtimeSettings.tun,
-           tun.isEnabled,
-           !service.canManageTun {
-            tun.isEnabled = false
-            runtimeSettings.tun = tun
-            status.runtimeSettings = runtimeSettings
-            status.tunStatus = TunStatus(
-                isEnabled: false,
-                isRunning: false,
-                requiresService: true,
-                lastError: service.message
-            )
-            try stateStore.save(status)
-        }
-        return status
-    }
-
-    private func effectiveSystemProxySettings(for status: CoreStatus) throws -> SystemProxySettings {
-        let runtimePort = runtimeSettings(for: status).mixedPort
-        var settings = status.systemProxySettings ?? SystemProxySettings(
-            networkService: (try? systemProxyController.activeNetworkService()) ?? "Wi-Fi",
-            host: status.endpoint.host,
-            port: runtimePort
-        )
-        if settings.networkService.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || settings.networkService == "Automatic" {
-            settings.networkService = try systemProxyController.activeNetworkService()
-        }
-        settings.port = runtimePort
-        return settings
-    }
-
-    private func persistServiceStatus(_ serviceStatus: ServiceModeStatus) {
-        do {
-            var status = try stateStore.load()
-            status.serviceModeStatus = serviceStatus
-            try stateStore.save(status)
-        } catch {
-            // Status refresh should not fail user-facing operations.
-        }
-    }
-
-    private func runningServiceClient() -> KumoServiceClient? {
-        guard useServiceBackend,
-              let client = serviceManager.serviceClient(),
-              serviceManager.status().isRunning else {
-            return nil
-        }
-        return client
-    }
-
-    private func runtimePatch(for settings: CoreRuntimeSettings) -> [String: Any] {
-        var patch: [String: Any] = [
-            "mixed-port": settings.mixedPort,
-            "allow-lan": settings.allowLAN,
-            "log-level": settings.logLevel,
-            "ipv6": settings.ipv6,
-            "find-process-mode": settings.findProcessMode,
-            "geodata-mode": settings.geoData.usesDatMode,
-            "geo-auto-update": settings.geoData.autoUpdate,
-            "geo-update-interval": settings.geoData.updateIntervalHours,
-            "geox-url": [
-                "geoip": settings.geoData.geoIPURL,
-                "geosite": settings.geoData.geoSiteURL,
-                "mmdb": settings.geoData.mmdbURL,
-                "asn": settings.geoData.asnURL
-            ]
-        ]
-        if let tun = settings.tun {
-            patch["tun"] = tunPatch(for: tun)
-            if tun.isEnabled {
-                patch["dns"] = dnsPatch(for: tun)
-            }
-        }
-        return patch
-    }
-
-    private func tunPatch(for tun: TunSettings) -> [String: Any] {
-        var patch: [String: Any] = [
-            "enable": tun.isEnabled,
-            "stack": tun.stack,
-            "auto-route": tun.autoRoute,
-            "auto-redirect": tun.autoRedirect,
-            "auto-detect-interface": tun.autoDetectInterface,
-            "strict-route": tun.strictRoute,
-            "disable-icmp-forwarding": tun.disableICMPForwarding,
-            "dns-hijack": tun.dnsHijack,
-            "mtu": tun.mtu
-        ]
-        if !tun.routeExcludeAddress.isEmpty {
-            patch["route-exclude-address"] = tun.routeExcludeAddress
-        }
-        if let device = tun.device, device.hasPrefix("utun") {
-            patch["device"] = device
-        }
-        return patch
-    }
-
-    private func dnsPatch(for tun: TunSettings) -> [String: Any] {
-        [
-            "enable": tun.dnsEnabled,
-            "enhanced-mode": tun.dnsEnhancedMode,
-            "fake-ip-range": tun.fakeIPRange,
-            "nameserver": tun.nameservers
-        ]
-    }
-
-    private func normalizedTunSettings(_ settings: TunSettings) -> TunSettings {
-        var settings = settings
-        settings.mtu = max(576, min(9000, settings.mtu))
-        settings.stack = ["mixed", "gvisor", "system"].contains(settings.stack) ? settings.stack : "mixed"
-        settings.dnsEnhancedMode = ["fake-ip", "redir-host", "normal"].contains(settings.dnsEnhancedMode)
-            ? settings.dnsEnhancedMode
-            : "fake-ip"
-        settings.dnsHijack = normalizedList(settings.dnsHijack)
-        settings.routeExcludeAddress = normalizedList(settings.routeExcludeAddress)
-        settings.nameservers = normalizedList(settings.nameservers)
-        settings.fakeIPRange = settings.fakeIPRange.trimmingCharacters(in: .whitespacesAndNewlines)
-        settings.device = settings.device?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return settings
-    }
-
-    private func normalizedList(_ values: [String]) -> [String] {
-        values
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
 }

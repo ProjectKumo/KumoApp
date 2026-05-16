@@ -35,6 +35,14 @@
 - `connections()`
 - `recentLogs(limit:)`
 - `setSystemProxy(_:dryRun:)`
+- `dnsSettings()` / `updateDnsSettings(_:)` / `applyDnsSettings(_:)` / `setDnsEnabled(_:)`
+- `snifferSettings()` / `updateSnifferSettings(_:)` / `applySnifferSettings(_:)` / `setSnifferEnabled(_:)`
+- `updateTunSettings(_:)` / `applyTunSettings(_:)` / `setTunEnabled(_:)`
+- `subStoreStatus()` / `updateSubStoreStatus(_:)` / `prepareSubStoreResources()`
+- `exportBackup(to:)` / `importBackup(from:)`
+- `checkAppUpdate(...)` / `downloadAppUpdate(...)` / `installAppUpdate(...)`
+- `userPreferences()` / `updateUserPreferences(_:)`
+- `installCLILink()` / `uninstallCLILink()`
 
 This API is intentionally close to the CLI command vocabulary and the future service API.
 
@@ -42,12 +50,13 @@ This API is intentionally close to the CLI command vocabulary and the future ser
 
 `KumoCoreKit` is split by responsibility:
 
-- Models: `Profile`, `ProxyGroup`, `ProxyNode`, `CoreStatus`, `OutboundMode`.
-- Configuration: profile loading and runtime config generation.
-- Runtime: Mihomo process supervision.
-- Networking: Mihomo external-controller client.
-- System: macOS system proxy command construction and execution.
-- Support: paths, state storage, and shared errors.
+- Models: `Profile`, `ProxyGroup`, `ProxyNode`, `CoreStatus`, `OutboundMode`, `CoreRuntimeSettings`, `TunSettings`, `DnsSettings`, `SnifferSettings`, `PolicyValue`, `FallbackFilterValue`.
+- Configuration: profile loading, override management, and runtime config generation.
+- Runtime: Mihomo process supervision, Sub-Store lifecycle, and core installation.
+- Networking: Mihomo external-controller client and Sub-Store HTTP client.
+- System: macOS system proxy command construction and execution, PAC server.
+- Service: signed Unix socket transport for privileged helper IPC.
+- Support: paths, state storage, shared errors, app updates, backups, and CLI link management.
 
 ## Design Rules
 

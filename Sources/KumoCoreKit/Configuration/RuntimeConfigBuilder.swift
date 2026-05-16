@@ -20,7 +20,9 @@ public struct RuntimeConfigBuilder: Sendable {
         "geodata-mode",
         "geo-auto-update",
         "geo-update-interval",
-        "geox-url"
+        "geox-url",
+        "dns",
+        "sniffer"
     ]
 
     public var endpoint: ControllerEndpoint
@@ -98,11 +100,25 @@ public struct RuntimeConfigBuilder: Sendable {
           asn: "\(escaped(runtimeSettings.geoData.asnURL))"
         """
 
-        guard let tun = runtimeSettings.tun, tun.isEnabled else {
-            return base
+        var blocks: [String] = [base]
+
+        if let tun = runtimeSettings.tun, tun.isEnabled {
+            blocks.append(controlledTunYAML(tun))
         }
 
-        return [base, controlledTunYAML(tun)].joined(separator: "\n\n")
+        if let dns = runtimeSettings.dns, dns.isEnabled {
+            blocks.append(controlledDnsYAML(dns))
+        }
+
+        if let sniffer = runtimeSettings.sniffer, sniffer.isEnabled {
+            blocks.append(controlledSnifferYAML(sniffer))
+        }
+
+        if let dns = runtimeSettings.dns, !dns.hosts.isEmpty {
+            blocks.append(controlledHostsYAML(dns.hosts))
+        }
+
+        return blocks.joined(separator: "\n\n")
     }
 
     private func escaped(_ value: String) -> String {
@@ -111,10 +127,20 @@ public struct RuntimeConfigBuilder: Sendable {
     }
 
     private func controlledTopLevelKeys() -> Set<String> {
-        guard runtimeSettings.tun?.isEnabled == true else {
-            return Self.controlledTopLevelKeys
+        var keys = Self.controlledTopLevelKeys
+        if runtimeSettings.tun?.isEnabled == true {
+            keys.insert("tun")
         }
-        return Self.controlledTopLevelKeys.union(["tun", "dns"])
+        if runtimeSettings.dns?.isEnabled == true {
+            keys.insert("dns")
+        }
+        if runtimeSettings.sniffer?.isEnabled == true {
+            keys.insert("sniffer")
+        }
+        if let dns = runtimeSettings.dns, !dns.hosts.isEmpty {
+            keys.insert("hosts")
+        }
+        return keys
     }
 
     private func controlledTunYAML(_ tun: TunSettings) -> String {
@@ -139,20 +165,167 @@ public struct RuntimeConfigBuilder: Sendable {
         if let device = normalizedTunDevice(tun.device) {
             lines.append("  device: \(device)")
         }
-        lines.append(contentsOf: [
+        return lines.joined(separator: "\n")
+    }
+
+    private func controlledDnsYAML(_ dns: DnsSettings) -> String {
+        var lines = [
+            "# Kumo controlled DNS settings",
             "dns:",
-            "  enable: \(tun.dnsEnabled ? "true" : "false")",
-            "  ipv6: \(runtimeSettings.ipv6 ? "true" : "false")",
-            "  enhanced-mode: \(tun.dnsEnhancedMode)",
-            "  fake-ip-range: \(tun.fakeIPRange)",
-            "  nameserver:"
-        ])
-        lines.append(contentsOf: yamlList(tun.nameservers, indent: "    "))
+            "  enable: \(dns.isEnabled ? "true" : "false")",
+            "  ipv6: \(dns.ipv6 ? "true" : "false")",
+            "  enhanced-mode: \(dns.enhancedMode)",
+            "  fake-ip-range: \(dns.fakeIPRange)",
+        ]
+        if !dns.listen.isEmpty {
+            lines.append("  listen: \(escapedScalar(dns.listen))")
+        }
+        lines.append("  ipv6-timeout: \(dns.ipv6Timeout)")
+        lines.append("  prefer-h3: \(dns.preferH3 ? "true" : "false")")
+        if !dns.fakeIPRange6.isEmpty {
+            lines.append("  fake-ip-range6: \(dns.fakeIPRange6)")
+        }
+        if !dns.fakeIPFilter.isEmpty {
+            lines.append("  fake-ip-filter:")
+            lines.append(contentsOf: yamlList(dns.fakeIPFilter, indent: "    "))
+        }
+        if !dns.fakeIPFilterMode.isEmpty {
+            lines.append("  fake-ip-filter-mode: \(dns.fakeIPFilterMode)")
+        }
+        lines.append("  use-hosts: \(dns.useHosts ? "true" : "false")")
+        lines.append("  use-system-hosts: \(dns.useSystemHosts ? "true" : "false")")
+        lines.append("  respect-rules: \(dns.respectRules ? "true" : "false")")
+        if !dns.defaultNameserver.isEmpty {
+            lines.append("  default-nameserver:")
+            lines.append(contentsOf: yamlList(dns.defaultNameserver, indent: "    "))
+        }
+        if !dns.nameserver.isEmpty {
+            lines.append("  nameserver:")
+            lines.append(contentsOf: yamlList(dns.nameserver, indent: "    "))
+        }
+        if !dns.fallback.isEmpty {
+            lines.append("  fallback:")
+            lines.append(contentsOf: yamlList(dns.fallback, indent: "    "))
+        }
+        if !dns.fallbackFilter.isEmpty {
+            lines.append("  fallback-filter:")
+            lines.append(contentsOf: yamlFallbackFilterDict(dns.fallbackFilter, indent: "    "))
+        }
+        if !dns.proxyServerNameserver.isEmpty {
+            lines.append("  proxy-server-nameserver:")
+            lines.append(contentsOf: yamlList(dns.proxyServerNameserver, indent: "    "))
+        }
+        if !dns.directNameserver.isEmpty {
+            lines.append("  direct-nameserver:")
+            lines.append(contentsOf: yamlList(dns.directNameserver, indent: "    "))
+        }
+        lines.append("  direct-nameserver-follow-policy: \(dns.directNameserverFollowPolicy ? "true" : "false")")
+        if !dns.nameserverPolicy.isEmpty {
+            lines.append("  nameserver-policy:")
+            lines.append(contentsOf: yamlPolicyDict(dns.nameserverPolicy, indent: "    "))
+        }
+        if !dns.proxyServerNameserverPolicy.isEmpty {
+            lines.append("  proxy-server-nameserver-policy:")
+            lines.append(contentsOf: yamlPolicyDict(dns.proxyServerNameserverPolicy, indent: "    "))
+        }
+        if !dns.cacheAlgorithm.isEmpty {
+            lines.append("  cache-algorithm: \(dns.cacheAlgorithm)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func controlledHostsYAML(_ hosts: [String: PolicyValue]) -> String {
+        var lines = [
+            "# Kumo controlled hosts",
+            "hosts:"
+        ]
+        lines.append(contentsOf: yamlPolicyDict(hosts, indent: "  "))
+        return lines.joined(separator: "\n")
+    }
+
+    private func controlledSnifferYAML(_ sniffer: SnifferSettings) -> String {
+        var lines = [
+            "# Kumo controlled Sniffer settings",
+            "sniffer:",
+            "  enable: \(sniffer.isEnabled ? "true" : "false")",
+            "  parse-pure-ip: \(sniffer.parsePureIP ? "true" : "false")",
+            "  force-dns-mapping: \(sniffer.forceDNSMapping ? "true" : "false")",
+            "  override-destination: \(sniffer.overrideDestination ? "true" : "false")",
+        ]
+        if !sniffer.httpPorts.isEmpty || !sniffer.tlsPorts.isEmpty || !sniffer.quicPorts.isEmpty || sniffer.httpOverrideDestination {
+            lines.append("  sniff:")
+            if !sniffer.httpPorts.isEmpty || sniffer.httpOverrideDestination {
+                lines.append("    HTTP:")
+                if !sniffer.httpPorts.isEmpty {
+                    lines.append("      ports:")
+                    lines.append(contentsOf: sniffer.httpPorts.map { "        - \($0)" })
+                }
+                if sniffer.httpOverrideDestination {
+                    lines.append("      override-destination: true")
+                }
+            }
+            if !sniffer.tlsPorts.isEmpty {
+                lines.append("    TLS:")
+                lines.append("      ports:")
+                lines.append(contentsOf: sniffer.tlsPorts.map { "        - \($0)" })
+            }
+            if !sniffer.quicPorts.isEmpty {
+                lines.append("    QUIC:")
+                lines.append("      ports:")
+                lines.append(contentsOf: sniffer.quicPorts.map { "        - \($0)" })
+            }
+        }
+        if !sniffer.skipDomain.isEmpty {
+            lines.append("  skip-domain:")
+            lines.append(contentsOf: yamlList(sniffer.skipDomain, indent: "    "))
+        }
+        if !sniffer.forceDomain.isEmpty {
+            lines.append("  force-domain:")
+            lines.append(contentsOf: yamlList(sniffer.forceDomain, indent: "    "))
+        }
+        if !sniffer.skipDstAddress.isEmpty {
+            lines.append("  skip-dst-address:")
+            lines.append(contentsOf: yamlList(sniffer.skipDstAddress, indent: "    "))
+        }
+        if !sniffer.skipSrcAddress.isEmpty {
+            lines.append("  skip-src-address:")
+            lines.append(contentsOf: yamlList(sniffer.skipSrcAddress, indent: "    "))
+        }
         return lines.joined(separator: "\n")
     }
 
     private func yamlList(_ values: [String], indent: String) -> [String] {
         values.map { "\(indent)- \(escapedScalar($0))" }
+    }
+
+    private func yamlPolicyDict(_ dict: [String: PolicyValue], indent: String) -> [String] {
+        dict.sorted(by: { $0.key < $1.key }).flatMap { key, value -> [String] in
+            switch value {
+            case .single(let s):
+                return ["\(indent)\(key): \(escapedScalar(s))"]
+            case .multiple(let arr):
+                if arr.isEmpty {
+                    return ["\(indent)\(key): []"]
+                }
+                return ["\(indent)\(key):"] + arr.map { "\(indent)  - \(escapedScalar($0))" }
+            }
+        }
+    }
+
+    private func yamlFallbackFilterDict(_ dict: [String: FallbackFilterValue], indent: String) -> [String] {
+        dict.sorted(by: { $0.key < $1.key }).flatMap { key, value -> [String] in
+            switch value {
+            case .bool(let b):
+                return ["\(indent)\(key): \(b ? "true" : "false")"]
+            case .single(let s):
+                return ["\(indent)\(key): \(escapedScalar(s))"]
+            case .multiple(let arr):
+                if arr.isEmpty {
+                    return ["\(indent)\(key): []"]
+                }
+                return ["\(indent)\(key):"] + arr.map { "\(indent)  - \(escapedScalar($0))" }
+            }
+        }
     }
 
     private func escapedScalar(_ value: String) -> String {

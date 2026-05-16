@@ -48,6 +48,12 @@ public struct MihomoControllerClient: Sendable {
         let tun = object["tun"] as? [String: Any]
         let dns = object["dns"] as? [String: Any]
         let sniffer = object["sniffer"] as? [String: Any]
+        let topLevelHosts = policyValueDict(from: object["hosts"])
+        var parsedDNS = dnsSettings(from: dns)
+        if parsedDNS == nil, !topLevelHosts.isEmpty {
+            parsedDNS = DnsSettings(isEnabled: false)
+        }
+        parsedDNS?.hosts = topLevelHosts
 
         return CoreConfigurationSnapshot(
             version: version?.version,
@@ -58,8 +64,10 @@ public struct MihomoControllerClient: Sendable {
             ipv6: ipv6,
             geoData: geoData(from: object),
             tunEnabled: tun?["enable"] as? Bool ?? false,
-            dnsEnabled: dns?["enable"] as? Bool ?? false,
-            snifferEnabled: sniffer?["enable"] as? Bool ?? false
+            dnsEnabled: parsedDNS?.isEnabled ?? false,
+            snifferEnabled: sniffer?["enable"] as? Bool ?? false,
+            dns: parsedDNS,
+            sniffer: snifferSettings(from: sniffer)
         )
     }
 
@@ -475,6 +483,94 @@ public struct MihomoControllerClient: Sendable {
             total: intValue(object["Total"] ?? object["total"]) ?? 0,
             expire: intValue(object["Expire"] ?? object["expire"])
         )
+    }
+
+    private func dnsSettings(from object: [String: Any]?) -> DnsSettings? {
+        guard let object else { return nil }
+        return DnsSettings(
+            isEnabled: object["enable"] as? Bool ?? true,
+            listen: object["listen"] as? String ?? "",
+            ipv6: object["ipv6"] as? Bool ?? false,
+            ipv6Timeout: intValue(object["ipv6-timeout"]) ?? 100,
+            preferH3: object["prefer-h3"] as? Bool ?? false,
+            enhancedMode: object["enhanced-mode"] as? String ?? "fake-ip",
+            fakeIPRange: object["fake-ip-range"] as? String ?? "198.18.0.1/16",
+            fakeIPRange6: object["fake-ip-range6"] as? String ?? "",
+            fakeIPFilter: object["fake-ip-filter"] as? [String] ?? [],
+            fakeIPFilterMode: object["fake-ip-filter-mode"] as? String ?? "",
+            useHosts: object["use-hosts"] as? Bool ?? false,
+            useSystemHosts: object["use-system-hosts"] as? Bool ?? false,
+            respectRules: object["respect-rules"] as? Bool ?? false,
+            defaultNameserver: object["default-nameserver"] as? [String] ?? [],
+            nameserver: object["nameserver"] as? [String] ?? [],
+            fallback: object["fallback"] as? [String] ?? [],
+            fallbackFilter: fallbackFilterDict(from: object["fallback-filter"]),
+            proxyServerNameserver: object["proxy-server-nameserver"] as? [String] ?? [],
+            directNameserver: object["direct-nameserver"] as? [String] ?? [],
+            directNameserverFollowPolicy: object["direct-nameserver-follow-policy"] as? Bool ?? false,
+            nameserverPolicy: policyValueDict(from: object["nameserver-policy"]),
+            proxyServerNameserverPolicy: policyValueDict(from: object["proxy-server-nameserver-policy"]),
+            cacheAlgorithm: object["cache-algorithm"] as? String ?? "",
+            hosts: [:]
+        )
+    }
+
+    private func snifferSettings(from object: [String: Any]?) -> SnifferSettings? {
+        guard let object else { return nil }
+        let sniff = object["sniff"] as? [String: [String: Any]]
+        return SnifferSettings(
+            isEnabled: object["enable"] as? Bool ?? true,
+            parsePureIP: object["parse-pure-ip"] as? Bool ?? true,
+            forceDNSMapping: object["force-dns-mapping"] as? Bool ?? true,
+            overrideDestination: object["override-destination"] as? Bool ?? false,
+            httpOverrideDestination: sniff?["HTTP"]?["override-destination"] as? Bool ?? false,
+            httpPorts: portList(from: sniff?["HTTP"]?["ports"]),
+            tlsPorts: portList(from: sniff?["TLS"]?["ports"]),
+            quicPorts: portList(from: sniff?["QUIC"]?["ports"]),
+            skipDomain: object["skip-domain"] as? [String] ?? [],
+            forceDomain: object["force-domain"] as? [String] ?? [],
+            skipDstAddress: object["skip-dst-address"] as? [String] ?? [],
+            skipSrcAddress: object["skip-src-address"] as? [String] ?? []
+        )
+    }
+
+    private func stringDict(from value: Any?) -> [String: String] {
+        guard let dict = value as? [String: Any] else { return [:] }
+        return dict.compactMapValues { $0 as? String }
+    }
+
+    private func policyValueDict(from value: Any?) -> [String: PolicyValue] {
+        guard let dict = value as? [String: Any] else { return [:] }
+        return dict.compactMapValues { anyValue -> PolicyValue? in
+            if let str = anyValue as? String {
+                return .single(str)
+            }
+            if let arr = anyValue as? [String] {
+                return .multiple(arr)
+            }
+            return nil
+        }
+    }
+
+    private func fallbackFilterDict(from value: Any?) -> [String: FallbackFilterValue] {
+        guard let dict = value as? [String: Any] else { return [:] }
+        return dict.compactMapValues { anyValue -> FallbackFilterValue? in
+            if let b = anyValue as? Bool {
+                return .bool(b)
+            }
+            if let str = anyValue as? String {
+                return .single(str)
+            }
+            if let arr = anyValue as? [String] {
+                return .multiple(arr)
+            }
+            return nil
+        }
+    }
+
+    private func portList(from value: Any?) -> [Int] {
+        guard let array = value as? [Any] else { return [] }
+        return array.compactMap { intValue($0) }
     }
 
     private func stringValue(_ value: Any?) -> String? {

@@ -400,7 +400,11 @@ final class KumoAppStore {
                 allowLAN: settings.allowLAN,
                 ipv6: settings.ipv6,
                 geoData: settings.geoData,
-                tunEnabled: settings.tun?.isEnabled ?? false
+                tunEnabled: settings.tun?.isEnabled ?? false,
+                dnsEnabled: settings.dns?.isEnabled ?? false,
+                snifferEnabled: settings.sniffer?.isEnabled ?? false,
+                dns: settings.dns,
+                sniffer: settings.sniffer
             )
             return
         }
@@ -887,6 +891,76 @@ final class KumoAppStore {
                 startTrafficStream()
             } else {
                 coreConfiguration.tunEnabled = tunStatus.isEnabled
+            }
+        }
+    }
+
+    // MARK: - DNS
+
+    func applyDnsSettings(_ settings: DnsSettings) async {
+        await performLoadingTask { [self] in
+            let applied = try await controller.applyDnsSettings(settings)
+            refreshStatus()
+            if status.state == .running {
+                try await controller.waitForControllerReady()
+                await loadCoreConfiguration()
+                startTrafficStream()
+            } else {
+                var runtimeSettings = status.runtimeSettings ?? CoreRuntimeSettings(mixedPort: status.proxyPorts.mixedPort)
+                runtimeSettings.dns = applied
+                status.runtimeSettings = runtimeSettings
+                coreConfiguration.dnsEnabled = applied.isEnabled
+                coreConfiguration.dns = applied
+            }
+        }
+    }
+
+    func setDnsEnabled(_ isEnabled: Bool) async {
+        await performLoadingTask { [self] in
+            let settings = try await controller.setDnsEnabled(isEnabled)
+            refreshStatus()
+            if status.state == .running {
+                try await controller.waitForControllerReady()
+                await loadCoreConfiguration()
+                startTrafficStream()
+            } else {
+                coreConfiguration.dnsEnabled = settings.isEnabled
+                coreConfiguration.dns = settings
+            }
+        }
+    }
+
+    // MARK: - Sniffer
+
+    func applySnifferSettings(_ settings: SnifferSettings) async {
+        await performLoadingTask { [self] in
+            let applied = try await controller.applySnifferSettings(settings)
+            refreshStatus()
+            if status.state == .running {
+                try await controller.waitForControllerReady()
+                await loadCoreConfiguration()
+                startTrafficStream()
+            } else {
+                var runtimeSettings = status.runtimeSettings ?? CoreRuntimeSettings(mixedPort: status.proxyPorts.mixedPort)
+                runtimeSettings.sniffer = applied
+                status.runtimeSettings = runtimeSettings
+                coreConfiguration.snifferEnabled = applied.isEnabled
+                coreConfiguration.sniffer = applied
+            }
+        }
+    }
+
+    func setSnifferEnabled(_ isEnabled: Bool) async {
+        await performLoadingTask { [self] in
+            let settings = try await controller.setSnifferEnabled(isEnabled)
+            refreshStatus()
+            if status.state == .running {
+                try await controller.waitForControllerReady()
+                await loadCoreConfiguration()
+                startTrafficStream()
+            } else {
+                coreConfiguration.snifferEnabled = settings.isEnabled
+                coreConfiguration.sniffer = settings
             }
         }
     }

@@ -44,7 +44,10 @@ This lets the app start with a safe empty state instead of crashing on missing c
 - `ipv6`
 - `find-process-mode`
 - Geo data settings
-- TUN and paired DNS settings when Kumo TUN is enabled
+- TUN settings when Kumo TUN is enabled
+- DNS settings when Kumo DNS is enabled
+- Sniffer settings when Kumo Sniffer is enabled
+- `hosts` when the user has configured hosts in the Kumo UI
 
 The goal is to keep user profiles portable while ensuring Kumo can control the running core.
 Kumo sets `find-process-mode: always` by default so the Mihomo controller
@@ -61,10 +64,10 @@ Kumo plans an ordered override layer:
 4. Kumo-controlled runtime settings.
 
 The final layer always wins for controller address, ports, mode, and other Kumo-owned keys.
-When Kumo TUN is enabled, the final layer also owns the top-level `tun` and
-`dns` blocks so UI settings such as stack, auto route, route exclusions, MTU,
-DNS hijack, ICMP forwarding, fake-IP range, and nameservers are reflected in the
-generated runtime configuration.
+When Kumo TUN, DNS, or Sniffer is enabled, the final layer owns the respective
+top-level blocks (`tun`, `dns`, `sniffer`) so UI settings are reflected in the
+generated runtime configuration. The `hosts` block is also controlled when the
+user has configured hosts entries in the DNS settings view.
 
 ## Current Merge Strategy
 

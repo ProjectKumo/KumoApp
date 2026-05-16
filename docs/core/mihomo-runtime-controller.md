@@ -64,21 +64,21 @@ and Mihomo-managed DNS interception.
 
 ## TUN Runtime Settings
 
-`CoreRuntimeSettings` can carry `TunSettings`. When TUN is enabled and service
-mode is available, `RuntimeConfigBuilder` removes profile-provided `tun`/`dns`
-top-level blocks and appends Kumo-controlled TUN and DNS settings:
+`CoreRuntimeSettings` carries `TunSettings`. When TUN is enabled and service
+mode is available, `RuntimeConfigBuilder` removes profile-provided `tun`
+top-level blocks and appends Kumo-controlled TUN settings:
 
 - `tun.enable`
 - `tun.stack`
 - `tun.auto-route`
+- `tun.auto-redirect`
 - `tun.auto-detect-interface`
 - `tun.strict-route`
+- `tun.disable-icmp-forwarding`
 - `tun.dns-hijack`
+- `tun.route-exclude-address`
 - `tun.mtu`
-- `dns.enable`
-- `dns.enhanced-mode`
-- `dns.fake-ip-range`
-- `dns.nameserver`
+- `tun.device` (macOS only, when prefixed with `utun`)
 
 On macOS, Kumo only writes a configured TUN device name when it already starts
 with `utun`, matching the platform's virtual interface naming rules. If no
@@ -90,6 +90,72 @@ settings, rewrites the controlled config, restarts the helper-owned Mihomo
 process, waits for the controller to become ready, and reports the resulting
 `TunStatus`. The macOS authorization involved is helper installation/repair,
 not a NetworkExtension VPN configuration prompt.
+
+## DNS Runtime Settings
+
+`CoreRuntimeSettings` carries `DnsSettings` independently of TUN. When DNS is
+enabled, `RuntimeConfigBuilder` removes profile-provided `dns` and `hosts`
+top-level blocks and appends Kumo-controlled DNS settings:
+
+- `dns.enable`
+- `dns.listen`
+- `dns.ipv6`
+- `dns.ipv6-timeout`
+- `dns.prefer-h3`
+- `dns.enhanced-mode`
+- `dns.fake-ip-range`
+- `dns.fake-ip-range6`
+- `dns.fake-ip-filter`
+- `dns.fake-ip-filter-mode`
+- `dns.use-hosts`
+- `dns.use-system-hosts`
+- `dns.respect-rules`
+- `dns.default-nameserver`
+- `dns.nameserver`
+- `dns.fallback`
+- `dns.fallback-filter`
+- `dns.proxy-server-nameserver`
+- `dns.direct-nameserver`
+- `dns.direct-nameserver-follow-policy`
+- `dns.nameserver-policy`
+- `dns.proxy-server-nameserver-policy`
+- `dns.cache-algorithm`
+
+DNS settings are also surfaced through the Mihomo controller (`GET /configs`)
+and can be patched at runtime (`PATCH /configs`). However, because DNS
+configuration is structurally significant, applying DNS changes through the UI
+restarts the core rather than patching piecemeal, matching Mihomo's expectation
+that DNS structure changes are loaded from the generated runtime YAML.
+
+### Hosts
+
+Mihomo's `hosts` key is a top-level configuration block, not nested under `dns`.
+Kumo stores `hosts` inside `DnsSettings` for UI convenience (users edit hosts
+alongside DNS settings in the Configure view), but `RuntimeConfigBuilder` emits
+`hosts` as a separate top-level block. The `hosts` key is only stripped from
+user profiles when the user has actually configured hosts in the Kumo UI;
+otherwise, profile-provided hosts are preserved.
+
+## Sniffer Runtime Settings
+
+`CoreRuntimeSettings` carries `SnifferSettings` independently of TUN and DNS.
+When Sniffer is enabled, `RuntimeConfigBuilder` removes profile-provided
+`sniffer` top-level blocks and appends Kumo-controlled Sniffer settings:
+
+- `sniffer.enable`
+- `sniffer.parse-pure-ip`
+- `sniffer.force-dns-mapping`
+- `sniffer.override-destination`
+- `sniffer.sniff.HTTP` (with `ports` and `override-destination`)
+- `sniffer.sniff.TLS` (with `ports`)
+- `sniffer.sniff.QUIC` (with `ports`)
+- `sniffer.skip-domain`
+- `sniffer.force-domain`
+- `sniffer.skip-dst-address`
+- `sniffer.skip-src-address`
+
+Sniffer changes are applied through core restart, matching the TUN and DNS
+application pattern.
 
 ## Controller Client
 

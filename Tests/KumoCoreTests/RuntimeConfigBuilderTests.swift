@@ -308,8 +308,11 @@ final class RuntimeConfigBuilderTests: XCTestCase {
                 disableICMPForwarding: true,
                 dnsHijack: ["any:53"],
                 routeExcludeAddress: ["100.64.0.0/10"],
-                device: "utun9",
-                nameservers: ["https://example.com/dns-query"]
+                device: "utun9"
+            ),
+            dns: DnsSettings(
+                isEnabled: true,
+                nameserver: ["https://example.com/dns-query"]
             )
         )
         let builder = RuntimeConfigBuilder(runtimeSettings: settings)
@@ -356,11 +359,7 @@ final class RuntimeConfigBuilderTests: XCTestCase {
               "strictRoute": false,
               "dnsHijack": ["any:53"],
               "routeExcludeAddress": [],
-              "mtu": 1500,
-              "dnsEnabled": true,
-              "dnsEnhancedMode": "fake-ip",
-              "fakeIPRange": "198.18.0.1/16",
-              "nameservers": ["https://doh.pub/dns-query"]
+              "mtu": 1500
             }
             """.utf8
         )
@@ -370,7 +369,116 @@ final class RuntimeConfigBuilderTests: XCTestCase {
         XCTAssertTrue(settings.isEnabled)
         XCTAssertFalse(settings.autoRedirect)
         XCTAssertFalse(settings.disableICMPForwarding)
-        XCTAssertEqual(settings.nameservers, ["https://doh.pub/dns-query"])
+        XCTAssertEqual(settings.dnsHijack, ["any:53"])
+    }
+
+    func testBuildInjectsFullDnsSettingsWhenEnabled() throws {
+        let profile = Profile(
+            name: "Test",
+            source: .inline,
+            rawYAML: """
+            rules:
+              - MATCH,DIRECT
+            """
+        )
+        let settings = CoreRuntimeSettings(
+            mixedPort: 19090,
+            dns: DnsSettings(
+                isEnabled: true,
+                listen: "0.0.0.0:53",
+                ipv6: true,
+                ipv6Timeout: 200,
+                preferH3: true,
+                enhancedMode: "fake-ip",
+                fakeIPRange: "198.18.0.1/16",
+                fakeIPRange6: "fc00::/18",
+                fakeIPFilter: ["+.lan"],
+                fakeIPFilterMode: "blacklist",
+                useHosts: true,
+                useSystemHosts: true,
+                respectRules: true,
+                defaultNameserver: ["223.5.5.5"],
+                nameserver: ["https://doh.pub/dns-query"],
+                fallback: ["https://1.1.1.1/dns-query"],
+                fallbackFilter: ["geoip": .bool(true), "geoip-code": .single("CN"), "ipcidr": .multiple(["100.100.100.100/32"])],
+                proxyServerNameserver: ["https://dns.alidns.com/dns-query"],
+                directNameserver: ["https://dns.alidns.com/dns-query"],
+                directNameserverFollowPolicy: true,
+                nameserverPolicy: ["geosite:cn": .single("223.5.5.5")],
+                proxyServerNameserverPolicy: ["geosite:cn": .single("https://dns.alidns.com/dns-query")],
+                cacheAlgorithm: "arc",
+                hosts: ["localhost": .single("127.0.0.1")]
+            ),
+            sniffer: SnifferSettings(
+                isEnabled: true,
+                httpOverrideDestination: true,
+                httpPorts: [80, 8080],
+                tlsPorts: [443, 8443],
+                quicPorts: [443]
+            )
+        )
+        let builder = RuntimeConfigBuilder(runtimeSettings: settings)
+
+        let runtime = try builder.build(profile: profile)
+
+        // DNS assertions
+        XCTAssertTrue(runtime.yaml.contains("dns:\n  enable: true"))
+        XCTAssertTrue(runtime.yaml.contains("listen: \"0.0.0.0:53\""))
+        XCTAssertTrue(runtime.yaml.contains("ipv6: true"))
+        XCTAssertTrue(runtime.yaml.contains("ipv6-timeout: 200"))
+        XCTAssertTrue(runtime.yaml.contains("prefer-h3: true"))
+        XCTAssertTrue(runtime.yaml.contains("fake-ip-filter-mode: blacklist"))
+        XCTAssertTrue(runtime.yaml.contains("use-hosts: true"))
+        XCTAssertTrue(runtime.yaml.contains("use-system-hosts: true"))
+        XCTAssertTrue(runtime.yaml.contains("respect-rules: true"))
+        XCTAssertTrue(runtime.yaml.contains("fallback:\n    - \"https://1.1.1.1/dns-query\""))
+        XCTAssertTrue(runtime.yaml.contains("fallback-filter:\n    geoip: true\n    geoip-code: \"CN\"\n    ipcidr:\n      - \"100.100.100.100/32\""))
+        XCTAssertTrue(runtime.yaml.contains("direct-nameserver-follow-policy: true"))
+        XCTAssertTrue(runtime.yaml.contains("nameserver-policy:\n    geosite:cn: \"223.5.5.5\""))
+        XCTAssertTrue(runtime.yaml.contains("proxy-server-nameserver-policy:\n    geosite:cn: \"https://dns.alidns.com/dns-query\""))
+        XCTAssertTrue(runtime.yaml.contains("cache-algorithm: arc"))
+        XCTAssertTrue(runtime.yaml.contains("hosts:\n  localhost: \"127.0.0.1\""))
+
+        // Sniffer assertions
+        XCTAssertTrue(runtime.yaml.contains("sniffer:\n  enable: true"))
+        XCTAssertTrue(runtime.yaml.contains("sniff:"))
+        XCTAssertTrue(runtime.yaml.contains("HTTP:"))
+        XCTAssertTrue(runtime.yaml.contains("override-destination: true"))
+        XCTAssertTrue(runtime.yaml.contains("- 80"))
+        XCTAssertTrue(runtime.yaml.contains("- 8080"))
+        XCTAssertTrue(runtime.yaml.contains("TLS:"))
+        XCTAssertTrue(runtime.yaml.contains("- 443"))
+        XCTAssertTrue(runtime.yaml.contains("- 8443"))
+        XCTAssertTrue(runtime.yaml.contains("QUIC:"))
+        XCTAssertTrue(runtime.yaml.contains("- 443"))
+    }
+
+    func testSnifferHTTPOverrideDestinationWithoutPorts() throws {
+        let profile = Profile(
+            name: "Test",
+            source: .inline,
+            rawYAML: """
+            rules:
+              - MATCH,DIRECT
+            """
+        )
+        let settings = CoreRuntimeSettings(
+            sniffer: SnifferSettings(
+                isEnabled: true,
+                httpOverrideDestination: true,
+                httpPorts: [],
+                tlsPorts: [443]
+            )
+        )
+        let builder = RuntimeConfigBuilder(runtimeSettings: settings)
+
+        let runtime = try builder.build(profile: profile)
+
+        XCTAssertTrue(runtime.yaml.contains("sniff:"))
+        XCTAssertTrue(runtime.yaml.contains("HTTP:"))
+        XCTAssertTrue(runtime.yaml.contains("override-destination: true"))
+        XCTAssertFalse(runtime.yaml.contains("HTTP:\n      ports:"))
+        XCTAssertTrue(runtime.yaml.contains("TLS:\n      ports:"))
     }
 
     func testRuntimeSettingsDecodesMissingFindProcessModeWithDefault() throws {

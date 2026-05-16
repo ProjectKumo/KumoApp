@@ -79,6 +79,230 @@ public struct GeoDataSettings: Codable, Equatable, Sendable {
     }
 }
 
+/// Represents a value that can be either a single string or an array of strings,
+/// used for Mihomo fields like `nameserver-policy` and `hosts`.
+public enum PolicyValue: Codable, Equatable, Sendable {
+    case single(String)
+    case multiple([String])
+
+    public var strings: [String] {
+        switch self {
+        case .single(let s): return [s]
+        case .multiple(let arr): return arr
+        }
+    }
+
+    public init(_ value: String) {
+        self = .single(value)
+    }
+
+    public init(_ values: [String]) {
+        self = .multiple(values)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let arr = try? container.decode([String].self) {
+            self = .multiple(arr)
+        } else {
+            let str = try container.decode(String.self)
+            self = .single(str)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .single(let s): try container.encode(s)
+        case .multiple(let arr): try container.encode(arr)
+        }
+    }
+}
+
+/// Represents a value that can be a boolean, a single string, or an array of strings,
+/// used for Mihomo's `fallback-filter` field.
+public enum FallbackFilterValue: Codable, Equatable, Sendable {
+    case bool(Bool)
+    case single(String)
+    case multiple([String])
+
+    public var strings: [String] {
+        switch self {
+        case .bool(let b): return [String(b)]
+        case .single(let s): return [s]
+        case .multiple(let arr): return arr
+        }
+    }
+
+    public init(_ value: Bool) {
+        self = .bool(value)
+    }
+
+    public init(_ value: String) {
+        self = .single(value)
+    }
+
+    public init(_ values: [String]) {
+        self = .multiple(values)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let b = try? container.decode(Bool.self) {
+            self = .bool(b)
+        } else if let arr = try? container.decode([String].self) {
+            self = .multiple(arr)
+        } else {
+            let str = try container.decode(String.self)
+            self = .single(str)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .bool(let b): try container.encode(b)
+        case .single(let s): try container.encode(s)
+        case .multiple(let arr): try container.encode(arr)
+        }
+    }
+}
+
+public struct DnsSettings: Codable, Equatable, Sendable {
+    public var isEnabled: Bool
+    public var listen: String
+    public var ipv6: Bool
+    public var ipv6Timeout: Int
+    public var preferH3: Bool
+    public var enhancedMode: String
+    public var fakeIPRange: String
+    public var fakeIPRange6: String
+    public var fakeIPFilter: [String]
+    public var fakeIPFilterMode: String
+    public var useHosts: Bool
+    public var useSystemHosts: Bool
+    public var respectRules: Bool
+    public var defaultNameserver: [String]
+    public var nameserver: [String]
+    public var fallback: [String]
+    public var fallbackFilter: [String: FallbackFilterValue]
+    public var proxyServerNameserver: [String]
+    public var directNameserver: [String]
+    public var directNameserverFollowPolicy: Bool
+    public var nameserverPolicy: [String: PolicyValue]
+    public var proxyServerNameserverPolicy: [String: PolicyValue]
+    public var cacheAlgorithm: String
+    public var hosts: [String: PolicyValue]
+
+    public init(
+        isEnabled: Bool = true,
+        listen: String = "",
+        ipv6: Bool = false,
+        ipv6Timeout: Int = 100,
+        preferH3: Bool = false,
+        enhancedMode: String = "fake-ip",
+        fakeIPRange: String = "198.18.0.1/16",
+        fakeIPRange6: String = "fc00::/18",
+        fakeIPFilter: [String] = ["*", "+.lan", "+.local", "time.*.com", "ntp.*.com", "+.market.xiaomi.com"],
+        fakeIPFilterMode: String = "blacklist",
+        useHosts: Bool = false,
+        useSystemHosts: Bool = false,
+        respectRules: Bool = false,
+        defaultNameserver: [String] = ["tls://223.5.5.5"],
+        nameserver: [String] = ["https://doh.pub/dns-query", "https://dns.alidns.com/dns-query"],
+        fallback: [String] = [],
+        fallbackFilter: [String: FallbackFilterValue] = [:],
+        proxyServerNameserver: [String] = [],
+        directNameserver: [String] = [],
+        directNameserverFollowPolicy: Bool = false,
+        nameserverPolicy: [String: PolicyValue] = [:],
+        proxyServerNameserverPolicy: [String: PolicyValue] = [:],
+        cacheAlgorithm: String = "",
+        hosts: [String: PolicyValue] = [:]
+    ) {
+        self.isEnabled = isEnabled
+        self.listen = listen
+        self.ipv6 = ipv6
+        self.ipv6Timeout = ipv6Timeout
+        self.preferH3 = preferH3
+        self.enhancedMode = enhancedMode
+        self.fakeIPRange = fakeIPRange
+        self.fakeIPRange6 = fakeIPRange6
+        self.fakeIPFilter = fakeIPFilter
+        self.fakeIPFilterMode = fakeIPFilterMode
+        self.useHosts = useHosts
+        self.useSystemHosts = useSystemHosts
+        self.respectRules = respectRules
+        self.defaultNameserver = defaultNameserver
+        self.nameserver = nameserver
+        self.fallback = fallback
+        self.fallbackFilter = fallbackFilter
+        self.proxyServerNameserver = proxyServerNameserver
+        self.directNameserver = directNameserver
+        self.directNameserverFollowPolicy = directNameserverFollowPolicy
+        self.nameserverPolicy = nameserverPolicy
+        self.proxyServerNameserverPolicy = proxyServerNameserverPolicy
+        self.cacheAlgorithm = cacheAlgorithm
+        self.hosts = hosts
+    }
+}
+
+public struct SnifferSettings: Codable, Equatable, Sendable {
+    public var isEnabled: Bool
+    public var parsePureIP: Bool
+    public var forceDNSMapping: Bool
+    public var overrideDestination: Bool
+    public var httpOverrideDestination: Bool
+    public var httpPorts: [Int]
+    public var tlsPorts: [Int]
+    public var quicPorts: [Int]
+    public var skipDomain: [String]
+    public var forceDomain: [String]
+    public var skipDstAddress: [String]
+    public var skipSrcAddress: [String]
+
+    public init(
+        isEnabled: Bool = true,
+        parsePureIP: Bool = true,
+        forceDNSMapping: Bool = true,
+        overrideDestination: Bool = false,
+        httpOverrideDestination: Bool = false,
+        httpPorts: [Int] = [80, 443],
+        tlsPorts: [Int] = [443],
+        quicPorts: [Int] = [],
+        skipDomain: [String] = ["+.push.apple.com"],
+        forceDomain: [String] = [],
+        skipDstAddress: [String] = [
+            "91.105.192.0/23",
+            "91.108.4.0/22",
+            "91.108.8.0/21",
+            "91.108.16.0/21",
+            "91.108.56.0/22",
+            "95.161.64.0/20",
+            "149.154.160.0/20",
+            "185.76.151.0/24",
+            "2001:67c:4e8::/48",
+            "2001:b28:f23c::/47",
+            "2001:b28:f23f::/48",
+            "2a0a:f280:203::/48"
+        ],
+        skipSrcAddress: [String] = []
+    ) {
+        self.isEnabled = isEnabled
+        self.parsePureIP = parsePureIP
+        self.forceDNSMapping = forceDNSMapping
+        self.overrideDestination = overrideDestination
+        self.httpOverrideDestination = httpOverrideDestination
+        self.httpPorts = httpPorts
+        self.tlsPorts = tlsPorts
+        self.quicPorts = quicPorts
+        self.skipDomain = skipDomain
+        self.forceDomain = forceDomain
+        self.skipDstAddress = skipDstAddress
+        self.skipSrcAddress = skipSrcAddress
+    }
+}
+
 public struct CoreRuntimeSettings: Codable, Equatable, Sendable {
     public var mixedPort: Int
     public var allowLAN: Bool
@@ -87,6 +311,8 @@ public struct CoreRuntimeSettings: Codable, Equatable, Sendable {
     public var findProcessMode: String
     public var geoData: GeoDataSettings
     public var tun: TunSettings?
+    public var dns: DnsSettings?
+    public var sniffer: SnifferSettings?
 
     public init(
         mixedPort: Int = 7890,
@@ -95,7 +321,9 @@ public struct CoreRuntimeSettings: Codable, Equatable, Sendable {
         ipv6: Bool = false,
         findProcessMode: String = "always",
         geoData: GeoDataSettings = GeoDataSettings(),
-        tun: TunSettings? = nil
+        tun: TunSettings? = nil,
+        dns: DnsSettings? = nil,
+        sniffer: SnifferSettings? = nil
     ) {
         self.mixedPort = mixedPort
         self.allowLAN = allowLAN
@@ -104,6 +332,8 @@ public struct CoreRuntimeSettings: Codable, Equatable, Sendable {
         self.findProcessMode = findProcessMode
         self.geoData = geoData
         self.tun = tun
+        self.dns = dns
+        self.sniffer = sniffer
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -114,6 +344,8 @@ public struct CoreRuntimeSettings: Codable, Equatable, Sendable {
         case findProcessMode
         case geoData
         case tun
+        case dns
+        case sniffer
     }
 
     public init(from decoder: Decoder) throws {
@@ -125,7 +357,9 @@ public struct CoreRuntimeSettings: Codable, Equatable, Sendable {
             ipv6: try container.decode(Bool.self, forKey: .ipv6),
             findProcessMode: try container.decodeIfPresent(String.self, forKey: .findProcessMode) ?? "always",
             geoData: try container.decode(GeoDataSettings.self, forKey: .geoData),
-            tun: try container.decodeIfPresent(TunSettings.self, forKey: .tun)
+            tun: try container.decodeIfPresent(TunSettings.self, forKey: .tun),
+            dns: try container.decodeIfPresent(DnsSettings.self, forKey: .dns),
+            sniffer: try container.decodeIfPresent(SnifferSettings.self, forKey: .sniffer)
         )
     }
 }
@@ -142,10 +376,6 @@ public struct TunSettings: Codable, Equatable, Sendable {
     public var routeExcludeAddress: [String]
     public var mtu: Int
     public var device: String?
-    public var dnsEnabled: Bool
-    public var dnsEnhancedMode: String
-    public var fakeIPRange: String
-    public var nameservers: [String]
 
     public init(
         isEnabled: Bool = false,
@@ -158,11 +388,7 @@ public struct TunSettings: Codable, Equatable, Sendable {
         dnsHijack: [String] = ["any:53"],
         routeExcludeAddress: [String] = [],
         mtu: Int = 1500,
-        device: String? = nil,
-        dnsEnabled: Bool = true,
-        dnsEnhancedMode: String = "fake-ip",
-        fakeIPRange: String = "198.18.0.1/16",
-        nameservers: [String] = ["https://doh.pub/dns-query", "https://dns.alidns.com/dns-query"]
+        device: String? = nil
     ) {
         self.isEnabled = isEnabled
         self.stack = stack
@@ -175,10 +401,6 @@ public struct TunSettings: Codable, Equatable, Sendable {
         self.routeExcludeAddress = routeExcludeAddress
         self.mtu = mtu
         self.device = device
-        self.dnsEnabled = dnsEnabled
-        self.dnsEnhancedMode = dnsEnhancedMode
-        self.fakeIPRange = fakeIPRange
-        self.nameservers = nameservers
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -193,10 +415,6 @@ public struct TunSettings: Codable, Equatable, Sendable {
         case routeExcludeAddress
         case mtu
         case device
-        case dnsEnabled
-        case dnsEnhancedMode
-        case fakeIPRange
-        case nameservers
     }
 
     public init(from decoder: Decoder) throws {
@@ -213,11 +431,7 @@ public struct TunSettings: Codable, Equatable, Sendable {
             dnsHijack: try container.decodeIfPresent([String].self, forKey: .dnsHijack) ?? defaults.dnsHijack,
             routeExcludeAddress: try container.decodeIfPresent([String].self, forKey: .routeExcludeAddress) ?? defaults.routeExcludeAddress,
             mtu: try container.decodeIfPresent(Int.self, forKey: .mtu) ?? defaults.mtu,
-            device: try container.decodeIfPresent(String.self, forKey: .device) ?? defaults.device,
-            dnsEnabled: try container.decodeIfPresent(Bool.self, forKey: .dnsEnabled) ?? defaults.dnsEnabled,
-            dnsEnhancedMode: try container.decodeIfPresent(String.self, forKey: .dnsEnhancedMode) ?? defaults.dnsEnhancedMode,
-            fakeIPRange: try container.decodeIfPresent(String.self, forKey: .fakeIPRange) ?? defaults.fakeIPRange,
-            nameservers: try container.decodeIfPresent([String].self, forKey: .nameservers) ?? defaults.nameservers
+            device: try container.decodeIfPresent(String.self, forKey: .device) ?? defaults.device
         )
     }
 }
@@ -556,6 +770,8 @@ public struct CoreConfigurationSnapshot: Codable, Equatable, Sendable {
     public var tunEnabled: Bool
     public var dnsEnabled: Bool
     public var snifferEnabled: Bool
+    public var dns: DnsSettings?
+    public var sniffer: SnifferSettings?
 
     public init(
         version: String? = nil,
@@ -567,7 +783,9 @@ public struct CoreConfigurationSnapshot: Codable, Equatable, Sendable {
         geoData: GeoDataSettings = GeoDataSettings(),
         tunEnabled: Bool = false,
         dnsEnabled: Bool = false,
-        snifferEnabled: Bool = false
+        snifferEnabled: Bool = false,
+        dns: DnsSettings? = nil,
+        sniffer: SnifferSettings? = nil
     ) {
         self.version = version
         self.mode = mode
@@ -579,6 +797,8 @@ public struct CoreConfigurationSnapshot: Codable, Equatable, Sendable {
         self.tunEnabled = tunEnabled
         self.dnsEnabled = dnsEnabled
         self.snifferEnabled = snifferEnabled
+        self.dns = dns
+        self.sniffer = sniffer
     }
 }
 
