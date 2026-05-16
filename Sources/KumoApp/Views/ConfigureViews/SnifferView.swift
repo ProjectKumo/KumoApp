@@ -6,13 +6,6 @@ struct SnifferView: View {
     @Environment(KumoAppStore.self) private var store
     let onNavigate: (SidebarDestination) -> Void
     @State private var snifferDraft = SnifferSettings()
-    @State private var httpPortsTextDraft = SnifferSettings().httpPorts.map(String.init).joined(separator: ",")
-    @State private var tlsPortsTextDraft = SnifferSettings().tlsPorts.map(String.init).joined(separator: ",")
-    @State private var quicPortsTextDraft = SnifferSettings().quicPorts.map(String.init).joined(separator: ",")
-    @State private var skipDomainTextDraft = SnifferSettings().skipDomain.joined(separator: "\n")
-    @State private var forceDomainTextDraft = SnifferSettings().forceDomain.joined(separator: "\n")
-    @State private var skipDstAddressTextDraft = SnifferSettings().skipDstAddress.joined(separator: "\n")
-    @State private var skipSrcAddressTextDraft = SnifferSettings().skipSrcAddress.joined(separator: "\n")
 
     var body: some View {
         KumoPage(title: "Sniffer") {
@@ -33,55 +26,64 @@ struct SnifferView: View {
                     Toggle("Parse Pure IP", isOn: $snifferDraft.parsePureIP)
                 }
 
-                Section("Ports") {
-                    TextField("HTTP Ports", text: $httpPortsTextDraft)
-                        .onChange(of: httpPortsTextDraft) { _, _ in
-                            snifferDraft.httpPorts = SnifferValidator.parsePortString(httpPortsTextDraft)
-                        }
-                    TextField("TLS Ports", text: $tlsPortsTextDraft)
-                        .onChange(of: tlsPortsTextDraft) { _, _ in
-                            snifferDraft.tlsPorts = SnifferValidator.parsePortString(tlsPortsTextDraft)
-                        }
-                    TextField("QUIC Ports", text: $quicPortsTextDraft)
-                        .onChange(of: quicPortsTextDraft) { _, _ in
-                            snifferDraft.quicPorts = SnifferValidator.parsePortString(quicPortsTextDraft)
-                        }
+                Section("HTTP Ports") {
+                    EditableIntList(
+                        values: $snifferDraft.httpPorts,
+                        placeholder: "Port (1–65535)",
+                        accessibilityLabel: "HTTP ports"
+                    )
                 }
 
-                Section("Domain Filters") {
-                    TextEditor(text: $skipDomainTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 86)
-                        .accessibilityLabel("Skip Domain")
-                        .onChange(of: skipDomainTextDraft) { _, _ in
-                            snifferDraft.skipDomain = Self.lineList(from: skipDomainTextDraft)
-                        }
-
-                    TextEditor(text: $forceDomainTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 86)
-                        .accessibilityLabel("Force Domain")
-                        .onChange(of: forceDomainTextDraft) { _, _ in
-                            snifferDraft.forceDomain = Self.lineList(from: forceDomainTextDraft)
-                        }
+                Section("TLS Ports") {
+                    EditableIntList(
+                        values: $snifferDraft.tlsPorts,
+                        placeholder: "Port (1–65535)",
+                        accessibilityLabel: "TLS ports"
+                    )
                 }
 
-                Section("Address Filters") {
-                    TextEditor(text: $skipDstAddressTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 86)
-                        .accessibilityLabel("Skip Destination Address")
-                        .onChange(of: skipDstAddressTextDraft) { _, _ in
-                            snifferDraft.skipDstAddress = Self.lineList(from: skipDstAddressTextDraft)
-                        }
+                Section("QUIC Ports") {
+                    EditableIntList(
+                        values: $snifferDraft.quicPorts,
+                        placeholder: "Port (1–65535)",
+                        accessibilityLabel: "QUIC ports"
+                    )
+                }
 
-                    TextEditor(text: $skipSrcAddressTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 86)
-                        .accessibilityLabel("Skip Source Address")
-                        .onChange(of: skipSrcAddressTextDraft) { _, _ in
-                            snifferDraft.skipSrcAddress = Self.lineList(from: skipSrcAddressTextDraft)
-                        }
+                Section("Skip Domain") {
+                    EditableStringList(
+                        items: $snifferDraft.skipDomain,
+                        placeholder: "+.example.com",
+                        monospaced: true,
+                        accessibilityLabel: "Skip domain"
+                    )
+                }
+
+                Section("Force Domain") {
+                    EditableStringList(
+                        items: $snifferDraft.forceDomain,
+                        placeholder: "+.example.com",
+                        monospaced: true,
+                        accessibilityLabel: "Force domain"
+                    )
+                }
+
+                Section("Skip Destination Address") {
+                    EditableStringList(
+                        items: $snifferDraft.skipDstAddress,
+                        placeholder: "10.0.0.0/8",
+                        monospaced: true,
+                        accessibilityLabel: "Skip destination address"
+                    )
+                }
+
+                Section("Skip Source Address") {
+                    EditableStringList(
+                        items: $snifferDraft.skipSrcAddress,
+                        placeholder: "10.0.0.0/8",
+                        monospaced: true,
+                        accessibilityLabel: "Skip source address"
+                    )
                 }
 
                 Section {
@@ -180,19 +182,6 @@ struct SnifferView: View {
 
     private func updateSnifferDraft(_ settings: SnifferSettings) {
         snifferDraft = settings
-        httpPortsTextDraft = settings.httpPorts.map(String.init).joined(separator: ",")
-        tlsPortsTextDraft = settings.tlsPorts.map(String.init).joined(separator: ",")
-        quicPortsTextDraft = settings.quicPorts.map(String.init).joined(separator: ",")
-        skipDomainTextDraft = settings.skipDomain.joined(separator: "\n")
-        forceDomainTextDraft = settings.forceDomain.joined(separator: "\n")
-        skipDstAddressTextDraft = settings.skipDstAddress.joined(separator: "\n")
-        skipSrcAddressTextDraft = settings.skipSrcAddress.joined(separator: "\n")
-    }
-
-    private static func lineList(from value: String) -> [String] {
-        value.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
     }
 
     private static func normalizedList(_ values: [String]) -> [String] {
@@ -200,4 +189,3 @@ struct SnifferView: View {
             .filter { !$0.isEmpty }
     }
 }
-

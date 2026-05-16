@@ -6,8 +6,6 @@ struct TunView: View {
     @Environment(KumoAppStore.self) private var store
     @State private var isConfirmingServiceUninstall = false
     @State private var tunDraft = TunSettings()
-    @State private var dnsHijackTextDraft = TunSettings().dnsHijack.joined(separator: ",")
-    @State private var routeExcludeTextDraft = ""
     let onNavigate: (SidebarDestination) -> Void
 
     var body: some View {
@@ -69,24 +67,35 @@ struct TunView: View {
                 }
 
                 Section {
-                    TextField("DNS Hijack", text: dnsHijackTextBinding)
+                    EditableStringList(
+                        items: $tunDraft.dnsHijack,
+                        placeholder: "host:port (e.g. any:53)",
+                        minHeight: 100,
+                        maxHeight: 180,
+                        monospaced: true,
+                        accessibilityLabel: "DNS hijack targets"
+                    )
                 } header: {
                     Text("DNS Hijack")
                 } footer: {
-                    Text("Enter DNS hijack values separated by commas.")
+                    Text("Mihomo redirects DNS traffic destined for these hosts.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 Section {
-                    TextEditor(text: routeExcludeTextBinding)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 86)
-                        .accessibilityLabel("Excluded CIDR ranges")
+                    EditableStringList(
+                        items: $tunDraft.routeExcludeAddress,
+                        placeholder: "100.64.0.0/10",
+                        minHeight: 100,
+                        maxHeight: 200,
+                        monospaced: true,
+                        accessibilityLabel: "Excluded CIDR ranges"
+                    )
                 } header: {
                     Text("Route Exclude")
                 } footer: {
-                    Text("Use one CIDR range per line, for example 100.64.0.0/10.")
+                    Text("CIDR ranges that bypass the TUN route table.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -193,24 +202,6 @@ struct TunView: View {
         }
     }
 
-    private var dnsHijackTextBinding: Binding<String> {
-        Binding {
-            dnsHijackTextDraft
-        } set: { value in
-            dnsHijackTextDraft = value
-            tunDraft.dnsHijack = Self.commaSeparatedList(from: value)
-        }
-    }
-
-    private var routeExcludeTextBinding: Binding<String> {
-        Binding {
-            routeExcludeTextDraft
-        } set: { value in
-            routeExcludeTextDraft = value
-            tunDraft.routeExcludeAddress = Self.lineList(from: value)
-        }
-    }
-
     private func applyTunDraft() {
         let settings = normalizedTunDraft
         updateTunDraft(settings)
@@ -218,10 +209,7 @@ struct TunView: View {
     }
 
     private func updateTunDraft(_ settings: TunSettings) {
-        let settings = normalizedTunSettings(settings)
-        tunDraft = settings
-        dnsHijackTextDraft = settings.dnsHijack.joined(separator: ",")
-        routeExcludeTextDraft = settings.routeExcludeAddress.joined(separator: "\n")
+        tunDraft = normalizedTunSettings(settings)
     }
 
     private func normalizedTunSettings(_ settings: TunSettings) -> TunSettings {
@@ -238,14 +226,6 @@ struct TunView: View {
         var settings = normalizedTunSettings(settings)
         settings.isEnabled = false
         return settings
-    }
-
-    private static func commaSeparatedList(from text: String) -> [String] {
-        normalizedList(text.components(separatedBy: ","))
-    }
-
-    private static func lineList(from text: String) -> [String] {
-        normalizedList(text.components(separatedBy: .newlines))
     }
 
     private static func normalizedList(_ values: [String]) -> [String] {
@@ -276,4 +256,3 @@ struct TunView: View {
         }
     }
 }
-

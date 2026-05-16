@@ -5,8 +5,6 @@ import KumoCoreKit
 struct SystemProxyView: View {
     @Environment(KumoAppStore.self) private var store
     @State private var systemProxyDraft = SystemProxySettings()
-    @State private var bypassTextDraft = SystemProxySettings.defaultBypassList
-        .joined(separator: "\n")
 
     var body: some View {
         KumoPage(title: "System Proxy") {
@@ -49,17 +47,14 @@ struct SystemProxyView: View {
 
                 if systemProxyDraft.mode == .manual {
                     Section("Bypass") {
-                        TextEditor(text: $bypassTextDraft)
-                            .font(.system(.body, design: .monospaced))
-                            .frame(minHeight: 120)
-                            .onChange(of: bypassTextDraft) { _, newValue in
-                                systemProxyDraft.bypassList = Self.bypassList(from: newValue)
-                            }
+                        EditableStringList(
+                            items: $systemProxyDraft.bypassList,
+                            placeholder: "Domain, host, or CIDR",
+                            monospaced: true,
+                            accessibilityLabel: "Bypass entries"
+                        )
                         Button("Add Defaults") {
-                            let bypassList = Self.bypassList(from: bypassTextDraft)
-                            updateBypassList(
-                                Array(Set(bypassList + SystemProxySettings.defaultBypassList)).sorted()
-                            )
+                            mergeBypassDefaults()
                         }
                     }
                 }
@@ -85,7 +80,7 @@ struct SystemProxyView: View {
         }
         .onChange(of: systemProxySettings) { oldValue, newValue in
             if systemProxyDraft == oldValue {
-                updateSystemProxyDraft(newValue)
+                systemProxyDraft = newValue
             }
         }
     }
@@ -106,7 +101,9 @@ struct SystemProxyView: View {
         settings.networkService = settings.networkService.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.host = settings.host.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.port = max(1, min(65535, settings.port))
-        settings.bypassList = Self.bypassList(from: bypassTextDraft)
+        settings.bypassList = settings.bypassList
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         return settings
     }
 
@@ -142,34 +139,18 @@ struct SystemProxyView: View {
         }
     }
 
-    private static func bypassText(from bypassList: [String]) -> String {
-        bypassList.joined(separator: "\n")
-    }
-
-    private static func bypassList(from text: String) -> [String] {
-        text.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
-
     private func resetSystemProxyDraft() {
-        updateSystemProxyDraft(systemProxySettings)
+        systemProxyDraft = systemProxySettings
     }
 
-    private func updateSystemProxyDraft(_ settings: SystemProxySettings) {
-        systemProxyDraft = settings
-        bypassTextDraft = Self.bypassText(from: settings.bypassList)
-    }
-
-    private func updateBypassList(_ bypassList: [String]) {
-        systemProxyDraft.bypassList = bypassList
-        bypassTextDraft = Self.bypassText(from: bypassList)
+    private func mergeBypassDefaults() {
+        let merged = Array(Set(systemProxyDraft.bypassList + SystemProxySettings.defaultBypassList)).sorted()
+        systemProxyDraft.bypassList = merged
     }
 
     private func applySystemProxyDraft() {
         let settings = normalizedSystemProxyDraft
-        updateSystemProxyDraft(settings)
+        systemProxyDraft = settings
         store.updateSystemProxySettings(settings)
     }
 }
-

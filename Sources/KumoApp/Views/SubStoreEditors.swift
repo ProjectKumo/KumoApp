@@ -33,10 +33,16 @@ struct SubscriptionEditorSheet: View {
                 }
 
                 if draft.source == .remote {
+                    Section("Subscription URLs") {
+                        EditableStringList(
+                            items: $draft.urls,
+                            placeholder: "https://provider.example/subscription",
+                            monospaced: true,
+                            accessibilityLabel: "Subscription URLs"
+                        )
+                    }
+
                     Section("Remote") {
-                        TextField("Subscription URL (one per line)", text: $draft.url, axis: .vertical)
-                            .lineLimit(3...10)
-                            .font(.body.monospaced())
                         TextField("User-Agent", text: $draft.ua, prompt: Text("Optional"))
                         Picker("Merge Sources", selection: $draft.mergeSources) {
                             ForEach(SubscriptionDraft.MergeMode.allCases) { mode in
@@ -62,7 +68,16 @@ struct SubscriptionEditorSheet: View {
                             Text(mode.label).tag(mode)
                         }
                     }
-                    TextField("Tags (comma separated)", text: $draft.tagsCSV)
+                }
+
+                Section("Tags") {
+                    EditableStringList(
+                        items: $draft.tags,
+                        placeholder: "Tag",
+                        minHeight: 90,
+                        maxHeight: 160,
+                        accessibilityLabel: "Tags"
+                    )
                 }
 
                 Section {
@@ -154,11 +169,11 @@ struct SubscriptionDraft {
     var displayName: String = ""
     var icon: String = ""
     var source: Source = .remote
-    var url: String = ""
+    var urls: [String] = []
     var content: String = ""
     var ua: String = ""
     var proxy: String = ""
-    var tagsCSV: String = ""
+    var tags: [String] = []
     var mergeSources: MergeMode = .none
     var subUserinfo: String = ""
     var ignoreFailedRemoteSub: IgnoreMode = .off
@@ -170,11 +185,11 @@ struct SubscriptionDraft {
         self.displayName = model.displayName ?? ""
         self.icon = model.icon ?? ""
         self.source = model.source == "local" ? .local : .remote
-        self.url = model.url ?? ""
+        self.urls = SubscriptionDraft.splitURLs(model.url)
         self.content = model.content ?? ""
         self.ua = model.ua ?? ""
         self.proxy = model.proxy ?? ""
-        self.tagsCSV = (model.tag ?? []).joined(separator: ", ")
+        self.tags = model.tag ?? []
         self.mergeSources = MergeMode(rawValue: model.mergeSources ?? "") ?? .none
         self.subUserinfo = model.subUserinfo ?? ""
         self.ignoreFailedRemoteSub = IgnoreMode(rawValue: model.ignoreFailedRemoteSub ?? "") ?? .off
@@ -186,11 +201,27 @@ struct SubscriptionDraft {
     }
 
     var tagList: [String]? {
-        let trimmed = tagsCSV
-            .split(separator: ",")
+        let trimmed = tags
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Sub-Store stores multiple subscription URLs in a single newline-separated field.
+    /// `splitURLs` and `joinURLs` keep the on-disk shape unchanged while the UI presents a list.
+    static func splitURLs(_ raw: String?) -> [String] {
+        guard let raw, !raw.isEmpty else { return [] }
+        return raw
+            .split(whereSeparator: { $0.isNewline })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    static func joinURLs(_ urls: [String]) -> String? {
+        let trimmed = urls
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return trimmed.isEmpty ? nil : trimmed.joined(separator: "\n")
     }
 
     func toModel(merging original: SubStoreSubscription?) -> SubStoreSubscription {
@@ -199,7 +230,8 @@ struct SubscriptionDraft {
         model.displayName = displayName.nilIfBlank
         model.icon = icon.nilIfBlank
         model.source = source.rawValue
-        model.url = source == .local && mergeSources == .none ? nil : url.nilIfBlank
+        let joinedURL = SubscriptionDraft.joinURLs(urls)
+        model.url = source == .local && mergeSources == .none ? nil : joinedURL
         model.content = source == .local || mergeSources != .none ? content.nilIfBlank : nil
         model.ua = ua.nilIfBlank
         model.proxy = proxy.nilIfBlank
@@ -253,7 +285,16 @@ struct CollectionEditorSheet: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    TextField("Tag-based picks (comma separated)", text: $draft.subscriptionTagsCSV, prompt: Text("Optional"))
+                }
+
+                Section("Tag-based Picks") {
+                    EditableStringList(
+                        items: $draft.subscriptionTags,
+                        placeholder: "Subscription tag",
+                        minHeight: 90,
+                        maxHeight: 160,
+                        accessibilityLabel: "Tag-based picks"
+                    )
                 }
 
                 Section("Behavior") {
@@ -328,7 +369,7 @@ struct CollectionDraft {
     var displayName: String = ""
     var icon: String = ""
     var subscriptionsSet: Set<String> = []
-    var subscriptionTagsCSV: String = ""
+    var subscriptionTags: [String] = []
     var ignoreFailedRemoteSub: SubscriptionDraft.IgnoreMode = .off
     var process: [JSONValue] = []
 
@@ -338,7 +379,7 @@ struct CollectionDraft {
         self.displayName = model.displayName ?? ""
         self.icon = model.icon ?? ""
         self.subscriptionsSet = Set(model.subscriptions)
-        self.subscriptionTagsCSV = (model.subscriptionTags ?? []).joined(separator: ", ")
+        self.subscriptionTags = model.subscriptionTags ?? []
         self.ignoreFailedRemoteSub = SubscriptionDraft.IgnoreMode(rawValue: model.ignoreFailedRemoteSub ?? "") ?? .off
         self.process = model.process ?? []
     }
@@ -348,8 +389,7 @@ struct CollectionDraft {
     }
 
     var tagList: [String]? {
-        let trimmed = subscriptionTagsCSV
-            .split(separator: ",")
+        let trimmed = subscriptionTags
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         return trimmed.isEmpty ? nil : trimmed

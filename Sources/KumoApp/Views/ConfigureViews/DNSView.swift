@@ -6,16 +6,6 @@ struct DNSView: View {
     @Environment(KumoAppStore.self) private var store
     let onNavigate: (SidebarDestination) -> Void
     @State private var dnsDraft = DnsSettings()
-    @State private var fakeIPFilterTextDraft = ""
-    @State private var defaultNameserverTextDraft = ""
-    @State private var nameserverTextDraft = ""
-    @State private var proxyServerNameserverTextDraft = ""
-    @State private var directNameserverTextDraft = ""
-    @State private var fallbackTextDraft = ""
-    @State private var fallbackFilterTextDraft = ""
-    @State private var nameserverPolicyTextDraft = ""
-    @State private var proxyServerNameserverPolicyTextDraft = ""
-    @State private var hostsTextDraft = ""
 
     var body: some View {
         KumoPage(title: "DNS") {
@@ -61,96 +51,91 @@ struct DNSView: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section("Ranges") {
+                Section("Fake IP Range") {
                     TextField("Fake IP Range", text: $dnsDraft.fakeIPRange)
                     TextField("Fake IP Range IPv6", text: $dnsDraft.fakeIPRange6)
-                    TextEditor(text: $fakeIPFilterTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 86)
-                        .accessibilityLabel("Fake IP Filter")
-                        .onChange(of: fakeIPFilterTextDraft) { _, _ in
-                            dnsDraft.fakeIPFilter = Self.lineList(from: fakeIPFilterTextDraft)
-                        }
                 }
 
-                Section("Nameservers") {
-                    TextEditor(text: $defaultNameserverTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 60)
-                        .accessibilityLabel("Default Nameserver")
-                        .onChange(of: defaultNameserverTextDraft) { _, _ in
-                            dnsDraft.defaultNameserver = Self.lineList(from: defaultNameserverTextDraft)
-                        }
+                Section("Fake IP Filter") {
+                    EditableStringList(
+                        items: $dnsDraft.fakeIPFilter,
+                        placeholder: "+.example.com",
+                        monospaced: true,
+                        accessibilityLabel: "Fake IP filter"
+                    )
+                }
 
-                    TextEditor(text: $nameserverTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 60)
-                        .accessibilityLabel("Nameserver")
-                        .onChange(of: nameserverTextDraft) { _, _ in
-                            dnsDraft.nameserver = Self.lineList(from: nameserverTextDraft)
-                        }
+                Section("Default Nameserver") {
+                    EditableStringList(
+                        items: $dnsDraft.defaultNameserver,
+                        placeholder: "tls://223.5.5.5",
+                        monospaced: true,
+                        accessibilityLabel: "Default nameserver"
+                    )
+                }
 
-                    TextEditor(text: $proxyServerNameserverTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 60)
-                        .accessibilityLabel("Proxy Server Nameserver")
-                        .onChange(of: proxyServerNameserverTextDraft) { _, _ in
-                            dnsDraft.proxyServerNameserver = Self.lineList(from: proxyServerNameserverTextDraft)
-                        }
+                Section("Nameserver") {
+                    EditableStringList(
+                        items: $dnsDraft.nameserver,
+                        placeholder: "https://doh.pub/dns-query",
+                        monospaced: true,
+                        accessibilityLabel: "Nameserver"
+                    )
+                }
 
-                    TextEditor(text: $directNameserverTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 60)
-                        .accessibilityLabel("Direct Nameserver")
-                        .onChange(of: directNameserverTextDraft) { _, _ in
-                            dnsDraft.directNameserver = Self.lineList(from: directNameserverTextDraft)
-                        }
+                Section("Proxy Server Nameserver") {
+                    EditableStringList(
+                        items: $dnsDraft.proxyServerNameserver,
+                        placeholder: "https://1.1.1.1/dns-query",
+                        monospaced: true,
+                        accessibilityLabel: "Proxy server nameserver"
+                    )
+                }
+
+                Section("Direct Nameserver") {
+                    EditableStringList(
+                        items: $dnsDraft.directNameserver,
+                        placeholder: "tls://223.5.5.5",
+                        monospaced: true,
+                        accessibilityLabel: "Direct nameserver"
+                    )
                 }
 
                 Section("Fallback") {
-                    TextEditor(text: $fallbackTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 60)
-                        .accessibilityLabel("Fallback Nameserver")
-                        .onChange(of: fallbackTextDraft) { _, _ in
-                            dnsDraft.fallback = Self.lineList(from: fallbackTextDraft)
-                        }
-
-                    TextEditor(text: $fallbackFilterTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 60)
-                        .accessibilityLabel("Fallback Filter")
-                        .onChange(of: fallbackFilterTextDraft) { _, _ in
-                            dnsDraft.fallbackFilter = Self.fallbackFilterDict(from: fallbackFilterTextDraft)
-                        }
+                    EditableStringList(
+                        items: $dnsDraft.fallback,
+                        placeholder: "https://1.1.1.1/dns-query",
+                        monospaced: true,
+                        accessibilityLabel: "Fallback nameserver"
+                    )
                 }
 
-                Section("Policy") {
-                    TextEditor(text: $nameserverPolicyTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 86)
-                        .accessibilityLabel("Nameserver Policy")
-                        .onChange(of: nameserverPolicyTextDraft) { _, _ in
-                            dnsDraft.nameserverPolicy = Self.policyValueDict(from: nameserverPolicyTextDraft)
-                        }
+                Section("Fallback Filter") {
+                    FallbackFilterDictEditor(
+                        entries: $dnsDraft.fallbackFilter,
+                        accessibilityLabel: "Fallback filter"
+                    )
+                }
 
-                    TextEditor(text: $proxyServerNameserverPolicyTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 86)
-                        .accessibilityLabel("Proxy Server Nameserver Policy")
-                        .onChange(of: proxyServerNameserverPolicyTextDraft) { _, _ in
-                            dnsDraft.proxyServerNameserverPolicy = Self.policyValueDict(from: proxyServerNameserverPolicyTextDraft)
-                        }
+                Section("Nameserver Policy") {
+                    PolicyDictEditor(
+                        entries: $dnsDraft.nameserverPolicy,
+                        accessibilityLabel: "Nameserver policy"
+                    )
+                }
+
+                Section("Proxy Server Nameserver Policy") {
+                    PolicyDictEditor(
+                        entries: $dnsDraft.proxyServerNameserverPolicy,
+                        accessibilityLabel: "Proxy server nameserver policy"
+                    )
                 }
 
                 Section("Hosts") {
-                    TextEditor(text: $hostsTextDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 86)
-                        .accessibilityLabel("Hosts")
-                        .onChange(of: hostsTextDraft) { _, _ in
-                            dnsDraft.hosts = Self.policyValueDict(from: hostsTextDraft)
-                        }
+                    PolicyDictEditor(
+                        entries: $dnsDraft.hosts,
+                        accessibilityLabel: "Hosts"
+                    )
                 }
 
                 Section {
@@ -286,72 +271,12 @@ struct DNSView: View {
 
     private func updateDnsDraft(_ settings: DnsSettings) {
         dnsDraft = settings
-        fakeIPFilterTextDraft = settings.fakeIPFilter.joined(separator: "\n")
-        defaultNameserverTextDraft = settings.defaultNameserver.joined(separator: "\n")
-        nameserverTextDraft = settings.nameserver.joined(separator: "\n")
-        proxyServerNameserverTextDraft = settings.proxyServerNameserver.joined(separator: "\n")
-        directNameserverTextDraft = settings.directNameserver.joined(separator: "\n")
-        fallbackTextDraft = settings.fallback.joined(separator: "\n")
-        fallbackFilterTextDraft = settings.fallbackFilter.map { entry in
-            switch entry.value {
-            case .bool(let b): return "\(entry.key): \(b)"
-            case .single(let s): return "\(entry.key): \(s)"
-            case .multiple(let arr): return "\(entry.key): \(arr.joined(separator: ", "))"
-            }
-        }.joined(separator: "\n")
-        nameserverPolicyTextDraft = settings.nameserverPolicy.map { "\($0.key): \($0.value.strings.joined(separator: ", "))" }.joined(separator: "\n")
-        proxyServerNameserverPolicyTextDraft = settings.proxyServerNameserverPolicy.map { "\($0.key): \($0.value.strings.joined(separator: ", "))" }.joined(separator: "\n")
-        hostsTextDraft = settings.hosts.map { "\($0.key): \($0.value.strings.joined(separator: ", "))" }.joined(separator: "\n")
-    }
-
-    private static func lineList(from text: String) -> [String] {
-        normalizedList(text.components(separatedBy: .newlines))
     }
 
     private static func normalizedList(_ values: [String]) -> [String] {
         values
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-    }
-
-    private static func policyValueDict(from text: String) -> [String: PolicyValue] {
-        var result: [String: PolicyValue] = [:]
-        for line in text.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            if let colonIndex = trimmed.firstIndex(of: ":") {
-                let key = String(trimmed[..<colonIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
-                let value = String(trimmed[trimmed.index(after: colonIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
-                if !key.isEmpty {
-                    result[key] = .single(value)
-                }
-            }
-        }
-        return result
-    }
-
-    private static func fallbackFilterDict(from text: String) -> [String: FallbackFilterValue] {
-        var result: [String: FallbackFilterValue] = [:]
-        for line in text.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            if let colonIndex = trimmed.firstIndex(of: ":") {
-                let key = String(trimmed[..<colonIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
-                let value = String(trimmed[trimmed.index(after: colonIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !key.isEmpty else { continue }
-                if value == "true" {
-                    result[key] = .bool(true)
-                } else if value == "false" {
-                    result[key] = .bool(false)
-                } else if value.contains(",") {
-                    let parts = value.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-                    result[key] = .multiple(parts)
-                } else {
-                    result[key] = .single(value)
-                }
-            }
-        }
-        return result
     }
 
     private static func isCIDR(_ value: String) -> Bool {
@@ -376,4 +301,3 @@ struct DNSView: View {
         }
     }
 }
-

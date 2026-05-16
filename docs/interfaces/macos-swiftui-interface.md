@@ -164,6 +164,36 @@ applied through `KumoCoreKit.applyTunSettings`; if Mihomo is running, Kumo
 restarts the core so the generated runtime YAML and actual TUN interface state
 match the form.
 
+### List & dictionary fields use native +/- editors
+
+Every list-shaped configuration field is rendered with the native macOS
+list/table editor exposed by `EditableListComponents.swift`. Users add rows
+with the `+` button at the bottom of the list, remove them with `−` or the
+Delete key after selection, and edit each entry inline — no more comma- or
+newline-separated free-text. Three editors share this affordance:
+
+- `EditableStringList` — `[String]` values. Used by System Proxy bypass,
+  TUN `dns-hijack` and route-exclude CIDR, Sniffer `skip-domain` /
+  `force-domain` / `skip-dst-address` / `skip-src-address`, DNS
+  `fake-ip-filter` / `default-nameserver` / `nameserver` /
+  `proxy-server-nameserver` / `direct-nameserver` / `fallback`, and the
+  Sub-Store subscription URL list, file URL list, subscription tags, and
+  collection tag-based picks.
+- `EditableIntList` — `[Int]` values with 1–65535 range expectations. Used
+  by Sniffer HTTP / TLS / QUIC port lists.
+- `PolicyDictEditor` and `FallbackFilterDictEditor` — `[String:
+  PolicyValue]` and `[String: FallbackFilterValue]`. Used by DNS
+  `nameserver-policy`, `proxy-server-nameserver-policy`, `hosts`, and
+  `fallback-filter`. Each row shows the key plus a one-line value summary;
+  the `+` / pencil button opens a sheet that switches between Single,
+  Multiple, and (for fallback-filter) Boolean modes so the underlying
+  Mihomo schema round-trips cleanly.
+
+Free-form `TextEditor` instances remain only for documents that are not
+lists: PAC scripts, Profile YAML, override content, Sub-Store module and
+file bodies, Sub-Store server-settings JSON, and `ProcessPipelineEditor`
+argument JSON.
+
 `SubStoreView` is a fully native SwiftUI surface that talks to the bundled
 Sub-Store backend over HTTP. When the backend is reachable the view shows a
 single thin toolbar with a `Subscriptions`/`Collections` segmented picker, an

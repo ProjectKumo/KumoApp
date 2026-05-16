@@ -176,10 +176,16 @@ private struct FileEditorSheet: View {
                 }
 
                 if draft.source == "remote" {
+                    Section("URLs") {
+                        EditableStringList(
+                            items: $draft.urls,
+                            placeholder: "https://provider.example/file",
+                            monospaced: true,
+                            accessibilityLabel: "File URLs"
+                        )
+                    }
+
                     Section("Remote") {
-                        TextField("URL (one per line)", text: $draft.url, axis: .vertical)
-                            .lineLimit(3...8)
-                            .font(.body.monospaced())
                         TextField("User-Agent", text: $draft.ua, prompt: Text("Optional"))
                     }
                 }
@@ -242,7 +248,7 @@ private struct FileDraft {
     var displayName: String = ""
     var type: String = ""
     var source: String = "remote"
-    var url: String = ""
+    var urls: [String] = []
     var content: String = ""
     var ua: String = ""
     var proxy: String = ""
@@ -253,7 +259,7 @@ private struct FileDraft {
         self.displayName = model.displayName ?? ""
         self.type = model.type ?? ""
         self.source = model.source ?? "remote"
-        self.url = model.url ?? ""
+        self.urls = SubscriptionDraft.splitURLs(model.url)
         self.content = model.content ?? ""
         self.ua = model.ua ?? ""
         self.proxy = model.proxy ?? ""
@@ -269,7 +275,7 @@ private struct FileDraft {
         model.displayName = displayName.trimmedNilIfEmpty
         model.type = type.trimmedNilIfEmpty
         model.source = source
-        model.url = url.trimmedNilIfEmpty
+        model.url = SubscriptionDraft.joinURLs(urls)
         model.content = content.trimmedNilIfEmpty
         model.ua = ua.trimmedNilIfEmpty
         model.proxy = proxy.trimmedNilIfEmpty

@@ -42,47 +42,6 @@ struct ControllerSecretField: View {
     }
 }
 
-struct DebouncedTextEditor: View {
-    let value: String
-    let commit: (String) -> Void
-    let minHeight: CGFloat
-    let milliseconds: Int
-    @State private var draft: String = ""
-    @State private var debounceTask: Task<Void, Never>?
-
-    init(value: String, minHeight: CGFloat = 120, milliseconds: Int = 500, commit: @escaping (String) -> Void) {
-        self.value = value
-        self.commit = commit
-        self.minHeight = minHeight
-        self.milliseconds = milliseconds
-    }
-
-    var body: some View {
-        TextEditor(text: $draft)
-            .font(.system(.body, design: .monospaced))
-            .frame(minHeight: minHeight)
-            .onAppear {
-                if draft.isEmpty {
-                    draft = value
-                }
-            }
-            .onChange(of: draft) { _, newValue in
-                debounceTask?.cancel()
-                let captured = newValue
-                debounceTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(milliseconds))
-                    guard !Task.isCancelled, captured != value else { return }
-                    commit(captured)
-                }
-            }
-            .onChange(of: value) { _, newValue in
-                if debounceTask == nil && newValue != draft {
-                    draft = newValue
-                }
-            }
-    }
-}
-
 struct ProviderRow<Trailing: View>: View {
     let title: String
     let detail: String
