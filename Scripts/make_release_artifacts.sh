@@ -143,9 +143,9 @@ else
 fi
 
 DOWNLOAD_URL="https://github.com/${REPOSITORY}/releases/download/${RELEASE_TAG}/${ASSET_NAME}"
-MANIFEST_PATH="${OUTPUT_DIR}/latest.yml"
+ARCH_MANIFEST_PATH="${OUTPUT_DIR}/latest-${ARCH_NAME}.yml"
 
-cat > "$MANIFEST_PATH" <<EOF
+cat > "$ARCH_MANIFEST_PATH" <<EOF
 version: ${VERSION}
 channel: ${CHANNEL}
 downloadURL: ${DOWNLOAD_URL}
@@ -156,5 +156,12 @@ releaseNotes: |
 EOF
 
 echo "Created ${DMG_PATH}"
-echo "Created ${MANIFEST_PATH}"
+echo "Created ${ARCH_MANIFEST_PATH}"
 echo "SHA-256 ${SHA256}"
+
+# Generate legacy latest.yml for arm64 (backward compatibility for apps before 0.0.10)
+if [[ "$ARCH_NAME" == "arm64" ]]; then
+  LEGACY_MANIFEST_PATH="${OUTPUT_DIR}/latest.yml"
+  cp "$ARCH_MANIFEST_PATH" "$LEGACY_MANIFEST_PATH"
+  echo "Created ${LEGACY_MANIFEST_PATH} (backward-compatible alias for arm64)"
+fi
