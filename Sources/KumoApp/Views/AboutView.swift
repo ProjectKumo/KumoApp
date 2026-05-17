@@ -97,12 +97,21 @@ private struct AboutProjectSection: View {
                 }
 
                 GridRow {
-                    Text("Docs")
+                    Text("Website")
                         .foregroundStyle(.secondary)
-                    HStack(spacing: 12) {
-                        Link("Documentation", destination: AboutLinks.documentation)
-                        Link("Releases", destination: AboutLinks.releases)
-                    }
+                    Link("usekumo.app", destination: AboutLinks.website)
+                }
+
+                GridRow {
+                    Text("Releases")
+                        .foregroundStyle(.secondary)
+                    Link("GitHub Releases", destination: AboutLinks.releases)
+                }
+
+                GridRow {
+                    Text("Channel")
+                        .foregroundStyle(.secondary)
+                    Link("Telegram", destination: AboutLinks.telegram)
                 }
             }
             .font(.callout)
@@ -214,6 +223,7 @@ private struct AboutUpdateStatusView: View {
 private enum AboutLinks {
     static let author = URL(string: "https://github.com/ProjectKumo")!
     static let project = URL(string: "https://github.com/ProjectKumo/KumoApp")!
-    static let documentation = URL(string: "https://github.com/ProjectKumo/KumoApp/tree/main/docs")!
+    static let website = URL(string: "https://usekumo.app")!
     static let releases = URL(string: "https://github.com/ProjectKumo/KumoApp/releases")!
+    static let telegram = URL(string: "https://t.me/projectkumo")!
 }
