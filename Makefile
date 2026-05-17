@@ -21,6 +21,15 @@ DESTINATION ?= platform=macOS
 BUILD_NUMBER ?= 1
 SUBSTORE_RUNTIME_SCRIPT := Scripts/prepare_substore_runtime.sh
 
+# Architecture: arm64 (Apple Silicon, default) or amd64 (Intel)
+ARCH ?= arm64
+
+ifeq ($(ARCH),amd64)
+  XCODE_ARCH := x86_64
+else
+  XCODE_ARCH := arm64
+endif
+
 .DEFAULT_GOAL := help
 
 .PHONY: help
@@ -53,7 +62,7 @@ app: generate ## Build the Kumo .app bundle in Debug to build/Build/Products/Deb
 .PHONY: app-release
 app-release: generate ## Build the Kumo .app bundle in Release to build/Build/Products/Release.
 	$(MAKE) prepare-substore-runtime
-	$(XCODEBUILD) -project $(PROJECT) -scheme $(SCHEME_APP) -configuration Release -derivedDataPath $(DERIVED_DATA) build $(if $(VERSION),MARKETING_VERSION="$(VERSION)" CURRENT_PROJECT_VERSION="$(BUILD_NUMBER)",)
+	$(XCODEBUILD) -project $(PROJECT) -scheme $(SCHEME_APP) -configuration Release -derivedDataPath $(DERIVED_DATA) build ARCHS=$(XCODE_ARCH) ONLY_ACTIVE_ARCH=NO $(if $(VERSION),MARKETING_VERSION="$(VERSION)" CURRENT_PROJECT_VERSION="$(BUILD_NUMBER)",)
 	@if [ -x "$(SERVICE_PATH_RELEASE)" ]; then \
 		mkdir -p "$(APP_PATH_RELEASE)/Contents/MacOS"; \
 		cp "$(SERVICE_PATH_RELEASE)" "$(APP_PATH_RELEASE)/Contents/MacOS/KumoService"; \
@@ -71,8 +80,12 @@ require-release-version:
 
 .PHONY: release-dmg
 release-dmg: require-release-version ## Build release app, DMG, and latest.yml. Requires VERSION=0.0.1.
-	$(MAKE) app-release VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)"
-	VERSION="$(VERSION)" CHANNEL="$(CHANNEL)" OUTPUT_DIR="$(RELEASE_OUTPUT)" APP_PATH="$(APP_PATH_RELEASE)" bash Scripts/make_release_artifacts.sh
+	$(MAKE) app-release VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)" ARCH="$(ARCH)"
+	VERSION="$(VERSION)" CHANNEL="$(CHANNEL)" OUTPUT_DIR="$(RELEASE_OUTPUT)" APP_PATH="$(APP_PATH_RELEASE)" ARCH_NAME="$(ARCH)" bash Scripts/make_release_artifacts.sh
+
+.PHONY: release-dmg-amd64
+release-dmg-amd64: require-release-version ## Build release app, DMG, and latest.yml for Intel (amd64). Requires VERSION=0.0.1.
+	$(MAKE) release-dmg VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)" ARCH=amd64
 
 .PHONY: release-artifacts
 release-artifacts: release-dmg ## Alias for release-dmg.
