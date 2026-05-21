@@ -64,7 +64,7 @@ private struct AboutHeaderSection: View {
                 Text("Native macOS Mihomo client")
                     .font(.headline)
                     .foregroundStyle(.secondary)
-                Text("Version \(version) (\(build))")
+                Text(String(format: String(localized: "Version %@ (%@)"), version, build))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -190,7 +190,7 @@ private struct AboutUpdateStatusView: View {
             } else if let result {
                 checkedStatus(for: result)
             } else {
-                Text("Current channel: \(channel.rawValue.capitalized). Updates are checked from GitHub Releases.")
+                Text(String(format: String(localized: "Current channel: %@. Updates are checked from GitHub Releases."), channel.rawValue.capitalized))
             }
         }
         .font(.callout)
@@ -201,7 +201,7 @@ private struct AboutUpdateStatusView: View {
     private func checkedStatus(for result: AppUpdateCheckResult) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             if let manifest = result.update {
-                Text("Version \(manifest.version) is available.")
+                Text(String(format: String(localized: "Version %@ is available."), manifest.version))
                     .font(.callout.weight(.medium))
                     .foregroundStyle(.primary)
                 if let releaseNotes = manifest.releaseNotes, !releaseNotes.isEmpty {
@@ -214,7 +214,7 @@ private struct AboutUpdateStatusView: View {
                         .controlSize(.small)
                 }
             } else {
-                Text("You are on the latest \(channel.rawValue) build.")
+                Text(String(format: String(localized: "You are on the latest %@ build."), channel.rawValue))
             }
         }
     }

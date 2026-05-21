@@ -295,7 +295,7 @@ private struct UpdateSettingsTab: View {
                             Link("Open Download Page", destination: manifest.downloadURL)
                         }
                     } else {
-                        Text("You are on the latest \(store.preferences.updateChannel.rawValue) build.")
+                        Text(String(format: String(localized: "You are on the latest %@ build."), store.preferences.updateChannel.rawValue))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
