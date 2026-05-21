@@ -84,6 +84,12 @@ not affect Mihomo runtime):
   `AppUpdateManager.checkForUpdate(...)`. A blank `updateManifestURL` uses
   Kumo's default GitHub Releases feed; a value overrides it for local testing
   or private distribution.
+- `appLanguage` — an optional BCP-47 language tag (e.g. `en`, `zh-Hans`).
+  `nil` means follow the system language. On launch `LocalizationManager` reads
+  this value and writes it to the standard `AppleLanguages` UserDefaults key so
+  macOS resolves the correct `.lproj` at the next launch. The field is decoded
+  with `decodeIfPresent` so older `preferences.json` files without it default to
+  `nil`.
 
 Decoding falls back to defaults so a missing or corrupted file never blocks
 launch.

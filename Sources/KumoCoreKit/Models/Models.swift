@@ -7,9 +7,12 @@ public enum OutboundMode: String, Codable, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .rule: "Rule"
-        case .global: "Global"
-        case .direct: "Direct"
+        case .rule:
+            String(localized: LocalizedStringResource("Rule"))
+        case .global:
+            String(localized: LocalizedStringResource("Global"))
+        case .direct:
+            String(localized: LocalizedStringResource("Direct"))
         }
     }
 }

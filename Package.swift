@@ -24,7 +24,8 @@ let package = Package(
             dependencies: ["Yams"],
             resources: [
                 .copy("Resources/KumoAgentSkills"),
-                .copy("Resources/SubStore")
+                .copy("Resources/SubStore"),
+                .process("Resources/Localizable.xcstrings")
             ]
         ),
         .executableTarget(

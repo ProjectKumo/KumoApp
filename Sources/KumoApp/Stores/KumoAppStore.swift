@@ -35,6 +35,9 @@ final class KumoAppStore {
     var tunStatus = TunStatus()
     var coreCandidates: [CoreCandidate] = []
     var preferences = UserPreferences()
+    /// Reference to the localization manager so `loadPreferences()` can sync
+    /// the language preference when it is refreshed from disk.
+    var localizationManager: LocalizationManager?
     /// Drives the first-run onboarding sheet attached at the root view.
     /// `loadPreferences()` flips this on when `preferences.hasCompletedOnboarding`
     /// is false; `completeOnboarding()` and `reopenOnboarding()` are the only
@@ -1047,6 +1050,7 @@ final class KumoAppStore {
 
     func loadPreferences() {
         preferences = controller.userPreferences()
+        localizationManager?.currentLanguage = preferences.appLanguage
         if !preferences.hasCompletedOnboarding {
             showOnboarding = true
         }

@@ -19,10 +19,12 @@ struct SettingsView: View {
 
 private struct GeneralSettingsTab: View {
     @Environment(KumoAppStore.self) private var store
+    @Environment(LocalizationManager.self) private var localizationManager
     @State private var launchAtLoginErrorMessage: String?
     @State private var cliStatus: CLILinkStatus?
     @State private var cliBusy = false
     @State private var cliErrorMessage: String?
+    @State private var showRestartAlert = false
 
     var body: some View {
         Form {
@@ -39,6 +41,40 @@ private struct GeneralSettingsTab: View {
                 Toggle("Quit when last window closes", isOn: quitOnLastWindowCloseBinding)
             } header: {
                 Text("Window")
+            }
+
+            Section("Appearance") {
+                Picker("Language", selection: languageBinding) {
+                    Text(localizationManager.systemDisplayName())
+                        .tag(Optional<String>.none)
+                    ForEach(localizationManager.availableLanguages, id: \.self) { code in
+                        Text(localizationManager.displayName(for: code))
+                            .tag(Optional<String>.some(code))
+                    }
+                }
+
+                if localizationManager.needsRestart {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .font(.caption)
+                        Text("Restart Required")
+                            .font(.caption)
+                        Spacer()
+                        Button("Restart Now") {
+                            showRestartAlert = true
+                        }
+                        .controlSize(.small)
+                        .alert("Restart Kumo?", isPresented: $showRestartAlert) {
+                            Button("Restart Now", role: .destructive) {
+                                restartApp()
+                            }
+                            Button("Later", role: .cancel) { }
+                        } message: {
+                            Text("Kumo must restart to apply the language change.")
+                        }
+                    }
+                }
             }
 
             Section("Setup") {
@@ -165,6 +201,26 @@ private struct GeneralSettingsTab: View {
         }
     }
 
+    private var languageBinding: Binding<String?> {
+        Binding {
+            store.preferences.appLanguage
+        } set: { value in
+            var prefs = store.preferences
+            prefs.appLanguage = value
+            store.updatePreferences(prefs)
+            localizationManager.selectLanguage(value)
+        }
+    }
+
+    private func restartApp() {
+        let url = Bundle.main.bundleURL
+        let task = Process()
+        task.executableURL = url
+        task.arguments = ["--relaunch"]
+        try? task.run()
+        NSApp.terminate(nil)
+    }
+
     private func updateLaunchAtLogin(_ value: Bool) {
         var prefs = store.preferences
         prefs.launchAtLogin = value
@@ -177,7 +233,8 @@ private struct GeneralSettingsTab: View {
             }
             launchAtLoginErrorMessage = nil
         } catch {
-            launchAtLoginErrorMessage = "macOS rejected the change: \(error.localizedDescription). Move Kumo.app to /Applications and try again."
+            let format = String(localized: LocalizedStringResource("macOS rejected the change: %@. Move Kumo.app to /Applications and try again."))
+            launchAtLoginErrorMessage = String(format: format, error.localizedDescription)
         }
     }
 }
@@ -227,7 +284,11 @@ private struct UpdateSettingsTab: View {
                             Button {
                                 Task { await store.downloadAndInstallUpdate(manifest) }
                             } label: {
-                                Text(store.isInstallingUpdate ? "Preparing Installer..." : "Download and Install")
+                                if store.isInstallingUpdate {
+                                    Text("Preparing Installer...")
+                                } else {
+                                    Text("Download and Install")
+                                }
                             }
                             .disabled(store.isDownloadingUpdate || store.isInstallingUpdate)
                         } else {

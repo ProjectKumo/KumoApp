@@ -21,6 +21,10 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var localizedName: String {
+        String(localized: LocalizedStringResource(String.LocalizationValue(rawValue)))
+    }
+
     var symbolName: String {
         switch self {
         case .overview: "cloud"
@@ -145,12 +149,14 @@ struct ContentView: View {
     private var sidebarList: some View {
         List(selection: selectionBinding) {
             ForEach(sections) { section in
-                Section(section.title) {
+                Section {
                     ForEach(section.destinations) { destination in
                         NavigationLink(value: destination) {
-                            Label(destination.rawValue, systemImage: destination.symbolName)
+                            Label(destination.localizedName, systemImage: destination.symbolName)
                         }
                     }
+                } header: {
+                    Text(LocalizedStringKey(section.title))
                 }
             }
         }
@@ -169,7 +175,9 @@ struct ContentView: View {
     }
 
     private var errorAlertTitle: String {
-        isCoreNotFoundError ? "Core Not Found" : "Kumo"
+        isCoreNotFoundError
+            ? String(localized: LocalizedStringResource("Core Not Found"))
+            : String(localized: LocalizedStringResource("Kumo"))
     }
 
     private var isCoreNotFoundError: Bool {
@@ -177,7 +185,9 @@ struct ContentView: View {
     }
 
     private var coreActionTitle: String {
-        store.status.state == .running ? "Stop Kumo" : "Start Kumo"
+        store.status.state == .running
+            ? String(localized: LocalizedStringResource("Stop Kumo"))
+            : String(localized: LocalizedStringResource("Start Kumo"))
     }
 
     private var coreActionSystemImage: String {

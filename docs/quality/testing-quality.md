@@ -84,3 +84,14 @@ Prioritize tests that do not mutate real system state:
 - `kumo backup export <path> --json` creates a manifest-backed backup directory.
 - `kumo substore status --json` reports enabled state, frontend/backend runtime
   state, resource version, and local URL without launching a dev server.
+
+## Localization QA Checklist
+
+- Settings → General shows the **Appearance** section with a Language dropdown.
+- The dropdown contains **System Default** plus every language discovered from `Bundle.main.localizations`.
+- Selecting a language triggers the **Restart Required** prompt.
+- Clicking **Restart Now** terminates and relaunches the app.
+- After restart, the app UI renders in the selected language (Settings labels, sidebar destinations, toolbar actions, mode names, About view, and menu bar status item).
+- Selecting **System Default** removes `AppleLanguages` and the app follows macOS system language after restart.
+- `preferences.json` contains `appLanguage` as a BCP-47 string (or `null`) after a change.
+- String Catalog entries exist for all user-facing labels added in the same change set.

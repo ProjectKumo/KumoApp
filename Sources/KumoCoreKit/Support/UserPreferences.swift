@@ -10,6 +10,10 @@ public struct UserPreferences: Codable, Sendable, Equatable {
     public var quitOnLastWindowClose: Bool
     public var updateChannel: AppUpdateChannel
     public var updateManifestURL: URL?
+    /// The user's preferred app language. `nil` means follow the system
+    /// language (default). Stored as a BCP-47 language tag such as "en"
+    /// or "zh-Hans".
+    public var appLanguage: String?
     /// Whether the first-run onboarding sheet has already been completed (or
     /// explicitly skipped). The sheet is shown automatically on launch when
     /// this is false, and Settings exposes a way to reopen it.
@@ -21,6 +25,7 @@ public struct UserPreferences: Codable, Sendable, Equatable {
         quitOnLastWindowClose: Bool = false,
         updateChannel: AppUpdateChannel = .stable,
         updateManifestURL: URL? = nil,
+        appLanguage: String? = nil,
         hasCompletedOnboarding: Bool = false
     ) {
         self.launchAtLogin = launchAtLogin
@@ -28,6 +33,7 @@ public struct UserPreferences: Codable, Sendable, Equatable {
         self.quitOnLastWindowClose = quitOnLastWindowClose
         self.updateChannel = updateChannel
         self.updateManifestURL = updateManifestURL
+        self.appLanguage = appLanguage
         self.hasCompletedOnboarding = hasCompletedOnboarding
     }
 
@@ -37,6 +43,7 @@ public struct UserPreferences: Codable, Sendable, Equatable {
         case quitOnLastWindowClose
         case updateChannel
         case updateManifestURL
+        case appLanguage
         case hasCompletedOnboarding
     }
 
@@ -49,6 +56,7 @@ public struct UserPreferences: Codable, Sendable, Equatable {
             quitOnLastWindowClose: try container.decodeIfPresent(Bool.self, forKey: .quitOnLastWindowClose) ?? defaults.quitOnLastWindowClose,
             updateChannel: try container.decodeIfPresent(AppUpdateChannel.self, forKey: .updateChannel) ?? defaults.updateChannel,
             updateManifestURL: try container.decodeIfPresent(URL.self, forKey: .updateManifestURL),
+            appLanguage: try container.decodeIfPresent(String.self, forKey: .appLanguage),
             hasCompletedOnboarding: try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? defaults.hasCompletedOnboarding
         )
     }

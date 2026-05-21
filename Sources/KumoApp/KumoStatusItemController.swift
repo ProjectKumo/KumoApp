@@ -69,14 +69,14 @@ final class KumoStatusItemController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
 
         guard let store else {
-            menu.addItem(disabledItem("Kumo is starting..."))
+            menu.addItem(disabledItem(NSLocalizedString("Kumo is starting...", comment: "")))
             return
         }
 
         addStatusItems(to: menu, store: store)
         menu.addItem(.separator())
 
-        menu.addItem(actionItem("Open Kumo", action: #selector(openKumo), keyEquivalent: "0"))
+        menu.addItem(actionItem(NSLocalizedString("Open Kumo", comment: ""), action: #selector(openKumo), keyEquivalent: "0"))
         menu.addItem(coreToggleItem(store: store))
 
         menu.addItem(.separator())
@@ -88,22 +88,27 @@ final class KumoStatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(proxyGroupsSubmenu(store: store))
 
         menu.addItem(.separator())
-        menu.addItem(actionItem("Refresh", action: #selector(refreshKumo)))
-        menu.addItem(actionItem("Settings...", action: #selector(openSettings), keyEquivalent: ","))
-        menu.addItem(actionItem("About Kumo", action: #selector(openAbout)))
+        menu.addItem(actionItem(NSLocalizedString("Refresh", comment: ""), action: #selector(refreshKumo)))
+        menu.addItem(actionItem(NSLocalizedString("Settings...", comment: ""), action: #selector(openSettings), keyEquivalent: ","))
+        menu.addItem(actionItem(NSLocalizedString("About Kumo", comment: ""), action: #selector(openAbout)))
 
         menu.addItem(.separator())
-        menu.addItem(actionItem("Quit Kumo", action: #selector(quitKumo), keyEquivalent: "q"))
+        menu.addItem(actionItem(NSLocalizedString("Quit Kumo", comment: ""), action: #selector(quitKumo), keyEquivalent: "q"))
     }
 
     private func addStatusItems(to menu: NSMenu, store: KumoAppStore) {
-        menu.addItem(disabledItem("Core: \(store.status.state.rawValue.capitalized)"))
-        menu.addItem(disabledItem("Profile: \(store.currentProfile?.name ?? "Default")"))
-        menu.addItem(disabledItem("Mode: \(store.status.mode.displayName)"))
+        let coreStatusFormat = NSLocalizedString("Core: %@", comment: "")
+        let profileStatusFormat = NSLocalizedString("Profile: %@", comment: "")
+        let modeStatusFormat = NSLocalizedString("Mode: %@", comment: "")
+        menu.addItem(disabledItem(String(format: coreStatusFormat, store.status.state.rawValue.capitalized)))
+        menu.addItem(disabledItem(String(format: profileStatusFormat, store.currentProfile?.name ?? NSLocalizedString("Default", comment: ""))))
+        menu.addItem(disabledItem(String(format: modeStatusFormat, store.status.mode.displayName)))
     }
 
     private func coreToggleItem(store: KumoAppStore) -> NSMenuItem {
-        let title = store.status.state == .running ? "Stop Kumo" : "Start Kumo"
+        let title = store.status.state == .running
+            ? NSLocalizedString("Stop Kumo", comment: "")
+            : NSLocalizedString("Start Kumo", comment: "")
         let item = actionItem(title, action: #selector(toggleCore))
         item.isEnabled = !store.isLoading && store.status.state != .starting
         return item
@@ -123,13 +128,14 @@ final class KumoStatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(item)
         }
 
-        let item = NSMenuItem(title: "Outbound Mode (\(store.status.mode.displayName))", action: nil, keyEquivalent: "")
+        let modeFormat = NSLocalizedString("Outbound Mode (%@)", comment: "")
+        let item = NSMenuItem(title: String(format: modeFormat, store.status.mode.displayName), action: nil, keyEquivalent: "")
         item.submenu = menu
         return item
     }
 
     private func systemProxyItem(store: KumoAppStore) -> NSMenuItem {
-        let item = actionItem("System Proxy", action: #selector(toggleSystemProxy))
+        let item = actionItem(NSLocalizedString("System Proxy", comment: ""), action: #selector(toggleSystemProxy))
         item.state = store.status.systemProxyEnabled ? .on : .off
         item.isEnabled = !store.isLoading && (store.status.state == .running || store.status.systemProxyEnabled)
         return item
@@ -140,7 +146,7 @@ final class KumoStatusItemController: NSObject, NSMenuDelegate {
         menu.autoenablesItems = false
 
         if store.profiles.isEmpty {
-            menu.addItem(disabledItem("No profiles"))
+            menu.addItem(disabledItem(NSLocalizedString("No profiles", comment: "")))
         } else {
             for profile in store.profiles.prefix(8) {
                 let item = actionItem(profile.name, action: #selector(selectProfile(_:)), representedObject: profile.id)
@@ -150,7 +156,7 @@ final class KumoStatusItemController: NSObject, NSMenuDelegate {
             }
         }
 
-        let item = NSMenuItem(title: "Profiles", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: NSLocalizedString("Profiles", comment: ""), action: nil, keyEquivalent: "")
         item.submenu = menu
         return item
     }
@@ -160,7 +166,7 @@ final class KumoStatusItemController: NSObject, NSMenuDelegate {
         menu.autoenablesItems = false
 
         if store.proxyGroups.isEmpty {
-            menu.addItem(disabledItem("No proxy groups"))
+            menu.addItem(disabledItem(NSLocalizedString("No proxy groups", comment: "")))
         } else {
             for group in store.proxyGroups.prefix(5) {
                 let groupMenu = NSMenu()

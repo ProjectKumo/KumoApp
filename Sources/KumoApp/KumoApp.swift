@@ -7,17 +7,24 @@ struct KumoApp: App {
     @State private var store: KumoAppStore
     @State private var subStore: SubStoreStore
     @State private var navigation = KumoNavigationState()
+    @State private var localizationManager: LocalizationManager
     @NSApplicationDelegateAdaptor(KumoAppDelegate.self) private var appDelegate
 
     init() {
         let appStore = KumoAppStore()
+        let prefs = appStore.controller.userPreferences()
+        let locManager = LocalizationManager(preferences: prefs)
+        appStore.localizationManager = locManager
         _store = State(initialValue: appStore)
         _subStore = State(initialValue: SubStoreStore(controller: appStore.controller))
+        _localizationManager = State(initialValue: locManager)
     }
 
     var body: some Scene {
         WindowGroup(id: "main") {
             KumoRootView(store: store, subStore: subStore, navigation: navigation)
+                .environment(localizationManager)
+                .environment(\.locale, localizationManager.locale)
         }
         .defaultSize(width: 1040, height: 720)
         .windowResizability(.contentMinSize)
@@ -54,11 +61,19 @@ struct KumoApp: App {
 
                 Divider()
 
-                Button(store.status.systemProxyEnabled ? "Disable System Proxy" : "Enable System Proxy") {
-                    store.setSystemProxyEnabled(!store.status.systemProxyEnabled)
+                if store.status.systemProxyEnabled {
+                    Button("Disable System Proxy") {
+                        store.setSystemProxyEnabled(false)
+                    }
+                    .keyboardShortcut("p", modifiers: [.command, .control])
+                    .disabled(store.isLoading || store.status.state != .running)
+                } else {
+                    Button("Enable System Proxy") {
+                        store.setSystemProxyEnabled(true)
+                    }
+                    .keyboardShortcut("p", modifiers: [.command, .control])
+                    .disabled(store.isLoading || store.status.state != .running)
                 }
-                .keyboardShortcut("p", modifiers: [.command, .control])
-                .disabled(store.isLoading || (store.status.state != .running && !store.status.systemProxyEnabled))
 
                 Divider()
 
@@ -110,11 +125,13 @@ struct KumoApp: App {
         Settings {
             SettingsView()
                 .environment(store)
+                .environment(localizationManager)
         }
 
         Window("About Kumo", id: "about") {
             AboutView()
                 .environment(store)
+                .environment(localizationManager)
         }
         .defaultSize(width: 440, height: 380)
         .windowResizability(.contentMinSize)

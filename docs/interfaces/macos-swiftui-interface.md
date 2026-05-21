@@ -237,9 +237,21 @@ materials so high-density list/detail content remains legible.
 About available as a separate window. Runtime status belongs in the main window
 and status item menu instead of Settings:
 
-- **General** — `Open at Login` (driven by `SMAppService.mainApp`), `Quit when last window closes` (read by `applicationShouldTerminateAfterLastWindowClosed`), and a Setup section with `Run Setup Again` plus a `Command Line Tool` row (install/remove `/usr/local/bin/kumo`).
+- **General** — `Open at Login` (driven by `SMAppService.mainApp`), `Quit when last window closes` (read by `applicationShouldTerminateAfterLastWindowClosed`), an **Appearance** section with a `Language` dropdown, and a Setup section with `Run Setup Again` plus a `Command Line Tool` row (install/remove `/usr/local/bin/kumo`).
 - **Updates** — channel picker, optional manifest URL override, and GitHub Releases update checks backed by `AppUpdateManager`.
 - **About Kumo window** — app icon, version/build, author GitHub link, project links, and the same update-check state used by Settings.
+
+### Localization
+
+Language selection is managed by `LocalizationManager` and surfaced in **Settings → General → Appearance**:
+
+- The dropdown lists **System Default** (follows macOS language) plus all languages dynamically discovered from `Bundle.main.localizations` (currently English and Simplified Chinese).
+- Language display names are resolved via `Locale.localizedString(forIdentifier:)` so the list is never hard-coded.
+- Selecting a language writes the BCP-47 tag to `UserPreferences.appLanguage`, persists it to `preferences.json`, and sets the standard `AppleLanguages` UserDefaults key.
+- A **Restart Required** prompt appears because macOS/iOS `Bundle` localization is fixed at launch; the app must relaunch for the change to take effect everywhere. `LocalizationManager.restartApp()` relaunches the `.app` bundle via `Process` before calling `NSApp.terminate(nil)`.
+- SwiftUI views receive the selected `Locale` through `.environment(\.locale, ...)`, and `Text("...")` literals automatically resolve against the compiled `Localizable.xcstrings` String Catalog. Non-SwiftUI surfaces such as the menu-bar status item use `NSLocalizedString` so they also respect `AppleLanguages` after restart.
+
+`KumoCoreKit` models that expose display text (e.g. `OutboundMode.displayName`) return `String(localized: LocalizedStringResource(...))` so the same localized strings are available to both the GUI and any future CLI table output.
 
 Preferences persist to `~/Library/Application Support/Kumo/preferences.json` via `UserPreferencesStore`. See [Persistence and Logging](../operations/persistence-logging.md) for fields.
 
