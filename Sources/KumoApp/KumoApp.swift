@@ -126,12 +126,14 @@ struct KumoApp: App {
             SettingsView()
                 .environment(store)
                 .environment(localizationManager)
+                .environment(\.locale, localizationManager.locale)
         }
 
         Window("About Kumo", id: "about") {
             AboutView()
                 .environment(store)
                 .environment(localizationManager)
+                .environment(\.locale, localizationManager.locale)
         }
         .defaultSize(width: 440, height: 380)
         .windowResizability(.contentMinSize)

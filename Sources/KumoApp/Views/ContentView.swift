@@ -22,7 +22,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var localizedName: String {
-        String(localized: LocalizedStringResource(String.LocalizationValue(rawValue)))
+        KumoL10n.string(rawValue)
     }
 
     var symbolName: String {

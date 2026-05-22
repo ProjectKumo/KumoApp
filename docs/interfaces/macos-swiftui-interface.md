@@ -245,11 +245,13 @@ and status item menu instead of Settings:
 
 Language selection is managed by `LocalizationManager` and surfaced in **Settings → General → Appearance**:
 
-- The dropdown lists **System Default** (follows macOS language) plus all languages dynamically discovered from `Bundle.main.localizations` (currently English and Simplified Chinese).
+- The dropdown lists **System Default** (follows macOS language) plus all languages dynamically discovered from `Localizable.xcstrings` (including English).
 - Language display names are resolved via `Locale.localizedString(forIdentifier:)` so the list is never hard-coded.
 - Selecting a language writes the BCP-47 tag to `UserPreferences.appLanguage`, persists it to `preferences.json`, and sets the standard `AppleLanguages` UserDefaults key.
-- A **Restart Required** prompt appears because macOS/iOS `Bundle` localization is fixed at launch; the app must relaunch for the change to take effect everywhere. `LocalizationManager.restartApp()` relaunches the `.app` bundle via `Process` before calling `NSApp.terminate(nil)`.
-- SwiftUI views receive the selected `Locale` through `.environment(\.locale, ...)`, and `Text("...")` literals automatically resolve against the compiled `Localizable.xcstrings` String Catalog. Non-SwiftUI surfaces such as the menu-bar status item use `NSLocalizedString` so they also respect `AppleLanguages` after restart.
+- A **Restart Required** prompt appears because macOS/iOS `Bundle` localization is fixed at launch; the app must relaunch for the change to take effect everywhere. **Restart Now** uses `/usr/bin/open -n` on the app bundle, then terminates the current process.
+- `LanguageLaunchPreference` applies a saved `appLanguage` to `AppleLanguages` at module load (before `@main`) so the preference is active on the next cold start.
+- `Localizable.xcstrings` lives in `KumoCoreKit` and is also compiled into the app target so `Text("...")` resolves from the main bundle. Menu-bar strings use `NSLocalizedString(..., bundle: KumoL10n.bundle)` against the package resource bundle.
+- SwiftUI views receive the selected `Locale` through `.environment(\.locale, ...)` on the main window, Settings, and About scenes.
 
 `KumoCoreKit` models that expose display text (e.g. `OutboundMode.displayName`) return `String(localized: LocalizedStringResource(...))` so the same localized strings are available to both the GUI and any future CLI table output.
 

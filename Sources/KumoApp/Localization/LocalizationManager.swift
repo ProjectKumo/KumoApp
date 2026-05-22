@@ -21,7 +21,7 @@ final class LocalizationManager {
     /// is needed to apply it everywhere.
     var needsRestart = false
 
-    /// Languages discovered dynamically from the String Catalog.
+    /// Languages discovered from compiled bundle localizations (`.lproj`).
     var availableLanguages: [String] {
         availableLocalizationsFromStringCatalog()
     }
@@ -51,12 +51,7 @@ final class LocalizationManager {
 
     /// Returns the display name for the "System" / auto option.
     func systemDisplayName() -> String {
-        let system = String(
-            localized: "System Default",
-            table: "Localizable",
-            bundle: .main,
-            locale: locale
-        )
+        let system = KumoL10n.string("System Default", languageCode: currentLanguage)
         if let current = currentLanguage ?? Locale.autoupdatingCurrent.language.languageCode?.identifier {
             let name = displayName(for: current)
             return "\(system) (\(name))"

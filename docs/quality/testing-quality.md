@@ -88,7 +88,7 @@ Prioritize tests that do not mutate real system state:
 ## Localization QA Checklist
 
 - Settings → General shows the **Appearance** section with a Language dropdown.
-- The dropdown contains **System Default** plus every language discovered from `Bundle.main.localizations`.
+- The dropdown contains **System Default** plus every language compiled into the app resource bundles (currently 18 languages including `en`, `zh-Hans`, `zh-Hant`, `ja`, `ko`, `de`, `fr`, `es`, and others).
 - Selecting a language triggers the **Restart Required** prompt.
 - Clicking **Restart Now** terminates and relaunches the app.
 - After restart, the app UI renders in the selected language (Settings labels, sidebar destinations, toolbar actions, mode names, About view, and menu bar status item).

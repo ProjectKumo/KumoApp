@@ -213,10 +213,10 @@ private struct GeneralSettingsTab: View {
     }
 
     private func restartApp() {
-        let url = Bundle.main.bundleURL
+        let appURL = Bundle.main.bundleURL
         let task = Process()
-        task.executableURL = url
-        task.arguments = ["--relaunch"]
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        task.arguments = ["-n", appURL.path]
         try? task.run()
         NSApp.terminate(nil)
     }

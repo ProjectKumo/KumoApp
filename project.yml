@@ -29,6 +29,7 @@ targets:
     sources:
       - path: Sources/KumoApp
       - path: Resources/KumoApp/Assets.xcassets
+      - path: Sources/KumoCoreKit/Resources/Localizable.xcstrings
     info:
       path: Resources/KumoApp/Info.plist
       properties:
