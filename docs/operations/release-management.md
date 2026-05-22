@@ -16,16 +16,25 @@ documented in [App Updates](app-updates/README.md).
 
 ## Manifest Format
 
-`latest.yml` is uploaded as a release asset beside the DMG.
+Kumo's updater consumes one manifest per architecture. The default stable feed
+uses the Apple Silicon manifest:
+
+- `latest.yml` — arm64 / Apple Silicon
+- `latest-amd64.yml` — amd64 / Intel x86_64
+
+Each manifest keeps the single-asset shape expected by
+`AppUpdateManager`: `downloadURL`, `assetName`, and `sha256`. Do not replace
+these files with a combined `assets:` list unless the app-side parser is
+changed in the same release.
 
 ```yaml
 version: 0.0.1
 channel: stable
-downloadURL: https://github.com/ProjectKumo/KumoApp/releases/download/0.0.1/Kumo-macos-0.0.1-arm64.dmg
+downloadURL: https://github.com/ProjectKumo/KumoApp/releases/download/v0.0.1/Kumo-macos-0.0.1-arm64.dmg
 assetName: Kumo-macos-0.0.1-arm64.dmg
 sha256: <64-character-sha256>
 releaseNotes: |
-  See https://github.com/ProjectKumo/KumoApp/releases/tag/0.0.1
+  See https://github.com/ProjectKumo/KumoApp/releases/tag/v0.0.1
 ```
 
 The app also accepts the same fields as JSON for local testing and backwards
@@ -34,16 +43,27 @@ manifest contract and automatic-install requirements.
 
 ## Building Artifacts
 
-Use the release helper to build the Release `.app`, create the DMG, and emit `latest.yml`:
+Use the release helper to build the Release `.app`, create the DMG, and emit
+the architecture-specific `latest.yml`:
 
 ```bash
-make release-dmg VERSION=0.0.1 CHANNEL=stable
+make release-dmg VERSION=0.0.1 CHANNEL=stable ARCH=arm64
+make release-dmg VERSION=0.0.1 CHANNEL=stable ARCH=amd64
 ```
 
 `VERSION` is passed through to Xcode as `MARKETING_VERSION`, so the built
-`Kumo.app/Contents/Info.plist` and `latest.yml` use the same app version.
+`Kumo.app/Contents/Info.plist` and manifests use the same app version.
 Override `BUILD_NUMBER` to set `CFBundleVersion`; it defaults to `1`.
 The artifact script validates the built app version before creating the DMG.
+
+When publishing a `v`-prefixed Git tag, pass the exact release tag into the
+helper so manifest URLs match the GitHub release path:
+
+```bash
+RELEASE_TAG=v0.0.1 make release-dmg VERSION=0.0.1 CHANNEL=stable ARCH=arm64
+RELEASE_TAG=v0.0.1 make release-dmg VERSION=0.0.1 CHANNEL=stable ARCH=amd64
+```
+
 Release builds must also include the bundled Sub-Store payload in
 `KumoCoreKit` resources: Node sidecar, `sub-store.bundle.js`, and
 `manifest.json`. The Sub-Store frontend is no longer bundled; Kumo's SwiftUI
@@ -56,13 +76,25 @@ runtime is present in the resource bundle without committing the large binary.
 The DMG is laid out as a Finder install window. `Assets/dmg-background.png`
 provides the 660×420 paper background with handwritten labels and a
 pencil-drawn small-loop arrow from `Kumo.app` toward the `/Applications` alias.
+If Finder automation cannot address the mounted volume, the script logs a
+warning and still emits a usable DMG with the default Finder layout.
 
-Outputs are written to `build/release/`:
+Outputs are written to `build/release/` for the selected architecture:
+
+- `Kumo-macos-0.0.1-arm64.dmg` or `Kumo-macos-0.0.1-amd64.dmg`
+- `latest.yml` for that architecture
+
+For a dual-architecture GitHub release, collect and upload these four assets:
 
 - `Kumo-macos-0.0.1-arm64.dmg`
-- `latest.yml`
+- `Kumo-macos-0.0.1-amd64.dmg`
+- `latest.yml` copied from the arm64 build
+- `latest-amd64.yml` copied from the amd64 build
 
-Upload both files to the GitHub Release. For beta, set `CHANNEL=beta`; the manifest points at the `pre-release` tag.
+The `.github/workflows/build-release.yml` workflow automates this collection,
+validates that each manifest points at the matching architecture and tag, and
+uploads all four assets. For beta, set `CHANNEL=beta`; the manifest points at
+the `pre-release` tag unless `RELEASE_TAG` is explicitly provided.
 
 ## Runtime Update Flow
 

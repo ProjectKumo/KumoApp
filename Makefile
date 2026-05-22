@@ -81,11 +81,11 @@ require-release-version:
 .PHONY: release-dmg
 release-dmg: require-release-version ## Build release app, DMG, and latest.yml. Requires VERSION=0.0.1.
 	$(MAKE) app-release VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)" ARCH="$(ARCH)"
-	VERSION="$(VERSION)" CHANNEL="$(CHANNEL)" OUTPUT_DIR="$(RELEASE_OUTPUT)" APP_PATH="$(APP_PATH_RELEASE)" ARCH_NAME="$(ARCH)" bash Scripts/make_release_artifacts.sh
+	VERSION="$(VERSION)" CHANNEL="$(CHANNEL)" RELEASE_TAG="$(RELEASE_TAG)" OUTPUT_DIR="$(RELEASE_OUTPUT)" APP_PATH="$(APP_PATH_RELEASE)" ARCH_NAME="$(ARCH)" bash Scripts/make_release_artifacts.sh
 
 .PHONY: release-dmg-amd64
 release-dmg-amd64: require-release-version ## Build release app, DMG, and latest.yml for Intel (amd64). Requires VERSION=0.0.1.
-	$(MAKE) release-dmg VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)" ARCH=amd64
+	$(MAKE) release-dmg VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)" RELEASE_TAG="$(RELEASE_TAG)" ARCH=amd64
 
 .PHONY: release-artifacts
 release-artifacts: release-dmg ## Alias for release-dmg.

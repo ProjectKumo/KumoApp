@@ -134,7 +134,9 @@ hdiutil convert "$RW_DMG_PATH" \
 
 SHA256="$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')"
 
-if [[ "$CHANNEL" == "beta" ]]; then
+if [[ -n "${RELEASE_TAG:-}" ]]; then
+  RELEASE_TAG="${RELEASE_TAG}"
+elif [[ "$CHANNEL" == "beta" ]]; then
   RELEASE_TAG="pre-release"
 else
   RELEASE_TAG="${VERSION}"

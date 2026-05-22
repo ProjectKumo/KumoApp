@@ -1,0 +1,194 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 0.0.13)'
+        required: true
+        type: string
+      channel:
+        description: 'Release channel'
+        required: true
+        default: 'stable'
+        type: choice
+        options:
+          - stable
+          - beta
+
+jobs:
+  build-macos:
+    name: Build macOS DMGs
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install tools
+        run: |
+          brew install xcodegen || true
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${GITHUB_REF_NAME:-}" ] && [[ "$GITHUB_REF_NAME" == v* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            INPUT_VER="${{ inputs.version }}"
+            if [[ "$INPUT_VER" == v* ]]; then
+              echo "tag=$INPUT_VER" >> "$GITHUB_OUTPUT"
+              echo "version=${INPUT_VER#v}" >> "$GITHUB_OUTPUT"
+            else
+              echo "tag=v$INPUT_VER" >> "$GITHUB_OUTPUT"
+              echo "version=$INPUT_VER" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          echo "channel=${{ inputs.channel || 'stable' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build arm64 DMG
+        run: |
+          VERSION_STR="${{ steps.version.outputs.version }}"
+          RELEASE_TAG="${{ steps.version.outputs.tag }}" make release-dmg \
+            VERSION="$VERSION_STR" \
+            BUILD_NUMBER="${GITHUB_RUN_NUMBER}" \
+            ARCH=arm64 \
+            CHANNEL="${{ steps.version.outputs.channel }}"
+          mkdir -p artifacts/arm64
+          cp -R build/release/* artifacts/arm64/
+
+      - name: Build amd64 DMG
+        run: |
+          rm -rf build/release
+          VERSION_STR="${{ steps.version.outputs.version }}"
+          RELEASE_TAG="${{ steps.version.outputs.tag }}" make release-dmg \
+            VERSION="$VERSION_STR" \
+            BUILD_NUMBER="${GITHUB_RUN_NUMBER}" \
+            ARCH=amd64 \
+            CHANNEL="${{ steps.version.outputs.channel }}"
+          mkdir -p artifacts/amd64
+          cp -R build/release/* artifacts/amd64/
+
+      - name: Collect artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p upload
+          cp artifacts/arm64/*.dmg upload/
+          cp artifacts/amd64/*.dmg upload/
+          cp artifacts/arm64/latest.yml upload/latest.yml
+          cp artifacts/amd64/latest.yml upload/latest-amd64.yml
+
+          echo "Collected release assets:"
+          ls -lh upload/
+
+          grep -q 'assetName: Kumo-macos-${{ steps.version.outputs.version }}-arm64.dmg' upload/latest.yml
+          grep -q 'assetName: Kumo-macos-${{ steps.version.outputs.version }}-amd64.dmg' upload/latest-amd64.yml
+          grep -q '/download/${{ steps.version.outputs.tag }}/' upload/latest.yml
+          grep -q '/download/${{ steps.version.outputs.tag }}/' upload/latest-amd64.yml
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmgs
+          path: upload/
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    needs: build-macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dmgs
+          path: upload/
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${GITHUB_REF_NAME:-}" ] && [[ "$GITHUB_REF_NAME" == v* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            INPUT_VER="${{ inputs.version }}"
+            if [[ "$INPUT_VER" == v* ]]; then
+              echo "tag=$INPUT_VER" >> "$GITHUB_OUTPUT"
+              echo "version=${INPUT_VER#v}" >> "$GITHUB_OUTPUT"
+            else
+              echo "tag=v$INPUT_VER" >> "$GITHUB_OUTPUT"
+              echo "version=$INPUT_VER" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          echo "channel=${{ inputs.channel || 'stable' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION_STR="${{ steps.version.outputs.version }}"
+          CHANNEL="${{ steps.version.outputs.channel }}"
+          PRERELEASE_FLAG=""
+          if [ "$CHANNEL" = "beta" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          test -f upload/Kumo-macos-${VERSION_STR}-arm64.dmg
+          test -f upload/Kumo-macos-${VERSION_STR}-amd64.dmg
+          test -f upload/latest.yml
+          test -f upload/latest-amd64.yml
+
+          grep -q "assetName: Kumo-macos-${VERSION_STR}-arm64.dmg" upload/latest.yml
+          grep -q "assetName: Kumo-macos-${VERSION_STR}-amd64.dmg" upload/latest-amd64.yml
+          grep -q "/download/${TAG}/" upload/latest.yml
+          grep -q "/download/${TAG}/" upload/latest-amd64.yml
+
+          RELEASE_NOTES=""
+          if [ -f CHANGELOG.md ]; then
+            RELEASE_NOTES=$(awk -v ver="${TAG#v}" '
+              BEGIN {found=0; buf=""}
+              /^##?\s+\[?v?/ {
+                if (found) {exit}
+                if (match($0, ver)) {found=1; next}
+              }
+              found {buf = buf $0 "\n"}
+              END {print buf}
+            ' CHANGELOG.md | sed '/^$/N;/^\n$/d')
+          fi
+
+          if [ -z "$RELEASE_NOTES" ]; then
+            RELEASE_NOTES="Release ${TAG}"
+          fi
+
+          ASSETS=(
+            upload/Kumo-macos-${VERSION_STR}-arm64.dmg
+            upload/Kumo-macos-${VERSION_STR}-amd64.dmg
+            upload/latest.yml
+            upload/latest-amd64.yml
+          )
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $TAG exists, uploading assets..."
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            echo "Creating release $TAG..."
+            gh release create "$TAG" \
+              "${ASSETS[@]}" \
+              --title "Kumo ${VERSION_STR}" \
+              --notes "$RELEASE_NOTES" \
+              --draft=false \
+              $PRERELEASE_FLAG \
+              --repo "$GITHUB_REPOSITORY"
+          fi
