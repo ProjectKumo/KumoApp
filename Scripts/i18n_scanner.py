@@ -114,7 +114,13 @@ def scan_file(filepath: str, existing_keys: set) -> list:
         # Skip if already localized
         if any(indicator in line for indicator in LOCALIZED_INDICATORS):
             continue
-        
+
+        # Skip lines with string interpolation (\(…)) — these are dynamic and
+        # should use String(format: String(localized: "key"), …) instead of
+        # a plain literal.  The scanner only flags *simple* literal strings.
+        if r'\(' in line:
+            continue
+
         for pattern, context in UI_PATTERNS + NOTIFICATION_PATTERNS:
             matches = re.findall(pattern, line)
             for text in matches:

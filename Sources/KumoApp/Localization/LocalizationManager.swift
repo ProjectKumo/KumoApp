@@ -21,11 +21,9 @@ final class LocalizationManager {
     /// is needed to apply it everywhere.
     var needsRestart = false
 
-    /// Languages discovered dynamically from the main bundle.
+    /// Languages discovered dynamically from the String Catalog.
     var availableLanguages: [String] {
-        let all = Bundle.main.localizations
-        let filtered = all.filter { $0 != "Base" }
-        return Array(Set(filtered)).sorted()
+        availableLocalizationsFromStringCatalog()
     }
 
     /// The effective locale for formatting (dates, numbers, etc.).
