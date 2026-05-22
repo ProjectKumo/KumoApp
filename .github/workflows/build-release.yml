@@ -83,8 +83,12 @@ jobs:
           mkdir -p upload
           cp artifacts/arm64/*.dmg upload/
           cp artifacts/amd64/*.dmg upload/
-          cp artifacts/arm64/latest.yml upload/latest.yml
-          cp artifacts/amd64/latest.yml upload/latest-amd64.yml
+          if [ -f artifacts/arm64/latest.yml ]; then
+            cp artifacts/arm64/latest.yml upload/latest.yml
+          else
+            cp artifacts/arm64/latest-arm64.yml upload/latest.yml
+          fi
+          cp artifacts/amd64/latest-amd64.yml upload/latest-amd64.yml
 
           echo "Collected release assets:"
           ls -lh upload/
