@@ -61,6 +61,12 @@ final class KumoAppDelegate: NSObject, NSApplicationDelegate, UNUserNotification
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // The detached update helper blocks until this process exits. Skip the
+        // normal shutdown path (already stopped core/proxy before install).
+        if KumoAppContext.shared.store?.isInstallingUpdate == true {
+            return .terminateNow
+        }
+
         guard !didCompleteTerminationCleanup else {
             return .terminateNow
         }

@@ -31,16 +31,26 @@ public struct AppUpdateInstaller: Sendable {
         try installScript.write(to: scriptURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = [
+        let installerArguments = [
             scriptURL.path,
             dmgURL.path,
             currentAppURL.path,
             String(processID),
             paths.appUpdateInstallerLogFile.path
         ]
+        let quotedInvocation = installerArguments.map(Self.shellQuote).joined(separator: " ")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        // Outer shell exits immediately; the helper waits for `processID` to
+        // quit, then replaces the bundle and relaunches. Using `run()` on the
+        // installer script directly would block until install completes and
+        // prevents `NSApplication.terminate` from running (deadlock).
+        process.arguments = ["-c", "nohup \(quotedInvocation) &"]
         try process.run()
+    }
+
+    static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     private var installScript: String {

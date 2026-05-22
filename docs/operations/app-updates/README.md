@@ -104,12 +104,16 @@ When the user installs an update:
 3. Kumo posts coarse download/install notification updates.
 4. If system proxy is enabled, Kumo disables it before replacement.
 5. If the core is running, Kumo stops it before replacement.
-6. Kumo launches the detached installer helper.
-7. The helper waits for the current app process to exit, mounts the DMG, copies
+6. Kumo launches the detached installer helper (`nohup` + background shell).
+7. Kumo quits immediately (`applicationShouldTerminate` returns
+   `.terminateNow` while `isInstallingUpdate` is set — no multi-second runtime
+   shutdown, because the helper is blocked on the current PID).
+8. The helper waits for the current app process to exit, mounts the DMG, copies
    `Kumo.app` over the current app, detaches the DMG, and reopens Kumo.
 
 The helper is external because an app cannot safely overwrite its own bundle
-while it is running.
+while it is running. Do not call `Process.run()` on the installer script
+directly: it waits for the script to finish, which deadlocks against step 7.
 
 ## Logs and Cache
 
