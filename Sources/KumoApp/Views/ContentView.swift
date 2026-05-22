@@ -73,43 +73,6 @@ struct ContentView: View {
 
     var body: some View {
         navigationRoot
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Picker("Mode", selection: modeBinding) {
-                        ForEach(OutboundMode.allCases, id: \.self) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .disabled(store.isLoading || store.status.state != .running)
-                    .allowsHitTesting(!store.isSwitchingMode)
-                    .help("Switch outbound mode")
-                }
-
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button {
-                        if store.status.state == .running {
-                            store.stopCore()
-                        } else {
-                            Task { await store.startCore() }
-                        }
-                    } label: {
-                        Label(coreActionTitle, systemImage: coreActionSystemImage)
-                    }
-                    .disabled(store.isLoading)
-                    .accessibilityLabel(coreActionTitle)
-                    .help(coreActionTitle)
-
-                    Button {
-                        Task { await store.refreshAll() }
-                    } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
-                    }
-                    .keyboardShortcut("r", modifiers: .command)
-                    .accessibilityLabel("Refresh status and proxies")
-                    .help("Refresh status and proxies")
-                }
-            }
             .alert(errorAlertTitle, isPresented: errorAlertBinding) {
                 if isCoreNotFoundError {
                     Button("Open Core Settings") {
@@ -137,13 +100,20 @@ struct ContentView: View {
     private var navigationRoot: some View {
         NavigationSplitView {
             sidebarList
+                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
         } detail: {
             detailView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Anchor unified-toolbar items on the detail column so macOS 26
+                // sidebar collapse does not relayout an empty content toolbar.
+                .toolbar { mainToolbarContent }
+                // Keep detail shrinkable when the sidebar grows (820pt window − 280pt sidebar).
+                .navigationSplitViewColumnWidth(min: 540, ideal: 760)
         }
-        .navigationDestination(for: SidebarDestination.self) { destination in
-            detailView(for: destination)
-        }
+        // `.automatic` / prominent detail can grow the window when the divider moves;
+        // balanced redistributes width between columns instead.
+        .navigationSplitViewStyle(.balanced)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var sidebarList: some View {
@@ -151,9 +121,8 @@ struct ContentView: View {
             ForEach(sections) { section in
                 Section {
                     ForEach(section.destinations) { destination in
-                        NavigationLink(value: destination) {
-                            Label(destination.localizedName, systemImage: destination.symbolName)
-                        }
+                        Label(destination.localizedName, systemImage: destination.symbolName)
+                            .tag(destination)
                     }
                 } header: {
                     Text(LocalizedStringKey(section.title))
@@ -161,7 +130,6 @@ struct ContentView: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
     }
 
     private var errorAlertBinding: Binding<Bool> {
@@ -254,6 +222,45 @@ struct ContentView: View {
             if let destination {
                 navigation.selection = destination
             }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var mainToolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            Picker("Mode", selection: modeBinding) {
+                ForEach(OutboundMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(store.isLoading || store.status.state != .running)
+            .allowsHitTesting(!store.isSwitchingMode)
+            .help("Switch outbound mode")
+        }
+
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button {
+                if store.status.state == .running {
+                    store.stopCore()
+                } else {
+                    Task { await store.startCore() }
+                }
+            } label: {
+                Label(coreActionTitle, systemImage: coreActionSystemImage)
+            }
+            .disabled(store.isLoading)
+            .accessibilityLabel(coreActionTitle)
+            .help(coreActionTitle)
+
+            Button {
+                Task { await store.refreshAll() }
+            } label: {
+                Label("Refresh", systemImage: "arrow.clockwise")
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .accessibilityLabel("Refresh status and proxies")
+            .help("Refresh status and proxies")
         }
     }
 

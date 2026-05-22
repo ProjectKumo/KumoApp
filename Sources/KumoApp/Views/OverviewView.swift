@@ -13,12 +13,14 @@ struct OverviewView: View {
     var body: some View {
         HSplitView {
             OverviewProxySidebar(onNavigate: onNavigate)
-                .frame(minWidth: 260, idealWidth: 300, maxWidth: 420)
+                .frame(minWidth: 200, idealWidth: 260, maxWidth: 360)
                 .frame(maxHeight: .infinity)
+                .layoutPriority(0)
 
             OverviewControlPanel(onNavigate: onNavigate)
-                .frame(minWidth: 360, idealWidth: 420)
+                .frame(minWidth: 240, idealWidth: 320)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

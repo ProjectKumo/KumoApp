@@ -25,13 +25,34 @@ The main window keeps standard macOS chrome, a unified toolbar, and a sensible m
 
 ## View Structure
 
-`ContentView` uses `NavigationSplitView` with a source-list sidebar grouped into three sections:
+`ContentView` uses `NavigationSplitView` with a source-list sidebar grouped into three sections.
+Sidebar rows use `List(selection:)` plus `.tag(SidebarDestination)` — not
+`NavigationLink(value:)` — so every item shares the same macOS selection chrome
+(including consistent horizontal inset for the default Overview row; see
+[issue #6](https://github.com/ProjectKumo/KumoApp/issues/6)). The detail column
+is driven only by `KumoNavigationState.selection`; there is no
+`.navigationDestination` on the split view.
+
+The split view uses `.navigationSplitViewStyle(.balanced)` so dragging the
+sidebar divider redistributes space between the sidebar (max 280pt) and detail
+(min 540pt) instead of growing the window. Overview's inner `HSplitView` keeps
+pane minimums within that detail budget so `.windowResizability(.contentMinSize)`
+does not stretch the window horizontally.
 
 - Daily: `OverviewView`, `ProfilesView`, `ProxiesView`
 - Inspect: `ConnectionsView`, `LogsView`, `RulesView`
 - Configure: `CoreView`, `SystemProxyView`, `DNSView`, `TunView`, `SnifferView`, `ResourcesView`, `OverridesView`, `SubStoreView`, `AgentSkillsView`
 
 `KumoAppStore` is an `@Observable` object that bridges SwiftUI state to `KumoCoreKit`. Views should call store methods instead of directly constructing controller clients.
+
+The main-window mode picker and Start / Stop / Refresh controls live on the
+`NavigationSplitView` **detail** column, not on the split view root. On macOS 26
+the collapsible sidebar retargets unified-toolbar layout during its animation;
+when the content column has no toolbar host, AppKit briefly recomputes item
+positions (visible as a ghost control) and the collapse hitch is noticeable.
+Inspect pages already avoided this because `.searchable(placement: .toolbar)`
+registers a content-toolbar item. Anchoring the global toolbar on the detail
+column gives every destination the same stable host.
 
 The toolbar mode switcher mirrors Sparkle's outbound mode behavior: changing
 Rule / Global / Direct persists the controlled mode, patches Mihomo's running
