@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+      - '[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
     inputs:
       version:
@@ -39,7 +40,8 @@ jobs:
       - name: Determine version
         id: version
         run: |
-          if [ -n "${GITHUB_REF_NAME:-}" ] && [[ "$GITHUB_REF_NAME" == v* ]]; then
+          if [ -n "${GITHUB_REF_NAME:-}" ]; then
+            # Push event: use the tag as-is
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
             echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           else
@@ -48,7 +50,7 @@ jobs:
               echo "tag=$INPUT_VER" >> "$GITHUB_OUTPUT"
               echo "version=${INPUT_VER#v}" >> "$GITHUB_OUTPUT"
             else
-              echo "tag=v$INPUT_VER" >> "$GITHUB_OUTPUT"
+              echo "tag=$INPUT_VER" >> "$GITHUB_OUTPUT"
               echo "version=$INPUT_VER" >> "$GITHUB_OUTPUT"
             fi
           fi
@@ -121,7 +123,8 @@ jobs:
       - name: Determine version
         id: version
         run: |
-          if [ -n "${GITHUB_REF_NAME:-}" ] && [[ "$GITHUB_REF_NAME" == v* ]]; then
+          if [ -n "${GITHUB_REF_NAME:-}" ]; then
+            # Push event: use the tag as-is
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
             echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           else
@@ -130,7 +133,7 @@ jobs:
               echo "tag=$INPUT_VER" >> "$GITHUB_OUTPUT"
               echo "version=${INPUT_VER#v}" >> "$GITHUB_OUTPUT"
             else
-              echo "tag=v$INPUT_VER" >> "$GITHUB_OUTPUT"
+              echo "tag=$INPUT_VER" >> "$GITHUB_OUTPUT"
               echo "version=$INPUT_VER" >> "$GITHUB_OUTPUT"
             fi
           fi
