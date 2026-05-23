@@ -139,7 +139,7 @@ if [[ -n "${RELEASE_TAG:-}" ]]; then
 elif [[ "$CHANNEL" == "beta" ]]; then
   RELEASE_TAG="pre-release"
 else
-  RELEASE_TAG="${VERSION}"
+  RELEASE_TAG="v${VERSION}"
 fi
 
 DOWNLOAD_URL="https://github.com/${REPOSITORY}/releases/download/${RELEASE_TAG}/${ASSET_NAME}"
