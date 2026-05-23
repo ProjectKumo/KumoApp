@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.15] - 2026-05-23
 
+### Internationalization
+- Replaced all hardcoded UI strings with `String(localized:)` across 25 Swift files for full i18n support.
+
 ### Changed
 - Bumped marketing version to 0.0.15.
 
