@@ -188,11 +188,11 @@ changed in the same release.
 ```yaml
 version: 0.0.1
 channel: stable
-downloadURL: https://github.com/ProjectKumo/KumoApp/releases/download/v0.0.1/Kumo-macos-0.0.1-arm64.dmg
+downloadURL: https://github.com/ProjectKumo/KumoApp/releases/download/0.0.1/Kumo-macos-0.0.1-arm64.dmg
 assetName: Kumo-macos-0.0.1-arm64.dmg
 sha256: <64-character-sha256>
 releaseNotes: |
-  See https://github.com/ProjectKumo/KumoApp/releases/tag/v0.0.1
+  See https://github.com/ProjectKumo/KumoApp/releases/tag/0.0.1
 ```
 
 The app also accepts the same fields as JSON for local testing and backwards
@@ -214,14 +214,6 @@ make release-dmg VERSION=0.0.1 CHANNEL=stable ARCH=amd64
 `Kumo.app/Contents/Info.plist` and manifests use the same app version.
 Override `BUILD_NUMBER` to set `CFBundleVersion`; it defaults to `1`.
 The artifact script validates the built app version before creating the DMG.
-
-When publishing a `v`-prefixed Git tag, pass the exact release tag into the
-helper so manifest URLs match the GitHub release path:
-
-```bash
-RELEASE_TAG=v0.0.1 make release-dmg VERSION=0.0.1 CHANNEL=stable ARCH=arm64
-RELEASE_TAG=v0.0.1 make release-dmg VERSION=0.0.1 CHANNEL=stable ARCH=amd64
-```
 
 Release builds must also include the bundled Sub-Store payload in
 `KumoCoreKit` resources: Node sidecar, `sub-store.bundle.js`, and
