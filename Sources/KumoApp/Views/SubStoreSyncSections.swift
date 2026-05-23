@@ -32,27 +32,27 @@ struct SubStoreArtifactsSection: View {
     private func list(selection: Binding<SubStoreStore.Selection?>) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Text("\(subStore.artifacts.count) artifacts")
+                Text(String(format: String(localized: "%@ artifacts"), String(subStore.artifacts.count)))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button { creatingNew = true } label: { Image(systemName: "plus") }
                     .buttonStyle(.borderless)
-                    .help("New artifact")
+                    .help(String(localized: "New artifact"))
                 Button {
                     Task { await subStore.syncAllArtifacts() }
                 } label: {
                     Image(systemName: "icloud.and.arrow.up")
                 }
                 .buttonStyle(.borderless)
-                .help("Sync all artifacts")
+                .help(String(localized: "Sync all artifacts"))
                 Button {
                     Task { await subStore.refreshArtifacts() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Refresh artifacts")
+                .help(String(localized: "Refresh artifacts"))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -62,18 +62,18 @@ struct SubStoreArtifactsSection: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(artifact.resolvedDisplayName)
                             .font(.headline)
-                        Text("\(artifact.type) · \(artifact.source)")
+                        Text(String(format: String(localized: "%@ · %@"), artifact.type, artifact.source))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .tag(SubStoreStore.Selection.artifact(artifact.name))
                     .contextMenu {
-                        Button("Edit…") { editing = artifact }
-                        Button("Sync") {
+                        Button(String(localized: "Edit…")) { editing = artifact }
+                        Button(String(localized: "Sync")) {
                             Task { await subStore.syncArtifact(name: artifact.name) }
                         }
                         Divider()
-                        Button("Delete", role: .destructive) {
+                        Button(String(localized: "Delete"), role: .destructive) {
                             Task { await subStore.deleteArtifact(name: artifact.name) }
                         }
                     }
@@ -89,7 +89,7 @@ struct SubStoreArtifactsSection: View {
            let artifact = subStore.artifacts.first(where: { $0.name == name }) {
             ArtifactDetail(artifact: artifact, onEdit: { editing = artifact })
         } else {
-            ContentUnavailableView("Select an artifact", systemImage: "shippingbox")
+            ContentUnavailableView(String(localized: "Select an artifact"), systemImage: "shippingbox")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -108,14 +108,14 @@ private struct ArtifactDetail: View {
                     Text(artifact.resolvedDisplayName)
                         .font(.title2.weight(.semibold))
                     Spacer()
-                    Button(action: onEdit) { Label("Edit", systemImage: "pencil") }
+                    Button(action: onEdit) { Label(String(localized: "Edit"), systemImage: "pencil") }
                     Button {
                         Task { await subStore.syncArtifact(name: artifact.name) }
                     } label: {
-                        Label("Sync", systemImage: "icloud.and.arrow.up")
+                        Label(String(localized: "Sync"), systemImage: "icloud.and.arrow.up")
                     }
                     Button(role: .destructive) { deleting = true } label: {
-                        Label("Delete", systemImage: "trash")
+                        Label(String(localized: "Delete"), systemImage: "trash")
                     }
                 }
                 GroupBox("Details") {
@@ -142,12 +142,12 @@ private struct ArtifactDetail: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollEdgeEffectStyleIfAvailable()
-        .confirmationDialog("Delete \(artifact.resolvedDisplayName)?", isPresented: $deleting) {
-            Button("Delete Permanently", role: .destructive) {
+        .confirmationDialog(String(format: String(localized: "Delete %@?"), artifact.resolvedDisplayName), isPresented: $deleting) {
+            Button(String(localized: "Delete Permanently"), role: .destructive) {
                 Task { await subStore.deleteArtifact(name: artifact.name) }
                 deleting = false
             }
-            Button("Cancel", role: .cancel) { deleting = false }
+            Button(String(localized: "Cancel"), role: .cancel) { deleting = false }
         }
     }
 }
@@ -170,17 +170,17 @@ private struct ArtifactEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("General") {
+                Section(String(localized: "General")) {
                     TextField("Name", text: $draft.name)
                     TextField("Display Name", text: $draft.displayName)
-                    Picker("Type", selection: $draft.type) {
-                        Text("Subscription").tag("subscription")
-                        Text("Collection").tag("collection")
-                        Text("File").tag("file")
+                    Picker(String(localized: "Type"), selection: $draft.type) {
+                        Text(String(localized: "Subscription")).tag("subscription")
+                        Text(String(localized: "Collection")).tag("collection")
+                        Text(String(localized: "File")).tag("file")
                     }
-                    TextField("Source", text: $draft.source, prompt: Text("Sub or collection name"))
-                    TextField("Platform", text: $draft.platform, prompt: Text("e.g. ClashMeta, Surge"))
-                    Toggle("Auto Sync", isOn: $draft.sync)
+                    TextField("Source", text: $draft.source, prompt: Text(String(localized: "Sub or collection name")))
+                    TextField("Platform", text: $draft.platform, prompt: Text(String(localized: "e.g. ClashMeta, Surge")))
+                    Toggle(String(localized: "Auto Sync"), isOn: $draft.sync)
                 }
 
                 if let error {
@@ -194,7 +194,7 @@ private struct ArtifactEditorSheet: View {
             .navigationTitle(original == nil ? "New Artifact" : "Edit \(original?.resolvedDisplayName ?? "")")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(String(localized: "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -203,7 +203,7 @@ private struct ArtifactEditorSheet: View {
                         if isSaving {
                             ProgressView().controlSize(.small)
                         } else {
-                            Text("Save")
+                            Text(String(localized: "Save"))
                         }
                     }
                     .disabled(isSaving || !draft.isValid)
@@ -269,7 +269,7 @@ struct SubStoreArchivesSection: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("\(subStore.archives.count) archived items")
+                Text(String(format: String(localized: "%@ archived items"), String(subStore.archives.count)))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -279,13 +279,13 @@ struct SubStoreArchivesSection: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Refresh archives")
+                .help(String(localized: "Refresh archives"))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             Divider()
             if subStore.archives.isEmpty {
-                ContentUnavailableView("No archives", systemImage: "archivebox", description: Text("Items deleted with “Move to Archive” show up here for restore."))
+                ContentUnavailableView("No archives", systemImage: "archivebox", description: Text(String(localized: "Items deleted with “Move to Archive” show up here for restore.")))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
@@ -303,7 +303,7 @@ struct SubStoreArchivesSection: View {
                                 }
                             }
                             Spacer()
-                            Button("Restore") {
+                            Button(String(localized: "Restore")) {
                                 Task { await subStore.restoreArchive(archive) }
                             }
                             Button(role: .destructive) {
@@ -331,44 +331,44 @@ struct SubStoreTokensSection: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("\(subStore.tokens.count) tokens")
+                Text(String(format: String(localized: "%@ tokens"), String(subStore.tokens.count)))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button { creatingToken = true } label: { Image(systemName: "plus") }
                     .buttonStyle(.borderless)
-                    .help("New share token")
+                    .help(String(localized: "New share token"))
                 Button {
                     Task { await subStore.refreshTokens() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Refresh tokens")
+                .help(String(localized: "Refresh tokens"))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             Divider()
             if subStore.tokens.isEmpty {
-                ContentUnavailableView("No share tokens", systemImage: "key", description: Text("Share tokens grant temporary read-only links to subscriptions and collections."))
+                ContentUnavailableView("No share tokens", systemImage: "key", description: Text(String(localized: "Share tokens grant temporary read-only links to subscriptions and collections.")))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
                     ForEach(subStore.tokens) { token in
                         HStack(alignment: .top, spacing: 12) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("\(token.type)/\(token.name)")
+                                Text(String(format: String(localized: "%@/%@"), token.type, token.name))
                                     .font(.headline)
                                 Text(token.token)
                                     .font(.caption.monospaced())
                                     .foregroundStyle(.secondary)
                                     .textSelection(.enabled)
                                 if let exp = token.exp {
-                                    Text("Expires \(Date(timeIntervalSince1970: TimeInterval(exp)).formatted(.dateTime))")
+                                    Text(String(format: String(localized: "Expires %@"), Date(timeIntervalSince1970: TimeInterval(exp)).formatted(.dateTime)))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 } else {
-                                    Text("No expiration")
+                                    Text(String(localized: "No expiration"))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -407,22 +407,22 @@ private struct TokenCreationSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Picker("Type", selection: $type) {
-                    Text("Subscription").tag("sub")
-                    Text("Collection").tag("collection")
-                    Text("File").tag("file")
+                Picker(String(localized: "Type"), selection: $type) {
+                    Text(String(localized: "Subscription")).tag("sub")
+                    Text(String(localized: "Collection")).tag("collection")
+                    Text(String(localized: "File")).tag("file")
                 }
                 TextField("Name", text: $name)
-                Toggle("Set expiration", isOn: $setExpiry)
+                Toggle(String(localized: "Set expiration"), isOn: $setExpiry)
                 if setExpiry {
-                    DatePicker("Expires", selection: $expiry)
+                    DatePicker(String(localized: "Expires"), selection: $expiry)
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("New Share Token")
+            .navigationTitle(String(localized: "New Share Token"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(String(localized: "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -437,7 +437,7 @@ private struct TokenCreationSheet: View {
                         if isSaving {
                             ProgressView().controlSize(.small)
                         } else {
-                            Text("Create")
+                            Text(String(localized: "Create"))
                         }
                     }
                     .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

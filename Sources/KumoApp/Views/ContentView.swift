@@ -75,18 +75,18 @@ struct ContentView: View {
         navigationRoot
             .alert(errorAlertTitle, isPresented: errorAlertBinding) {
                 if isCoreNotFoundError {
-                    Button("Open Core Settings") {
+                    Button(String(localized: "Open Core Settings")) {
                         store.clearError()
                         navigation.selection = .core
                     }
 
-                    Button("Scan Again") {
+                    Button(String(localized: "Scan Again")) {
                         store.clearError()
                         store.refreshCoreCandidates()
                     }
                 }
 
-                Button("OK", role: .cancel) {
+                Button(String(localized: "OK"), role: .cancel) {
                     store.clearError()
                 }
             } message: {
@@ -228,7 +228,7 @@ struct ContentView: View {
     @ToolbarContentBuilder
     private var mainToolbarContent: some ToolbarContent {
         ToolbarItem(placement: .principal) {
-            Picker("Mode", selection: modeBinding) {
+            Picker(String(localized: "Mode"), selection: modeBinding) {
                 ForEach(OutboundMode.allCases, id: \.self) { mode in
                     Text(mode.displayName).tag(mode)
                 }
@@ -236,7 +236,7 @@ struct ContentView: View {
             .pickerStyle(.segmented)
             .disabled(store.isLoading || store.status.state != .running)
             .allowsHitTesting(!store.isSwitchingMode)
-            .help("Switch outbound mode")
+            .help(String(localized: "Switch outbound mode"))
         }
 
         ToolbarItemGroup(placement: .primaryAction) {
@@ -256,11 +256,11 @@ struct ContentView: View {
             Button {
                 Task { await store.refreshAll() }
             } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
+                Label(String(localized: "Refresh"), systemImage: "arrow.clockwise")
             }
             .keyboardShortcut("r", modifiers: .command)
-            .accessibilityLabel("Refresh status and proxies")
-            .help("Refresh status and proxies")
+            .accessibilityLabel(String(localized: "Refresh status and proxies"))
+            .help(String(localized: "Refresh status and proxies"))
         }
     }
 

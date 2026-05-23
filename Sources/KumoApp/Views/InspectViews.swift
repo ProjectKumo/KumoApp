@@ -19,7 +19,7 @@ struct ConnectionsView: View {
                     systemImage: "network",
                     message: emptyStateMessage
                 ) {
-                    Button("Refresh") {
+                    Button(String(localized: "Refresh")) {
                         Task { await store.loadInspectData() }
                     }
                 }
@@ -40,13 +40,13 @@ struct ConnectionsView: View {
                     }
                 }
                 .contextMenu(forSelectionType: ConnectionEntry.ID.self) { selection in
-                    Button("Copy Host") {
+                    Button(String(localized: "Copy Host")) {
                         copy(\.host, for: selection)
                     }
-                    Button("Copy Process") {
+                    Button(String(localized: "Copy Process")) {
                         copy(\.process, for: selection)
                     }
-                    Button("Copy Rule") {
+                    Button(String(localized: "Copy Rule")) {
                         copy(\.rule, for: selection)
                     }
                     Divider()
@@ -63,10 +63,10 @@ struct ConnectionsView: View {
                 Button(role: .destructive) {
                     isConfirmingCloseAll = true
                 } label: {
-                    Label("Close All", systemImage: "xmark.circle")
+                    Label(String(localized: "Close All"), systemImage: "xmark.circle")
                 }
                 .disabled(store.connections.isEmpty || store.status.state != .running)
-                .help("Close every active connection")
+                .help(String(localized: "Close every active connection"))
             }
         }
         .confirmationDialog(
@@ -74,12 +74,12 @@ struct ConnectionsView: View {
             isPresented: $isConfirmingCloseAll,
             titleVisibility: .visible
         ) {
-            Button("Close All", role: .destructive) {
+            Button(String(localized: "Close All"), role: .destructive) {
                 Task { await store.closeAllConnections() }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(String(localized: "Cancel"), role: .cancel) {}
         } message: {
-            Text("Active TCP/UDP sessions tracked by Mihomo will be terminated. Apps may need to reconnect.")
+            Text(String(localized: "Active TCP/UDP sessions tracked by Mihomo will be terminated. Apps may need to reconnect."))
         }
         .task {
             await store.loadInspectData()
@@ -296,7 +296,7 @@ struct LogsView: View {
                         systemImage: "doc.text.magnifyingglass",
                         message: searchText.isEmpty ? "Recent core logs will appear here." : "Try another search term."
                     ) {
-                        Button("Refresh") {
+                        Button(String(localized: "Refresh")) {
                             Task { await store.loadInspectData() }
                         }
                     }
@@ -304,10 +304,10 @@ struct LogsView: View {
                     List(filteredLogs) { log in
                         LogRow(log: log)
                             .contextMenu {
-                                Button("Copy Message") {
+                                Button(String(localized: "Copy Message")) {
                                     writeToPasteboard(log.message)
                                 }
-                                Button("Copy All Visible") {
+                                Button(String(localized: "Copy All Visible")) {
                                     writeToPasteboard(filteredLogs.map(\.message).joined(separator: "\n"))
                                 }
                             }
@@ -328,7 +328,7 @@ struct LogsView: View {
 
     private var controlsRow: some View {
         HStack(spacing: 10) {
-            Picker("Level", selection: $level) {
+            Picker(String(localized: "Level"), selection: $level) {
                 ForEach(LogLevelFilter.allCases) { level in
                     Text(level.displayName).tag(level)
                 }
@@ -358,7 +358,7 @@ struct LogsView: View {
             .disabled(store.status.state != .running)
             .help(followsLiveLogs ? "Pause live log streaming" : "Stream live core logs")
 
-            Button("Clear") {
+            Button(String(localized: "Clear")) {
                 store.clearLogs()
             }
             .disabled(store.logs.isEmpty)
@@ -425,14 +425,14 @@ struct RulesView: View {
                     systemImage: "list.bullet.rectangle",
                     message: emptyStateMessage
                 ) {
-                    Button("Refresh") {
+                    Button(String(localized: "Refresh")) {
                         Task { await store.loadInspectData() }
                     }
                 }
             } else {
                 Table(sortedRules, sortOrder: $sortOrder) {
                     TableColumn("") { rule in
-                        Toggle("Enable rule", isOn: Binding {
+                        Toggle(String(localized: "Enable rule"), isOn: Binding {
                             rule.isEnabled
                         } set: { isEnabled in
                             Task { await store.setRuleEnabled(rule, isEnabled: isEnabled) }
@@ -522,7 +522,7 @@ private struct HitRateBadge: View {
                 .kumoSubtleBackground(in: .capsule)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Show rule statistics")
+        .accessibilityLabel(String(localized: "Show rule statistics"))
         .popover(isPresented: $showPopover, arrowEdge: .top) {
             VStack(alignment: .leading, spacing: 6) {
                 LabeledContent("Hit", value: "\(rule.hitCount)")
@@ -537,7 +537,7 @@ private struct HitRateBadge: View {
             .padding(12)
             .frame(minWidth: 200)
         }
-        .help("Show rule statistics")
+        .help(String(localized: "Show rule statistics"))
     }
 
     private var formattedHitRate: String {

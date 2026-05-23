@@ -16,7 +16,7 @@ struct ProxiesView: View {
                         systemImage: "point.3.connected.trianglepath.dotted",
                         message: "Start Kumo or import a profile with proxy groups."
                     ) {
-                        Button("Refresh") {
+                        Button(String(localized: "Refresh")) {
                             Task { await store.loadProxyGroups() }
                         }
                     }
@@ -116,7 +116,7 @@ private struct ProxyGroupCard: View {
             }
         }
         .contextMenu {
-            Button("Test Delay") {
+            Button(String(localized: "Test Delay")) {
                 Task { await store.testDelay(for: group) }
             }
         }
@@ -159,7 +159,7 @@ private struct ProxyGroupCard: View {
                 Text(group.name)
                     .font(.title3.weight(.semibold))
                     .lineLimit(1)
-                Text("\(group.proxies.count)")
+                Text(String(group.proxies.count))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 8)
@@ -196,8 +196,8 @@ private struct ProxyGroupCard: View {
         }
         .buttonStyle(.plain)
         .disabled(store.isTestingDelay)
-        .help("Test delay for this group")
-        .accessibilityLabel("Test delay for \(group.name)")
+        .help(String(localized: "Test delay for this group"))
+        .accessibilityLabel(String(format: String(localized: "Test delay for %@"), group.name))
     }
 }
 
@@ -239,11 +239,11 @@ private struct ProxyCard: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button("Select Proxy") {
+            Button(String(localized: "Select Proxy")) {
                 Task { await store.selectProxy(group: group, proxy: proxy) }
             }
         }
-        .accessibilityLabel("Select \(proxy.name)")
+        .accessibilityLabel(String(format: String(localized: "Select %@"), proxy.name))
         .accessibilityValue(accessibilityValue)
     }
 

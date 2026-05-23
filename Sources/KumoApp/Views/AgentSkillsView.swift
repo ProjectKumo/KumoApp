@@ -15,8 +15,8 @@ struct AgentSkillsView: View {
 
     var body: some View {
         Form {
-            Section("Scope") {
-                Picker("Install Scope", selection: $scope) {
+            Section(String(localized: "Scope")) {
+                Picker(String(localized: "Install Scope"), selection: $scope) {
                     ForEach(AgentSkillsScope.allCases) { scope in
                         Text(scope.displayName).tag(scope)
                     }
@@ -31,7 +31,7 @@ struct AgentSkillsView: View {
                                 .lineLimit(1)
                                 .truncationMode(.middle)
 
-                            Button("Choose Folder") {
+                            Button(String(localized: "Choose Folder")) {
                                 isChoosingProjectFolder = true
                             }
                         }
@@ -39,7 +39,7 @@ struct AgentSkillsView: View {
                 }
             }
 
-            Section("Agents") {
+            Section(String(localized: "Agents")) {
                 ForEach(AgentSkillsTarget.allCases) { target in
                     AgentSkillTargetRow(
                         target: target,
@@ -51,27 +51,27 @@ struct AgentSkillsView: View {
             }
 
             Section {
-                Toggle("Replace existing non-Kumo skill directories", isOn: $allowReplacingUntrackedSkills)
+                Toggle(String(localized: "Replace existing non-Kumo skill directories"), isOn: $allowReplacingUntrackedSkills)
 
                 HStack {
-                    Button("Refresh") {
+                    Button(String(localized: "Refresh")) {
                         Task { await refreshStatus() }
                     }
                     .disabled(isBusy)
 
                     Spacer()
 
-                    Button("Dry Run") {
+                    Button(String(localized: "Dry Run")) {
                         Task { await install(dryRun: true) }
                     }
                     .disabled(isBusy || selectedSupportedTargets.isEmpty)
 
-                    Button("Uninstall") {
+                    Button(String(localized: "Uninstall")) {
                         Task { await uninstall() }
                     }
                     .disabled(isBusy || selectedSupportedTargets.isEmpty)
 
-                    Button("Install / Update") {
+                    Button(String(localized: "Install / Update")) {
                         Task { await install(dryRun: false) }
                     }
                     .buttonStyle(.borderedProminent)
@@ -89,7 +89,7 @@ struct AgentSkillsView: View {
                         .foregroundStyle(footerIsError ? .red : .secondary)
                 }
             } footer: {
-                Text("Kumo installs the same bundled agent skill used by the CLI. Paths and status come from KumoCoreKit.")
+                Text(String(localized: "Kumo installs the same bundled agent skill used by the CLI. Paths and status come from KumoCoreKit."))
             }
         }
         .formStyle(.grouped)
@@ -233,19 +233,19 @@ private struct AgentSkillTargetRow: View {
     @ViewBuilder
     private var statusLabel: some View {
         if !isSupported {
-            Text("Unsupported")
+            Text(String(localized: "Unsupported"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } else if status?.upToDate == true {
-            Text("Up to Date")
+            Text(String(localized: "Up to Date"))
                 .font(.caption)
                 .foregroundStyle(.green)
         } else if status?.installed == true {
-            Text("Update Available")
+            Text(String(localized: "Update Available"))
                 .font(.caption)
                 .foregroundStyle(.orange)
         } else {
-            Text("Not Installed")
+            Text(String(localized: "Not Installed"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

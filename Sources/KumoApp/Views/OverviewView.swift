@@ -57,7 +57,7 @@ private struct OverviewProxySidebar: View {
 
             TextField("Search nodes", text: $search)
                 .textFieldStyle(.plain)
-                .accessibilityLabel("Search proxy nodes")
+                .accessibilityLabel(String(localized: "Search proxy nodes"))
 
             if !search.isEmpty {
                 Button {
@@ -68,7 +68,7 @@ private struct OverviewProxySidebar: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
+                .accessibilityLabel(String(localized: "Clear search"))
             }
         }
         .padding(.horizontal, 10)
@@ -95,7 +95,7 @@ private struct OverviewProxySidebar: View {
                 systemImage: "point.3.connected.trianglepath.dotted",
                 message: emptyStateMessage
             ) {
-                Button("Open Profiles") {
+                Button(String(localized: "Open Profiles")) {
                     onNavigate(.profiles)
                 }
             }
@@ -116,7 +116,7 @@ private struct OverviewProxySidebar: View {
             Image(systemName: "magnifyingglass")
                 .font(.title2)
                 .foregroundStyle(.secondary)
-            Text("No matching nodes")
+            Text(String(localized: "No matching nodes"))
                 .font(.callout)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -229,7 +229,7 @@ private struct ProxyGroupSection: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
 
-                    Text("\(group.proxies.count)")
+                    Text(String(group.proxies.count))
                         .font(.caption2.weight(.medium))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
@@ -256,7 +256,7 @@ private struct ProxyGroupSection: View {
             .buttonStyle(.plain)
             .disabled(isReadOnly || store.isTestingDelay)
             .help(isReadOnly ? "Start Kumo to test delay" : "Test delay for \(group.name)")
-            .accessibilityLabel("Test delay for \(group.name)")
+            .accessibilityLabel(String(format: String(localized: "Test delay for %@"), group.name))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -319,12 +319,12 @@ private struct ProxyNodeRow: View {
         }
         .contextMenu {
             if !isReadOnly {
-                Button("Select \(displayName)") {
+                Button(String(localized: "Select \(displayName)")) {
                     Task { await store.selectProxy(group: group, proxy: proxy) }
                 }
                 .disabled(isSelected)
 
-                Button("Test Delay for Group") {
+                Button(String(localized: "Test Delay for Group")) {
                     Task { await store.testDelay(for: group) }
                 }
                 .disabled(store.isTestingDelay)
@@ -498,7 +498,7 @@ private struct ProfileCard: View {
         }
         .buttonStyle(.plain)
         .disabled(store.currentProfile == nil)
-        .accessibilityLabel("Current Profile: \(headerTitle)")
+        .accessibilityLabel(String(format: String(localized: "Current Profile: %@"), headerTitle))
         .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
         .accessibilityHint(isExpanded ? "Hide profile details" : "Show profile details")
     }
@@ -528,7 +528,7 @@ private struct ProfileCard: View {
                 .padding(.vertical, 2)
                 .kumoSubtleBackground(in: .capsule)
             if profile.isSubStoreManaged {
-                Text("Sub-Store")
+                Text(String(localized: "Sub-Store"))
                     .font(.caption2.weight(.medium))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
@@ -598,12 +598,12 @@ private struct ProfileCard: View {
         let progress = total > 0 ? min(1.0, Double(used) / Double(total)) : 0
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Usage")
+                Text(String(localized: "Usage"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
                 if total > 0 {
-                    Text("\(used.kumoByteCount) / \(total.kumoByteCount)")
+                    Text(String(format: String(localized: "%@ / %@"), used.kumoByteCount, total.kumoByteCount))
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.primary)
                 } else {
@@ -630,7 +630,7 @@ private struct ProfileCard: View {
 
     private var footer: some View {
         HStack {
-            Button("Refresh") {
+            Button(String(localized: "Refresh")) {
                 guard let profile = store.currentProfile else { return }
                 Task { await store.refreshProfile(profile) }
             }
@@ -643,7 +643,7 @@ private struct ProfileCard: View {
             Button {
                 onNavigate(.profiles)
             } label: {
-                Label("Profiles", systemImage: "arrow.up.right.square")
+                Label(String(localized: "Profiles"), systemImage: "arrow.up.right.square")
                     .labelStyle(.titleAndIcon)
                     .font(.callout)
             }
@@ -653,12 +653,12 @@ private struct ProfileCard: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("No profile loaded")
+            Text(String(localized: "No profile loaded"))
                 .font(.subheadline.weight(.semibold))
-            Text("Import a profile to start.")
+            Text(String(localized: "Import a profile to start."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Button("Open Profiles") {
+            Button(String(localized: "Open Profiles")) {
                 onNavigate(.profiles)
             }
             .buttonStyle(.borderless)
@@ -695,7 +695,7 @@ private struct TrafficCard: View {
     private var header: some View {
         Button(action: toggleExpansion) {
             HStack(alignment: .center, spacing: 10) {
-                Label("Traffic", systemImage: "speedometer")
+                Label(String(localized: "Traffic"), systemImage: "speedometer")
                     .labelStyle(.titleAndIcon)
                     .font(.headline)
                     .foregroundStyle(.primary)
@@ -705,7 +705,7 @@ private struct TrafficCard: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Traffic")
+        .accessibilityLabel(String(localized: "Traffic"))
         .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
         .accessibilityHint(isExpanded ? "Hide traffic chart" : "Show traffic chart")
     }
@@ -758,8 +758,8 @@ private struct TrafficCard: View {
         .chartYAxis(.hidden)
         .chartLegend(.hidden)
         .frame(height: 80)
-        .accessibilityLabel("Network traffic history, last 60 seconds")
-        .accessibilityValue("Current total \((store.trafficSnapshot.uploadSpeed + store.trafficSnapshot.downloadSpeed).kumoByteCount) per second")
+        .accessibilityLabel(String(localized: "Network traffic history, last 60 seconds"))
+        .accessibilityValue(String(localized: "Current total \((store.trafficSnapshot.uploadSpeed + store.trafficSnapshot.downloadSpeed).kumoByteCount) per second"))
     }
 
     private var chartPlaceholder: some View {
@@ -767,7 +767,7 @@ private struct TrafficCard: View {
             .fill(Color.secondary.opacity(0.08))
             .frame(height: 80)
             .overlay {
-                Text("Start Kumo to see traffic history")
+                Text(String(localized: "Start Kumo to see traffic history"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -785,14 +785,14 @@ private struct TrafficCard: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text("\(value.kumoByteCount)/s")
+            Text(String(format: String(localized: "%@/s"), value.kumoByteCount))
                 .font(.title3.weight(.medium))
                 .monospacedDigit()
                 .contentTransition(.numericText())
                 .foregroundStyle(.primary)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title) \(value.kumoByteCount) per second")
+        .accessibilityLabel(String(format: String(localized: "%@ %@ per second"), title, value.kumoByteCount))
     }
 }
 
@@ -862,7 +862,7 @@ private struct TunCard: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                         .padding(.top, 4)
-                        .accessibilityLabel("TUN error: \(error)")
+                        .accessibilityLabel(String(format: String(localized: "TUN error: %@"), error))
                 }
             }
         }
@@ -957,7 +957,7 @@ private struct OverviewActionCard<Summary: View>: View {
                 Button {
                     settingsAction()
                 } label: {
-                    Label("Settings", systemImage: "slider.horizontal.3")
+                    Label(String(localized: "Settings"), systemImage: "slider.horizontal.3")
                         .labelStyle(.titleAndIcon)
                         .font(.callout)
                 }
@@ -985,6 +985,6 @@ private struct LabeledLine: View {
                 .truncationMode(.middle)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title): \(value)")
+        .accessibilityLabel(String(format: String(localized: "%@: %@"), title, value))
     }
 }

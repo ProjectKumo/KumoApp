@@ -138,7 +138,7 @@ private struct PrimaryWorkspace: View {
 
     private var primaryToolbar: some View {
         HStack(spacing: 12) {
-            Picker("View", selection: $primary) {
+            Picker(String(localized: "View"), selection: $primary) {
                 Text(PrimarySection.subscriptions.label).tag(PrimarySection.subscriptions)
                 Text(PrimarySection.collections.label).tag(PrimarySection.collections)
             }
@@ -162,7 +162,7 @@ private struct PrimaryWorkspace: View {
     private var actions: some View {
         HStack(spacing: 4) {
             Menu {
-                Section("Advanced") {
+                Section(String(localized: "Advanced")) {
                     ForEach(AdvancedScreen.allCases) { screen in
                         Button {
                             advancedScreen = screen
@@ -175,20 +175,20 @@ private struct PrimaryWorkspace: View {
                 Button {
                     Task { await appStore.restartSubStoreService() }
                 } label: {
-                    Label("Restart Backend", systemImage: "arrow.triangle.2.circlepath")
+                    Label(String(localized: "Restart Backend"), systemImage: "arrow.triangle.2.circlepath")
                 }
                 .disabled(!appStore.subStoreStatus.isEnabled || appStore.isLoading)
                 Button {
                     Task { await appStore.setSubStoreEnabled(false) }
                 } label: {
-                    Label("Stop Backend", systemImage: "stop.fill")
+                    Label(String(localized: "Stop Backend"), systemImage: "stop.fill")
                 }
                 .disabled(!appStore.subStoreStatus.isEnabled || appStore.isLoading)
                 Divider()
                 Button {
                     NSWorkspace.shared.open(appStore.subStoreLogURL)
                 } label: {
-                    Label("Open Backend Log…", systemImage: "doc.text")
+                    Label(String(localized: "Open Backend Log…"), systemImage: "doc.text")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -196,8 +196,8 @@ private struct PrimaryWorkspace: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("More Sub-Store actions")
-            .accessibilityLabel("More Sub-Store actions")
+            .help(String(localized: "More Sub-Store actions"))
+            .accessibilityLabel(String(localized: "More Sub-Store actions"))
 
             Button {
                 showsServerSettings = true
@@ -205,8 +205,8 @@ private struct PrimaryWorkspace: View {
                 Image(systemName: "gearshape")
             }
             .buttonStyle(.borderless)
-            .help("Backend connection settings")
-            .accessibilityLabel("Backend connection settings")
+            .help(String(localized: "Backend connection settings"))
+            .accessibilityLabel(String(localized: "Backend connection settings"))
             .popover(isPresented: $showsServerSettings, arrowEdge: .bottom) {
                 SubStoreServerSettingsPopover()
                     .frame(width: 380)
@@ -235,7 +235,7 @@ private struct BackendBanner: View {
                 .foregroundStyle(.primary)
                 .lineLimit(2)
             Spacer()
-            Button("Retry", action: onRetry)
+            Button(String(localized: "Retry"), action: onRetry)
                 .buttonStyle(.borderless)
         }
         .padding(.horizontal, 16)
@@ -270,7 +270,7 @@ private struct SubStoreEmptyState: View {
     private var actions: some View {
         switch mode {
         case .noResources:
-            Button("Prepare Resources") {
+            Button(String(localized: "Prepare Resources")) {
                 appStore.prepareSubStoreResources()
             }
             .buttonStyle(.borderedProminent)
@@ -278,12 +278,12 @@ private struct SubStoreEmptyState: View {
         case .starting:
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Button("Refresh") {
+                Button(String(localized: "Refresh")) {
                     Task { await appStore.refreshSubStoreRuntimeStatus() }
                 }
             }
         case .stopped:
-            Button("Start Sub-Store") {
+            Button(String(localized: "Start Sub-Store")) {
                 Task { await appStore.setSubStoreEnabled(true) }
             }
             .buttonStyle(.borderedProminent)
@@ -334,7 +334,7 @@ private struct AdvancedScreenSheet: View {
                 .navigationTitle(screen.label)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
+                        Button(String(localized: "Done")) { dismiss() }
                             .keyboardShortcut(.defaultAction)
                     }
                 }
@@ -402,7 +402,7 @@ private struct SubscriptionsSection: View {
     private func subscriptionList(selection: Binding<SubStoreStore.Selection?>) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Text("\(subStore.subscriptions.count) subscriptions")
+                Text(String(format: String(localized: "%@ subscriptions"), String(subStore.subscriptions.count)))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -412,14 +412,14 @@ private struct SubscriptionsSection: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
-                .help("New subscription")
+                .help(String(localized: "New subscription"))
                 Button {
                     Task { await subStore.refreshSubscriptions() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Refresh subscriptions")
+                .help(String(localized: "Refresh subscriptions"))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -429,17 +429,17 @@ private struct SubscriptionsSection: View {
                     SubscriptionRow(subscription: subscription)
                         .tag(SubStoreStore.Selection.subscription(subscription.name))
                         .contextMenu {
-                            Button("Edit…") {
+                            Button(String(localized: "Edit…")) {
                                 editingDraft = subscription
                             }
-                            Button("Refresh Flow") {
+                            Button(String(localized: "Refresh Flow")) {
                                 Task { await subStore.loadFlow(for: subscription.name) }
                             }
                             Divider()
-                            Button("Delete (Archive)", role: .destructive) {
+                            Button(String(localized: "Delete (Archive)"), role: .destructive) {
                                 Task { await subStore.deleteSubscription(name: subscription.name, archive: true) }
                             }
-                            Button("Delete Permanently", role: .destructive) {
+                            Button(String(localized: "Delete Permanently"), role: .destructive) {
                                 Task { await subStore.deleteSubscription(name: subscription.name, archive: false) }
                             }
                         }
@@ -460,7 +460,7 @@ private struct SubscriptionsSection: View {
            let subscription = subStore.subscriptions.first(where: { $0.name == name }) {
             SubscriptionDetail(subscription: subscription, onEdit: { editingDraft = subscription })
         } else {
-            ContentUnavailableView("Select a subscription", systemImage: "rectangle.stack")
+            ContentUnavailableView(String(localized: "Select a subscription"), systemImage: "rectangle.stack")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -526,19 +526,19 @@ private struct SubscriptionDetail: View {
             isPresented: deletionBinding,
             presenting: deleteConfirmation
         ) { draft in
-            Button("Move to Archive", role: .destructive) {
+            Button(String(localized: "Move to Archive"), role: .destructive) {
                 Task {
                     await subStore.deleteSubscription(name: draft.name, archive: true)
                     deleteConfirmation = nil
                 }
             }
-            Button("Delete Permanently", role: .destructive) {
+            Button(String(localized: "Delete Permanently"), role: .destructive) {
                 Task {
                     await subStore.deleteSubscription(name: draft.name, archive: false)
                     deleteConfirmation = nil
                 }
             }
-            Button("Cancel", role: .cancel) {
+            Button(String(localized: "Cancel"), role: .cancel) {
                 deleteConfirmation = nil
             }
         }
@@ -568,15 +568,15 @@ private struct SubscriptionDetail: View {
             Button {
                 onEdit()
             } label: {
-                Label("Edit", systemImage: "pencil")
+                Label(String(localized: "Edit"), systemImage: "pencil")
             }
 
-            Button("Refresh Flow") {
+            Button(String(localized: "Refresh Flow")) {
                 Task { await subStore.loadFlow(for: subscription.name) }
             }
             .disabled(subStore.isFetchingFlow.contains(subscription.name))
 
-            Picker("Target", selection: $previewTarget) {
+            Picker(String(localized: "Target"), selection: $previewTarget) {
                 ForEach(PreviewTarget.allCases) { target in
                     Text(target.label).tag(target)
                 }
@@ -591,7 +591,7 @@ private struct SubscriptionDetail: View {
                 if subStore.isPreviewing.contains(subscription.name) {
                     ProgressView().controlSize(.small)
                 } else {
-                    Text("Preview Nodes")
+                    Text(String(localized: "Preview Nodes"))
                 }
             }
             .disabled(subStore.isPreviewing.contains(subscription.name))
@@ -610,7 +610,7 @@ private struct SubscriptionDetail: View {
                 if importInProgress {
                     ProgressView().controlSize(.small)
                 } else {
-                    Text("Import to Kumo")
+                    Text(String(localized: "Import to Kumo"))
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -621,7 +621,7 @@ private struct SubscriptionDetail: View {
             Button(role: .destructive) {
                 deleteConfirmation = SubscriptionDeletionDraft(name: subscription.name)
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label(String(localized: "Delete"), systemImage: "trash")
             }
         }
     }
@@ -651,7 +651,7 @@ private struct SubscriptionDetail: View {
             }
             .padding(.vertical, 4)
         } label: {
-            Label("Details", systemImage: "info.circle")
+            Label(String(localized: "Details"), systemImage: "info.circle")
         }
     }
 
@@ -660,7 +660,7 @@ private struct SubscriptionDetail: View {
         if let result = subStore.previewBySubscription[subscription.name] {
             GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Original: \(result.original.count) nodes  |  Processed: \(result.processed.count) nodes")
+                    Text(String(format: String(localized: "Original: %@ nodes  |  Processed: %@ nodes"), String(result.original.count), String(result.processed.count)))
                         .font(.callout.weight(.medium))
                     if let firstFew = previewSummary(from: result.processed.isEmpty ? result.original : result.processed) {
                         Text(firstFew)
@@ -672,7 +672,7 @@ private struct SubscriptionDetail: View {
                 }
                 .padding(.vertical, 4)
             } label: {
-                Label("Preview Nodes", systemImage: "eye")
+                Label(String(localized: "Preview Nodes"), systemImage: "eye")
             }
         }
     }
@@ -740,7 +740,7 @@ private struct CollectionsSection: View {
     private func collectionList(selection: Binding<SubStoreStore.Selection?>) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Text("\(subStore.collections.count) collections")
+                Text(String(format: String(localized: "%@ collections"), String(subStore.collections.count)))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -750,14 +750,14 @@ private struct CollectionsSection: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
-                .help("New collection")
+                .help(String(localized: "New collection"))
                 Button {
                     Task { await subStore.refreshCollections() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Refresh collections")
+                .help(String(localized: "Refresh collections"))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -767,12 +767,12 @@ private struct CollectionsSection: View {
                     CollectionRow(collection: collection)
                         .tag(SubStoreStore.Selection.collection(collection.name))
                         .contextMenu {
-                            Button("Edit…") { editingDraft = collection }
+                            Button(String(localized: "Edit…")) { editingDraft = collection }
                             Divider()
-                            Button("Delete (Archive)", role: .destructive) {
+                            Button(String(localized: "Delete (Archive)"), role: .destructive) {
                                 Task { await subStore.deleteCollection(name: collection.name, archive: true) }
                             }
-                            Button("Delete Permanently", role: .destructive) {
+                            Button(String(localized: "Delete Permanently"), role: .destructive) {
                                 Task { await subStore.deleteCollection(name: collection.name, archive: false) }
                             }
                         }
@@ -793,7 +793,7 @@ private struct CollectionsSection: View {
            let collection = subStore.collections.first(where: { $0.name == name }) {
             CollectionDetail(collection: collection, onEdit: { editingDraft = collection })
         } else {
-            ContentUnavailableView("Select a collection", systemImage: "square.stack.3d.up")
+            ContentUnavailableView(String(localized: "Select a collection"), systemImage: "square.stack.3d.up")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -811,7 +811,7 @@ private struct CollectionRow: View {
                     .font(.headline)
                     .lineLimit(1)
             }
-            Text("\(collection.subscriptions.count) subscriptions")
+            Text(String(format: String(localized: "%@ subscriptions"), String(collection.subscriptions.count)))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -845,19 +845,19 @@ private struct CollectionDetail: View {
             isPresented: deletionBinding,
             presenting: deleteConfirmation
         ) { draft in
-            Button("Move to Archive", role: .destructive) {
+            Button(String(localized: "Move to Archive"), role: .destructive) {
                 Task {
                     await subStore.deleteCollection(name: draft.name, archive: true)
                     deleteConfirmation = nil
                 }
             }
-            Button("Delete Permanently", role: .destructive) {
+            Button(String(localized: "Delete Permanently"), role: .destructive) {
                 Task {
                     await subStore.deleteCollection(name: draft.name, archive: false)
                     deleteConfirmation = nil
                 }
             }
-            Button("Cancel", role: .cancel) {
+            Button(String(localized: "Cancel"), role: .cancel) {
                 deleteConfirmation = nil
             }
         }
@@ -880,10 +880,10 @@ private struct CollectionDetail: View {
             Button {
                 onEdit()
             } label: {
-                Label("Edit", systemImage: "pencil")
+                Label(String(localized: "Edit"), systemImage: "pencil")
             }
 
-            Picker("Target", selection: $previewTarget) {
+            Picker(String(localized: "Target"), selection: $previewTarget) {
                 ForEach(PreviewTarget.allCases) { target in
                     Text(target.label).tag(target)
                 }
@@ -898,7 +898,7 @@ private struct CollectionDetail: View {
                 if subStore.isPreviewing.contains(collection.name) {
                     ProgressView().controlSize(.small)
                 } else {
-                    Text("Preview Nodes")
+                    Text(String(localized: "Preview Nodes"))
                 }
             }
             .disabled(subStore.isPreviewing.contains(collection.name))
@@ -917,7 +917,7 @@ private struct CollectionDetail: View {
                 if importInProgress {
                     ProgressView().controlSize(.small)
                 } else {
-                    Text("Import to Kumo")
+                    Text(String(localized: "Import to Kumo"))
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -928,7 +928,7 @@ private struct CollectionDetail: View {
             Button(role: .destructive) {
                 deleteConfirmation = CollectionDeletionDraft(name: collection.name)
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label(String(localized: "Delete"), systemImage: "trash")
             }
         }
     }
@@ -948,7 +948,7 @@ private struct CollectionDetail: View {
             }
             .padding(.vertical, 4)
         } label: {
-            Label("Details", systemImage: "info.circle")
+            Label(String(localized: "Details"), systemImage: "info.circle")
         }
     }
 
@@ -957,7 +957,7 @@ private struct CollectionDetail: View {
         if let result = subStore.previewByCollection[collection.name] {
             GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Original: \(result.original.count) nodes  |  Processed: \(result.processed.count) nodes")
+                    Text(String(format: String(localized: "Original: %@ nodes  |  Processed: %@ nodes"), String(result.original.count), String(result.processed.count)))
                         .font(.callout.weight(.medium))
                     if let firstFew = previewSummary(from: result.processed.isEmpty ? result.original : result.processed) {
                         Text(firstFew)
@@ -969,7 +969,7 @@ private struct CollectionDetail: View {
                 }
                 .padding(.vertical, 4)
             } label: {
-                Label("Preview Nodes", systemImage: "eye")
+                Label(String(localized: "Preview Nodes"), systemImage: "eye")
             }
         }
     }
@@ -1050,7 +1050,7 @@ private struct FlowCard: View {
             }
             .padding(.vertical, 4)
         } label: {
-            Label("Flow", systemImage: "chart.bar")
+            Label(String(localized: "Flow"), systemImage: "chart.bar")
         }
     }
 }
@@ -1104,14 +1104,14 @@ private struct SubStoreServerSettingsPopover: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
-                Toggle("Use Custom Backend", isOn: $draft.usesCustomBackend)
+                Toggle(String(localized: "Use Custom Backend"), isOn: $draft.usesCustomBackend)
                 if draft.usesCustomBackend {
                     TextField("Backend URL", text: $draft.customBackendURL)
                         .textFieldStyle(.roundedBorder)
                 }
-                Toggle("Allow LAN access", isOn: $draft.allowsLAN)
-                    .help("Bind backend to 0.0.0.0 so other devices can reach it.")
-                Toggle("Send Sub-Store requests through Kumo proxy", isOn: $draft.usesProxy)
+                Toggle(String(localized: "Allow LAN access"), isOn: $draft.allowsLAN)
+                    .help(String(localized: "Bind backend to 0.0.0.0 so other devices can reach it."))
+                Toggle(String(localized: "Send Sub-Store requests through Kumo proxy"), isOn: $draft.usesProxy)
                     .disabled(draft.usesCustomBackend)
 
                 Divider().padding(.vertical, 4)
@@ -1124,9 +1124,9 @@ private struct SubStoreServerSettingsPopover: View {
             Divider()
             HStack {
                 Spacer()
-                Button("Reset") { sync() }
+                Button(String(localized: "Reset")) { sync() }
                     .disabled(draft == SubStoreServerSettingsDraft(status: appStore.subStoreStatus))
-                Button("Apply") { apply() }
+                Button(String(localized: "Apply")) { apply() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(draft == SubStoreServerSettingsDraft(status: appStore.subStoreStatus))
             }

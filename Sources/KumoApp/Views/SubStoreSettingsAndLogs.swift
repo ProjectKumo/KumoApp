@@ -12,19 +12,19 @@ struct SubStoreSettingsSection: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Text("Sub-Store backend settings")
+                Text(String(localized: "Sub-Store backend settings"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
                 Menu {
-                    Button("Backup to Gist (upload)") {
+                    Button(String(localized: "Backup to Gist (upload)")) {
                         Task { await subStore.performGistBackup(action: "upload") }
                     }
-                    Button("Restore from Gist (download)") {
+                    Button(String(localized: "Restore from Gist (download)")) {
                         Task { await subStore.performGistBackup(action: "download") }
                     }
                 } label: {
-                    Label("Gist", systemImage: "icloud")
+                    Label(String(localized: "Gist"), systemImage: "icloud")
                 }
                 .menuStyle(.button)
                 Button {
@@ -36,7 +36,7 @@ struct SubStoreSettingsSection: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Reload settings from backend")
+                .help(String(localized: "Reload settings from backend"))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -55,8 +55,8 @@ struct SubStoreSettingsSection: View {
                 Divider()
                 HStack {
                     Spacer()
-                    Button("Reset") { load() }
-                    Button("Apply") { apply() }
+                    Button(String(localized: "Reset")) { load() }
+                    Button(String(localized: "Apply")) { apply() }
                         .keyboardShortcut(.defaultAction)
                         .disabled(parseError != nil)
                 }
@@ -108,7 +108,7 @@ struct SubStoreLogsSection: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("\(subStore.logs.count) log entries")
+                Text(String(format: String(localized: "%@ log entries"), String(subStore.logs.count)))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -118,7 +118,7 @@ struct SubStoreLogsSection: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Refresh logs")
+                .help(String(localized: "Refresh logs"))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -127,7 +127,7 @@ struct SubStoreLogsSection: View {
                 ContentUnavailableView(
                     "No log entries yet",
                     systemImage: "doc.text.magnifyingglass",
-                    description: Text("Sub-Store records actions like syncs and parser errors. Refresh to load the latest.")
+                    description: Text(String(localized: "Sub-Store records actions like syncs and parser errors. Refresh to load the latest."))
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {

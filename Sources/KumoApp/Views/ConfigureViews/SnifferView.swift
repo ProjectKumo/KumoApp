@@ -10,8 +10,8 @@ struct SnifferView: View {
     var body: some View {
         KumoPage(title: "Sniffer") {
             Form {
-                Section("Status") {
-                    Toggle("Enable Sniffer", isOn: Binding {
+                Section(String(localized: "Status")) {
+                    Toggle(String(localized: "Enable Sniffer"), isOn: Binding {
                         currentSnifferSettings.isEnabled
                     } set: { isEnabled in
                         Task { await store.setSnifferEnabled(isEnabled) }
@@ -19,14 +19,14 @@ struct SnifferView: View {
                     .disabled(store.isLoading)
                 }
 
-                Section("Behavior") {
-                    Toggle("Override Destination", isOn: $snifferDraft.overrideDestination)
-                    Toggle("HTTP Override Destination", isOn: $snifferDraft.httpOverrideDestination)
-                    Toggle("Force DNS Mapping", isOn: $snifferDraft.forceDNSMapping)
-                    Toggle("Parse Pure IP", isOn: $snifferDraft.parsePureIP)
+                Section(String(localized: "Behavior")) {
+                    Toggle(String(localized: "Override Destination"), isOn: $snifferDraft.overrideDestination)
+                    Toggle(String(localized: "HTTP Override Destination"), isOn: $snifferDraft.httpOverrideDestination)
+                    Toggle(String(localized: "Force DNS Mapping"), isOn: $snifferDraft.forceDNSMapping)
+                    Toggle(String(localized: "Parse Pure IP"), isOn: $snifferDraft.parsePureIP)
                 }
 
-                Section("HTTP Ports") {
+                Section(String(localized: "HTTP Ports")) {
                     EditableIntList(
                         values: $snifferDraft.httpPorts,
                         placeholder: "Port (1–65535)",
@@ -34,7 +34,7 @@ struct SnifferView: View {
                     )
                 }
 
-                Section("TLS Ports") {
+                Section(String(localized: "TLS Ports")) {
                     EditableIntList(
                         values: $snifferDraft.tlsPorts,
                         placeholder: "Port (1–65535)",
@@ -42,7 +42,7 @@ struct SnifferView: View {
                     )
                 }
 
-                Section("QUIC Ports") {
+                Section(String(localized: "QUIC Ports")) {
                     EditableIntList(
                         values: $snifferDraft.quicPorts,
                         placeholder: "Port (1–65535)",
@@ -50,7 +50,7 @@ struct SnifferView: View {
                     )
                 }
 
-                Section("Skip Domain") {
+                Section(String(localized: "Skip Domain")) {
                     EditableStringList(
                         items: $snifferDraft.skipDomain,
                         placeholder: "+.example.com",
@@ -59,7 +59,7 @@ struct SnifferView: View {
                     )
                 }
 
-                Section("Force Domain") {
+                Section(String(localized: "Force Domain")) {
                     EditableStringList(
                         items: $snifferDraft.forceDomain,
                         placeholder: "+.example.com",
@@ -68,7 +68,7 @@ struct SnifferView: View {
                     )
                 }
 
-                Section("Skip Destination Address") {
+                Section(String(localized: "Skip Destination Address")) {
                     EditableStringList(
                         items: $snifferDraft.skipDstAddress,
                         placeholder: "10.0.0.0/8",
@@ -77,7 +77,7 @@ struct SnifferView: View {
                     )
                 }
 
-                Section("Skip Source Address") {
+                Section(String(localized: "Skip Source Address")) {
                     EditableStringList(
                         items: $snifferDraft.skipSrcAddress,
                         placeholder: "10.0.0.0/8",
@@ -94,18 +94,18 @@ struct SnifferView: View {
                     }
                     HStack {
                         Spacer()
-                        Button("Reset") {
+                        Button(String(localized: "Reset")) {
                             updateSnifferDraft(currentSnifferSettings)
                         }
                         .disabled(!hasSnifferDraftChanges || store.isLoading)
 
-                        Button("Apply") {
+                        Button(String(localized: "Apply")) {
                             applySnifferDraft()
                         }
                         .disabled(!canApplySnifferDraft)
                     }
                 } footer: {
-                    Text("Sniffer changes are staged locally. Apply restarts the core when it is running.")
+                    Text(String(localized: "Sniffer changes are staged locally. Apply restarts the core when it is running."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

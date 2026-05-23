@@ -10,8 +10,8 @@ struct DNSView: View {
     var body: some View {
         KumoPage(title: "DNS") {
             Form {
-                Section("Status") {
-                    Toggle("Enable DNS", isOn: Binding {
+                Section(String(localized: "Status")) {
+                    Toggle(String(localized: "Enable DNS"), isOn: Binding {
                         currentDnsSettings.isEnabled
                     } set: { isEnabled in
                         Task { await store.setDnsEnabled(isEnabled) }
@@ -19,44 +19,44 @@ struct DNSView: View {
                     .disabled(store.isLoading)
                 }
 
-                Section("Mode") {
-                    Picker("Enhanced Mode", selection: $dnsDraft.enhancedMode) {
-                        Text("Fake IP").tag("fake-ip")
-                        Text("Redir Host").tag("redir-host")
-                        Text("Normal").tag("normal")
+                Section(String(localized: "Mode")) {
+                    Picker(String(localized: "Enhanced Mode"), selection: $dnsDraft.enhancedMode) {
+                        Text(String(localized: "Fake IP")).tag("fake-ip")
+                        Text(String(localized: "Redir Host")).tag("redir-host")
+                        Text(String(localized: "Normal")).tag("normal")
                     }
                     .pickerStyle(.segmented)
-                    Toggle("IPv6", isOn: $dnsDraft.ipv6)
-                    Toggle("Use Hosts", isOn: $dnsDraft.useHosts)
-                    Toggle("Use System Hosts", isOn: $dnsDraft.useSystemHosts)
-                    Toggle("Respect Rules", isOn: $dnsDraft.respectRules)
+                    Toggle(String(localized: "IPv6"), isOn: $dnsDraft.ipv6)
+                    Toggle(String(localized: "Use Hosts"), isOn: $dnsDraft.useHosts)
+                    Toggle(String(localized: "Use System Hosts"), isOn: $dnsDraft.useSystemHosts)
+                    Toggle(String(localized: "Respect Rules"), isOn: $dnsDraft.respectRules)
                 }
 
-                Section("Advanced") {
+                Section(String(localized: "Advanced")) {
                     TextField("Listen", text: $dnsDraft.listen)
                     TextField("IPv6 Timeout", value: $dnsDraft.ipv6Timeout, format: .number)
-                    Toggle("Prefer HTTP/3", isOn: $dnsDraft.preferH3)
-                    Picker("Fake IP Filter Mode", selection: $dnsDraft.fakeIPFilterMode) {
-                        Text("None").tag("")
-                        Text("Blacklist").tag("blacklist")
-                        Text("Whitelist").tag("whitelist")
+                    Toggle(String(localized: "Prefer HTTP/3"), isOn: $dnsDraft.preferH3)
+                    Picker(String(localized: "Fake IP Filter Mode"), selection: $dnsDraft.fakeIPFilterMode) {
+                        Text(String(localized: "None")).tag("")
+                        Text(String(localized: "Blacklist")).tag("blacklist")
+                        Text(String(localized: "Whitelist")).tag("whitelist")
                     }
                     .pickerStyle(.segmented)
-                    Toggle("Direct Nameserver Follow Policy", isOn: $dnsDraft.directNameserverFollowPolicy)
-                    Picker("Cache Algorithm", selection: $dnsDraft.cacheAlgorithm) {
-                        Text("None").tag("")
-                        Text("LRU").tag("lru")
-                        Text("ARC").tag("arc")
+                    Toggle(String(localized: "Direct Nameserver Follow Policy"), isOn: $dnsDraft.directNameserverFollowPolicy)
+                    Picker(String(localized: "Cache Algorithm"), selection: $dnsDraft.cacheAlgorithm) {
+                        Text(String(localized: "None")).tag("")
+                        Text(String(localized: "LRU")).tag("lru")
+                        Text(String(localized: "ARC")).tag("arc")
                     }
                     .pickerStyle(.segmented)
                 }
 
-                Section("Fake IP Range") {
+                Section(String(localized: "Fake IP Range")) {
                     TextField("Fake IP Range", text: $dnsDraft.fakeIPRange)
                     TextField("Fake IP Range IPv6", text: $dnsDraft.fakeIPRange6)
                 }
 
-                Section("Fake IP Filter") {
+                Section(String(localized: "Fake IP Filter")) {
                     EditableStringList(
                         items: $dnsDraft.fakeIPFilter,
                         placeholder: "+.example.com",
@@ -65,7 +65,7 @@ struct DNSView: View {
                     )
                 }
 
-                Section("Default Nameserver") {
+                Section(String(localized: "Default Nameserver")) {
                     EditableStringList(
                         items: $dnsDraft.defaultNameserver,
                         placeholder: "tls://223.5.5.5",
@@ -74,7 +74,7 @@ struct DNSView: View {
                     )
                 }
 
-                Section("Nameserver") {
+                Section(String(localized: "Nameserver")) {
                     EditableStringList(
                         items: $dnsDraft.nameserver,
                         placeholder: "https://doh.pub/dns-query",
@@ -83,7 +83,7 @@ struct DNSView: View {
                     )
                 }
 
-                Section("Proxy Server Nameserver") {
+                Section(String(localized: "Proxy Server Nameserver")) {
                     EditableStringList(
                         items: $dnsDraft.proxyServerNameserver,
                         placeholder: "https://1.1.1.1/dns-query",
@@ -92,7 +92,7 @@ struct DNSView: View {
                     )
                 }
 
-                Section("Direct Nameserver") {
+                Section(String(localized: "Direct Nameserver")) {
                     EditableStringList(
                         items: $dnsDraft.directNameserver,
                         placeholder: "tls://223.5.5.5",
@@ -101,7 +101,7 @@ struct DNSView: View {
                     )
                 }
 
-                Section("Fallback") {
+                Section(String(localized: "Fallback")) {
                     EditableStringList(
                         items: $dnsDraft.fallback,
                         placeholder: "https://1.1.1.1/dns-query",
@@ -110,28 +110,28 @@ struct DNSView: View {
                     )
                 }
 
-                Section("Fallback Filter") {
+                Section(String(localized: "Fallback Filter")) {
                     FallbackFilterDictEditor(
                         entries: $dnsDraft.fallbackFilter,
                         accessibilityLabel: "Fallback filter"
                     )
                 }
 
-                Section("Nameserver Policy") {
+                Section(String(localized: "Nameserver Policy")) {
                     PolicyDictEditor(
                         entries: $dnsDraft.nameserverPolicy,
                         accessibilityLabel: "Nameserver policy"
                     )
                 }
 
-                Section("Proxy Server Nameserver Policy") {
+                Section(String(localized: "Proxy Server Nameserver Policy")) {
                     PolicyDictEditor(
                         entries: $dnsDraft.proxyServerNameserverPolicy,
                         accessibilityLabel: "Proxy server nameserver policy"
                     )
                 }
 
-                Section("Hosts") {
+                Section(String(localized: "Hosts")) {
                     PolicyDictEditor(
                         entries: $dnsDraft.hosts,
                         accessibilityLabel: "Hosts"
@@ -146,18 +146,18 @@ struct DNSView: View {
                     }
                     HStack {
                         Spacer()
-                        Button("Reset") {
+                        Button(String(localized: "Reset")) {
                             updateDnsDraft(currentDnsSettings)
                         }
                         .disabled(!hasDnsDraftChanges || store.isLoading)
 
-                        Button("Apply") {
+                        Button(String(localized: "Apply")) {
                             applyDnsDraft()
                         }
                         .disabled(!canApplyDnsDraft)
                     }
                 } footer: {
-                    Text("DNS changes are staged locally. Apply restarts the core when it is running.")
+                    Text(String(localized: "DNS changes are staged locally. Apply restarts the core when it is running."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

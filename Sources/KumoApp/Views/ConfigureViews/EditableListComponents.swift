@@ -20,14 +20,14 @@ private struct EditableListToolbar: View {
                     Image(systemName: "plus")
                         .frame(width: 22, height: 18)
                 }
-                .help("Add")
+                .help(String(localized: "Add"))
 
                 Button(action: onRemove) {
                     Image(systemName: "minus")
                         .frame(width: 22, height: 18)
                 }
                 .disabled(!canRemove)
-                .help("Remove selected")
+                .help(String(localized: "Remove selected"))
 
                 if let onEdit {
                     Button(action: onEdit) {
@@ -35,7 +35,7 @@ private struct EditableListToolbar: View {
                             .frame(width: 22, height: 18)
                     }
                     .disabled(!canEdit)
-                    .help("Edit selected")
+                    .help(String(localized: "Edit selected"))
                 }
 
                 Spacer()
@@ -378,18 +378,18 @@ private struct PolicyEntrySheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Key") {
+                Section(String(localized: "Key")) {
                     TextField("Key", text: $key)
                 }
 
                 Section {
-                    Picker("Type", selection: $mode) {
+                    Picker(String(localized: "Type"), selection: $mode) {
                         ForEach(Mode.allCases) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
                 }
 
-                Section("Value") {
+                Section(String(localized: "Value")) {
                     if mode == .single {
                         TextField("Value", text: $singleValue)
                     } else {
@@ -398,13 +398,13 @@ private struct PolicyEntrySheet: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("Policy Entry")
+            .navigationTitle(String(localized: "Policy Entry"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(String(localized: "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save)
+                    Button(String(localized: "Save"), action: save)
                         .disabled(trimmedKey.isEmpty)
                 }
             }
@@ -614,21 +614,21 @@ private struct FallbackFilterEntrySheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Key") {
+                Section(String(localized: "Key")) {
                     TextField("Key", text: $key)
                 }
 
                 Section {
-                    Picker("Type", selection: $mode) {
+                    Picker(String(localized: "Type"), selection: $mode) {
                         ForEach(Mode.allCases) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
                 }
 
-                Section("Value") {
+                Section(String(localized: "Value")) {
                     switch mode {
                     case .bool:
-                        Toggle("Enabled", isOn: $boolValue)
+                        Toggle(String(localized: "Enabled"), isOn: $boolValue)
                     case .single:
                         TextField("Value", text: $singleValue)
                     case .multiple:
@@ -637,13 +637,13 @@ private struct FallbackFilterEntrySheet: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("Fallback Filter Entry")
+            .navigationTitle(String(localized: "Fallback Filter Entry"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(String(localized: "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save)
+                    Button(String(localized: "Save"), action: save)
                         .disabled(trimmedKey.isEmpty)
                 }
             }

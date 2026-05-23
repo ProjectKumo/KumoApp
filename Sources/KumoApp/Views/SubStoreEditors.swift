@@ -21,19 +21,19 @@ struct SubscriptionEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("General") {
+                Section(String(localized: "General")) {
                     TextField("Name", text: $draft.name)
                     TextField("Display Name", text: $draft.displayName)
                     TextField("Icon URL", text: $draft.icon)
-                    Picker("Source", selection: $draft.source) {
-                        Text("Remote").tag(SubscriptionDraft.Source.remote)
-                        Text("Local").tag(SubscriptionDraft.Source.local)
+                    Picker(String(localized: "Source"), selection: $draft.source) {
+                        Text(String(localized: "Remote")).tag(SubscriptionDraft.Source.remote)
+                        Text(String(localized: "Local")).tag(SubscriptionDraft.Source.local)
                     }
                     .pickerStyle(.segmented)
                 }
 
                 if draft.source == .remote {
-                    Section("Subscription URLs") {
+                    Section(String(localized: "Subscription URLs")) {
                         EditableStringList(
                             items: $draft.urls,
                             placeholder: "https://provider.example/subscription",
@@ -42,35 +42,35 @@ struct SubscriptionEditorSheet: View {
                         )
                     }
 
-                    Section("Remote") {
-                        TextField("User-Agent", text: $draft.ua, prompt: Text("Optional"))
-                        Picker("Merge Sources", selection: $draft.mergeSources) {
+                    Section(String(localized: "Remote")) {
+                        TextField("User-Agent", text: $draft.ua, prompt: Text(String(localized: "Optional")))
+                        Picker(String(localized: "Merge Sources"), selection: $draft.mergeSources) {
                             ForEach(SubscriptionDraft.MergeMode.allCases) { mode in
                                 Text(mode.label).tag(mode)
                             }
                         }
-                        TextField("Subscription Userinfo", text: $draft.subUserinfo, prompt: Text("Optional"))
+                        TextField("Subscription Userinfo", text: $draft.subUserinfo, prompt: Text(String(localized: "Optional")))
                     }
                 }
 
                 if draft.source == .local || draft.mergeSources != .none {
-                    Section("Local Content") {
+                    Section(String(localized: "Local Content")) {
                         TextEditor(text: $draft.content)
                             .font(.body.monospaced())
                             .frame(minHeight: 160)
                     }
                 }
 
-                Section("Behavior") {
-                    TextField("Proxy (Clash node name)", text: $draft.proxy, prompt: Text("Optional"))
-                    Picker("Ignore Failed Remote", selection: $draft.ignoreFailedRemoteSub) {
+                Section(String(localized: "Behavior")) {
+                    TextField("Proxy (Clash node name)", text: $draft.proxy, prompt: Text(String(localized: "Optional")))
+                    Picker(String(localized: "Ignore Failed Remote"), selection: $draft.ignoreFailedRemoteSub) {
                         ForEach(SubscriptionDraft.IgnoreMode.allCases) { mode in
                             Text(mode.label).tag(mode)
                         }
                     }
                 }
 
-                Section("Tags") {
+                Section(String(localized: "Tags")) {
                     EditableStringList(
                         items: $draft.tags,
                         placeholder: "Tag",
@@ -95,7 +95,7 @@ struct SubscriptionEditorSheet: View {
             .navigationTitle(original == nil ? "New Subscription" : "Edit \(original?.resolvedDisplayName ?? "")")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(String(localized: "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -104,7 +104,7 @@ struct SubscriptionEditorSheet: View {
                         if isSaving {
                             ProgressView().controlSize(.small)
                         } else {
-                            Text("Save")
+                            Text(String(localized: "Save"))
                         }
                     }
                     .disabled(isSaving || !draft.isValid)
@@ -270,24 +270,24 @@ struct CollectionEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("General") {
+                Section(String(localized: "General")) {
                     TextField("Name", text: $draft.name)
                     TextField("Display Name", text: $draft.displayName)
                     TextField("Icon URL", text: $draft.icon)
                 }
 
-                Section("Subscriptions") {
+                Section(String(localized: "Subscriptions")) {
                     ForEach(availableSubscriptions) { subscription in
                         Toggle(subscription.resolvedDisplayName, isOn: binding(for: subscription.name))
                     }
                     if availableSubscriptions.isEmpty {
-                        Text("No subscriptions available yet. Create one first.")
+                        Text(String(localized: "No subscriptions available yet. Create one first."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                Section("Tag-based Picks") {
+                Section(String(localized: "Tag-based Picks")) {
                     EditableStringList(
                         items: $draft.subscriptionTags,
                         placeholder: "Subscription tag",
@@ -297,8 +297,8 @@ struct CollectionEditorSheet: View {
                     )
                 }
 
-                Section("Behavior") {
-                    Picker("Ignore Failed Remote", selection: $draft.ignoreFailedRemoteSub) {
+                Section(String(localized: "Behavior")) {
+                    Picker(String(localized: "Ignore Failed Remote"), selection: $draft.ignoreFailedRemoteSub) {
                         ForEach(SubscriptionDraft.IgnoreMode.allCases) { mode in
                             Text(mode.label).tag(mode)
                         }
@@ -320,7 +320,7 @@ struct CollectionEditorSheet: View {
             .navigationTitle(original == nil ? "New Collection" : "Edit \(original?.resolvedDisplayName ?? "")")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(String(localized: "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -329,7 +329,7 @@ struct CollectionEditorSheet: View {
                         if isSaving {
                             ProgressView().controlSize(.small)
                         } else {
-                            Text("Save")
+                            Text(String(localized: "Save"))
                         }
                     }
                     .disabled(isSaving || !draft.isValid)

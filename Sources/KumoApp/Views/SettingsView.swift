@@ -28,8 +28,8 @@ private struct GeneralSettingsTab: View {
 
     var body: some View {
         Form {
-            Section("Startup") {
-                Toggle("Open at Login", isOn: launchAtLoginBinding)
+            Section(String(localized: "Startup")) {
+                Toggle(String(localized: "Open at Login"), isOn: launchAtLoginBinding)
                 if let launchAtLoginErrorMessage {
                     Text(launchAtLoginErrorMessage)
                         .font(.caption)
@@ -38,13 +38,13 @@ private struct GeneralSettingsTab: View {
             }
 
             Section {
-                Toggle("Quit when last window closes", isOn: quitOnLastWindowCloseBinding)
+                Toggle(String(localized: "Quit when last window closes"), isOn: quitOnLastWindowCloseBinding)
             } header: {
-                Text("Window")
+                Text(String(localized: "Window"))
             }
 
-            Section("Appearance") {
-                Picker("Language", selection: languageBinding) {
+            Section(String(localized: "Appearance")) {
+                Picker(String(localized: "Language"), selection: languageBinding) {
                     Text(localizationManager.systemDisplayName())
                         .tag(Optional<String>.none)
                     ForEach(localizationManager.availableLanguages, id: \.self) { code in
@@ -58,28 +58,28 @@ private struct GeneralSettingsTab: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                             .font(.caption)
-                        Text("Restart Required")
+                        Text(String(localized: "Restart Required"))
                             .font(.caption)
                         Spacer()
-                        Button("Restart Now") {
+                        Button(String(localized: "Restart Now")) {
                             showRestartAlert = true
                         }
                         .controlSize(.small)
-                        .alert("Restart Kumo?", isPresented: $showRestartAlert) {
-                            Button("Restart Now", role: .destructive) {
+                        .alert(String(localized: "Restart Kumo?"), isPresented: $showRestartAlert) {
+                            Button(String(localized: "Restart Now"), role: .destructive) {
                                 restartApp()
                             }
-                            Button("Later", role: .cancel) { }
+                            Button(String(localized: "Later"), role: .cancel) { }
                         } message: {
-                            Text("Kumo must restart to apply the language change.")
+                            Text(String(localized: "Kumo must restart to apply the language change."))
                         }
                     }
                 }
             }
 
-            Section("Setup") {
+            Section(String(localized: "Setup")) {
                 LabeledContent("First-Run Setup") {
-                    Button("Run Setup Again") {
+                    Button(String(localized: "Run Setup Again")) {
                         store.reopenOnboarding()
                     }
                 }
@@ -93,7 +93,7 @@ private struct GeneralSettingsTab: View {
                         }
 
                         if let cliStatus, cliStatus.isInstalled {
-                            Button("Remove") {
+                            Button(String(localized: "Remove")) {
                                 Task { await uninstallCLI() }
                             }
                             .disabled(cliBusy)
@@ -132,22 +132,22 @@ private struct GeneralSettingsTab: View {
         if let cliStatus {
             switch cliStatus.state {
             case .installed:
-                Label("Installed", systemImage: "checkmark.seal.fill")
+                Label(String(localized: "Installed"), systemImage: "checkmark.seal.fill")
                     .labelStyle(.titleAndIcon)
                     .foregroundStyle(.green)
                     .font(.caption)
             case .notInstalled:
-                Label("Not Installed", systemImage: "terminal")
+                Label(String(localized: "Not Installed"), systemImage: "terminal")
                     .labelStyle(.titleAndIcon)
                     .foregroundStyle(.secondary)
                     .font(.caption)
             case .differentSymlink, .occupiedByOther:
-                Label("Conflict", systemImage: "exclamationmark.triangle")
+                Label(String(localized: "Conflict"), systemImage: "exclamationmark.triangle")
                     .labelStyle(.titleAndIcon)
                     .foregroundStyle(.orange)
                     .font(.caption)
             case .bundledCLIMissing:
-                Label("Unavailable", systemImage: "questionmark.diamond")
+                Label(String(localized: "Unavailable"), systemImage: "questionmark.diamond")
                     .labelStyle(.titleAndIcon)
                     .foregroundStyle(.secondary)
                     .font(.caption)
@@ -244,22 +244,22 @@ private struct UpdateSettingsTab: View {
 
     var body: some View {
         Form {
-            Section("Channel") {
-                Picker("Update Channel", selection: channelBinding) {
+            Section(String(localized: "Channel")) {
+                Picker(String(localized: "Update Channel"), selection: channelBinding) {
                     ForEach(AppUpdateChannel.allCases, id: \.self) { channel in
                         Text(channel.rawValue.capitalized).tag(channel)
                     }
                 }
             }
 
-            Section("Release Feed") {
+            Section(String(localized: "Release Feed")) {
                 TextField(
                     "Custom Manifest URL",
                     text: manifestURLBinding,
-                    prompt: Text("Default GitHub Releases feed")
+                    prompt: Text(String(localized: "Default GitHub Releases feed"))
                 )
                 .textFieldStyle(.roundedBorder)
-                Text("Leave blank to use Kumo's GitHub Releases feed for the selected channel.")
+                Text(String(localized: "Leave blank to use Kumo's GitHub Releases feed for the selected channel."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -271,7 +271,7 @@ private struct UpdateSettingsTab: View {
                     if store.isCheckingForUpdates {
                         ProgressView().controlSize(.small)
                     } else {
-                        Text("Check for Updates Now")
+                        Text(String(localized: "Check for Updates Now"))
                     }
                 }
                 .disabled(store.isCheckingForUpdates || store.isDownloadingUpdate || store.isInstallingUpdate)
@@ -285,14 +285,14 @@ private struct UpdateSettingsTab: View {
                                 Task { await store.downloadAndInstallUpdate(manifest) }
                             } label: {
                                 if store.isInstallingUpdate {
-                                    Text("Preparing Installer...")
+                                    Text(String(localized: "Preparing Installer..."))
                                 } else {
-                                    Text("Download and Install")
+                                    Text(String(localized: "Download and Install"))
                                 }
                             }
                             .disabled(store.isDownloadingUpdate || store.isInstallingUpdate)
                         } else {
-                            Link("Open Download Page", destination: manifest.downloadURL)
+                            Link(String(localized: "Open Download Page"), destination: manifest.downloadURL)
                         }
                     } else {
                         Text(String(format: String(localized: "You are on the latest %@ build."), store.preferences.updateChannel.rawValue))

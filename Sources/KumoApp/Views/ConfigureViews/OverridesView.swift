@@ -23,7 +23,7 @@ struct OverridesView: View {
                         systemImage: "slider.horizontal.3",
                         message: "Import or create a YAML override to modify the runtime profile."
                     ) {
-                        Button("Choose File") {
+                        Button(String(localized: "Choose File")) {
                             isImportingFile = true
                         }
                     }
@@ -84,8 +84,7 @@ struct OverridesView: View {
                 newDraft = nil
             }
         }
-        .confirmationDialog(
-            "Delete Override?",
+        .confirmationDialog(String(localized: "Delete Override?"),
             isPresented: Binding {
                 deletingOverride != nil
             } set: { isPresented in
@@ -95,15 +94,15 @@ struct OverridesView: View {
             },
             presenting: deletingOverride
         ) { item in
-            Button("Delete \(item.name)", role: .destructive) {
+            Button(String(localized: "Delete \(item.name)"), role: .destructive) {
                 store.deleteOverride(item)
                 deletingOverride = nil
             }
-            Button("Cancel", role: .cancel) {
+            Button(String(localized: "Cancel"), role: .cancel) {
                 deletingOverride = nil
             }
         } message: { _ in
-            Text("This removes the local override file and metadata.")
+            Text(String(localized: "This removes the local override file and metadata."))
         }
     }
 
@@ -133,13 +132,13 @@ struct OverridesView: View {
 
     private var overrideOptions: some View {
         HStack(spacing: 8) {
-            Picker("Format", selection: $format) {
-                Text("YAML").tag(OverrideFormat.yaml)
-                Text("JavaScript").tag(OverrideFormat.javascript)
+            Picker(String(localized: "Format"), selection: $format) {
+                Text(String(localized: "YAML")).tag(OverrideFormat.yaml)
+                Text(String(localized: "JavaScript")).tag(OverrideFormat.javascript)
             }
             .frame(width: 140)
 
-            Toggle("Global", isOn: $isGlobal)
+            Toggle(String(localized: "Global"), isOn: $isGlobal)
                 .toggleStyle(.checkbox)
                 .fixedSize()
         }
@@ -147,7 +146,7 @@ struct OverridesView: View {
 
     private var overrideActionGroup: some View {
         HStack(spacing: 8) {
-            Button("Import URL") {
+            Button(String(localized: "Import URL")) {
                 Task {
                     await store.addRemoteOverride(urlString: remoteURL, format: format, isGlobal: isGlobal)
                     if store.errorMessage == nil {
@@ -157,11 +156,11 @@ struct OverridesView: View {
             }
             .disabled(remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isLoading)
 
-            Button("Import File…") {
+            Button(String(localized: "Import File…")) {
                 isImportingFile = true
             }
 
-            Button("New…") {
+            Button(String(localized: "New…")) {
                 newDraft = NewOverrideDraft(isGlobal: isGlobal)
             }
         }
@@ -186,28 +185,28 @@ private struct OverrideRow: View {
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
-                Text("\(item.kind.rawValue.capitalized) · \(item.format.rawValue.uppercased())")
+                Text(String(format: String(localized: "%@ · %@"), item.kind.rawValue.capitalized, item.format.rawValue.uppercased()))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             if item.isGlobal {
-                Text("Global")
+                Text(String(localized: "Global"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Menu {
-                Button("Edit") { onEdit() }
+                Button(String(localized: "Edit")) { onEdit() }
                 Divider()
-                Button("Delete", role: .destructive) { onDelete() }
+                Button(String(localized: "Delete"), role: .destructive) { onDelete() }
             } label: {
-                Label("More", systemImage: "ellipsis.circle")
+                Label(String(localized: "More"), systemImage: "ellipsis.circle")
             }
             .menuStyle(.button)
             .buttonStyle(.borderless)
             .contextMenu {
-                Button("Edit") { onEdit() }
-                Button("Delete", role: .destructive) { onDelete() }
+                Button(String(localized: "Edit")) { onEdit() }
+                Button(String(localized: "Delete"), role: .destructive) { onDelete() }
             }
         }
     }
@@ -237,7 +236,7 @@ private struct NewOverrideSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("New Override")
+            Text(String(localized: "New Override"))
                 .font(.title2.weight(.semibold))
                 .padding(.horizontal)
                 .padding(.top)
@@ -245,21 +244,21 @@ private struct NewOverrideSheet: View {
             Form {
                 Section {
                     TextField("Name", text: $draft.name)
-                    Picker("Format", selection: $draft.format) {
-                        Text("YAML").tag(OverrideFormat.yaml)
-                        Text("JavaScript").tag(OverrideFormat.javascript)
+                    Picker(String(localized: "Format"), selection: $draft.format) {
+                        Text(String(localized: "YAML")).tag(OverrideFormat.yaml)
+                        Text(String(localized: "JavaScript")).tag(OverrideFormat.javascript)
                     }
-                    Toggle("Global Override", isOn: $draft.isGlobal)
+                    Toggle(String(localized: "Global Override"), isOn: $draft.isGlobal)
                 }
             }
             .formStyle(.grouped)
 
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) {
+                Button(String(localized: "Cancel"), role: .cancel) {
                     onCancel()
                 }
-                Button("Create") {
+                Button(String(localized: "Create")) {
                     onCreate(draft)
                 }
                 .keyboardShortcut(.defaultAction)
@@ -292,16 +291,16 @@ private struct OverrideEditorSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Form {
-                Section("Info") {
+                Section(String(localized: "Info")) {
                     TextField("Name", text: $draft.item.name)
-                    Toggle("Global Override", isOn: $draft.item.isGlobal)
+                    Toggle(String(localized: "Global Override"), isOn: $draft.item.isGlobal)
                     LabeledContent("Format", value: draft.item.format.rawValue.uppercased())
                     if let remoteURL = draft.item.remoteURL {
                         LabeledContent("Remote URL", value: remoteURL.absoluteString)
                     }
                 }
 
-                Section("Content") {
+                Section(String(localized: "Content")) {
                     TextEditor(text: $draft.content)
                         .font(.system(.body, design: .monospaced))
                         .frame(minHeight: 360)
@@ -311,10 +310,10 @@ private struct OverrideEditorSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) {
+                Button(String(localized: "Cancel"), role: .cancel) {
                     onCancel()
                 }
-                Button("Save") {
+                Button(String(localized: "Save")) {
                     onSave(draft)
                 }
                 .keyboardShortcut(.defaultAction)
@@ -335,7 +334,7 @@ private struct ProfileBackedConfigPage: View {
     var body: some View {
         KumoPage(title: title) {
             Form {
-                Section("Status") {
+                Section(String(localized: "Status")) {
                     ForEach(rows, id: \.0) { row in
                         LabeledContent(row.0, value: row.1)
                     }
@@ -345,10 +344,10 @@ private struct ProfileBackedConfigPage: View {
                     Button {
                         onNavigate(.profiles)
                     } label: {
-                        Label("Edit in Profile YAML", systemImage: systemImage)
+                        Label(String(localized: "Edit in Profile YAML"), systemImage: systemImage)
                     }
                 } footer: {
-                    Text("\(title) is configured in the active profile.")
+                    Text(String(format: String(localized: "%@ is configured in the active profile."), title))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

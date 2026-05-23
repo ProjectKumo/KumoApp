@@ -12,10 +12,10 @@ struct ProcessPipelineEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Process Pipeline")
+            Text(String(localized: "Process Pipeline"))
                 .font(.headline)
             if pipeline.isEmpty {
-                Text("No operators configured. Sub-Store will return raw nodes.")
+                Text(String(localized: "No operators configured. Sub-Store will return raw nodes."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -31,14 +31,14 @@ struct ProcessPipelineEditor: View {
                 }
             }
             HStack {
-                Picker("Operator type", selection: $addingType) {
+                Picker(String(localized: "Operator type"), selection: $addingType) {
                     ForEach(OperatorCatalog.commonTypes, id: \.self) { type in
                         Text(type).tag(type)
                     }
                 }
                 .labelsHidden()
                 .frame(maxWidth: 240)
-                Button("Add Operator") {
+                Button(String(localized: "Add Operator")) {
                     pipeline.append(.object([
                         "type": .string(addingType),
                         "args": .object([:])
@@ -105,7 +105,7 @@ private struct ProcessOperatorRow: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("args (JSON)")
+                Text(String(localized: "args (JSON)"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 TextEditor(text: $argsText)

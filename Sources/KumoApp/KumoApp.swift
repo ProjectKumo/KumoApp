@@ -31,13 +31,13 @@ struct KumoApp: App {
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .appInfo) {
-                Button("About Kumo") {
+                Button(String(localized: "About Kumo")) {
                     KumoAppContext.shared.openAboutWindow()
                 }
             }
 
             CommandGroup(after: .toolbar) {
-                Button("Toggle Sidebar") {
+                Button(String(localized: "Toggle Sidebar")) {
                     NSApp.keyWindow?.firstResponder?.tryToPerform(
                         #selector(NSSplitViewController.toggleSidebar(_:)),
                         with: nil
@@ -46,14 +46,14 @@ struct KumoApp: App {
                 .keyboardShortcut("s", modifiers: [.command, .control])
             }
 
-            CommandMenu("Control") {
-                Button("Start Kumo") {
+            CommandMenu(String(localized: "Control")) {
+                Button(String(localized: "Start Kumo")) {
                     Task { await store.startCore() }
                 }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
                 .disabled(store.isLoading || store.status.state == .running || store.status.state == .starting)
 
-                Button("Stop Kumo") {
+                Button(String(localized: "Stop Kumo")) {
                     store.stopCore()
                 }
                 .keyboardShortcut(".", modifiers: .command)
@@ -62,13 +62,13 @@ struct KumoApp: App {
                 Divider()
 
                 if store.status.systemProxyEnabled {
-                    Button("Disable System Proxy") {
+                    Button(String(localized: "Disable System Proxy")) {
                         store.setSystemProxyEnabled(false)
                     }
                     .keyboardShortcut("p", modifiers: [.command, .control])
                     .disabled(store.isLoading || store.status.state != .running)
                 } else {
-                    Button("Enable System Proxy") {
+                    Button(String(localized: "Enable System Proxy")) {
                         store.setSystemProxyEnabled(true)
                     }
                     .keyboardShortcut("p", modifiers: [.command, .control])
@@ -77,19 +77,19 @@ struct KumoApp: App {
 
                 Divider()
 
-                Button("Rule Mode") {
+                Button(String(localized: "Rule Mode")) {
                     Task { await store.setMode(.rule) }
                 }
                 .keyboardShortcut("1", modifiers: .command)
                 .disabled(store.isLoading || store.isSwitchingMode || store.status.state != .running || store.status.mode == .rule)
 
-                Button("Global Mode") {
+                Button(String(localized: "Global Mode")) {
                     Task { await store.setMode(.global) }
                 }
                 .keyboardShortcut("2", modifiers: .command)
                 .disabled(store.isLoading || store.isSwitchingMode || store.status.state != .running || store.status.mode == .global)
 
-                Button("Direct Mode") {
+                Button(String(localized: "Direct Mode")) {
                     Task { await store.setMode(.direct) }
                 }
                 .keyboardShortcut("3", modifiers: .command)
@@ -97,28 +97,28 @@ struct KumoApp: App {
 
                 Divider()
 
-                Button("Refresh Kumo") {
+                Button(String(localized: "Refresh Kumo")) {
                     Task { await store.refreshAll() }
                 }
                 .disabled(store.isLoading)
             }
 
-            CommandMenu("Navigate") {
-                navigationButton("Overview", destination: .overview, key: "1")
-                navigationButton("Profiles", destination: .profiles, key: "2")
-                navigationButton("Proxies", destination: .proxies, key: "3")
+            CommandMenu(String(localized: "Navigate")) {
+                navigationButton(String(localized: "Overview"), destination: .overview, key: "1")
+                navigationButton(String(localized: "Profiles"), destination: .profiles, key: "2")
+                navigationButton(String(localized: "Proxies"), destination: .proxies, key: "3")
 
                 Divider()
 
-                navigationButton("Connections", destination: .connections, key: "4")
-                navigationButton("Logs", destination: .logs, key: "5")
-                navigationButton("Rules", destination: .rules, key: "6")
+                navigationButton(String(localized: "Connections"), destination: .connections, key: "4")
+                navigationButton(String(localized: "Logs"), destination: .logs, key: "5")
+                navigationButton(String(localized: "Rules"), destination: .rules, key: "6")
 
                 Divider()
 
-                navigationButton("Core", destination: .core, key: "7")
-                navigationButton("System Proxy", destination: .systemProxy, key: "8")
-                navigationButton("Sub-Store", destination: .subStore, key: "9")
+                navigationButton(String(localized: "Core"), destination: .core, key: "7")
+                navigationButton(String(localized: "System Proxy"), destination: .systemProxy, key: "8")
+                navigationButton(String(localized: "Sub-Store"), destination: .subStore, key: "9")
             }
         }
 

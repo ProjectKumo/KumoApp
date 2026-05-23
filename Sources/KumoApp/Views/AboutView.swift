@@ -59,9 +59,9 @@ private struct AboutHeaderSection: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 5) {
-                Text("Kumo")
+                Text(String(localized: "Kumo"))
                     .font(.largeTitle.weight(.semibold))
-                Text("Native macOS Mihomo client")
+                Text(String(localized: "Native macOS Mihomo client"))
                     .font(.headline)
                     .foregroundStyle(.secondary)
                 Text(String(format: String(localized: "Version %@ (%@)"), version, build))
@@ -75,43 +75,43 @@ private struct AboutHeaderSection: View {
 private struct AboutProjectSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Project")
+            Text(String(localized: "Project"))
                 .font(.headline)
 
-            Text("Manage profiles, proxy groups, system proxy, and Mihomo runtime state from a native Mac app.")
+            Text(String(localized: "Manage profiles, proxy groups, system proxy, and Mihomo runtime state from a native Mac app."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 18, verticalSpacing: 8) {
                 GridRow {
-                    Text("Author")
+                    Text(String(localized: "Author"))
                         .foregroundStyle(.secondary)
-                    Link("ProjectKumo", destination: AboutLinks.author)
+                    Link(String(localized: "ProjectKumo"), destination: AboutLinks.author)
                 }
 
                 GridRow {
-                    Text("Source")
+                    Text(String(localized: "Source"))
                         .foregroundStyle(.secondary)
-                    Link("Kumo on GitHub", destination: AboutLinks.project)
+                    Link(String(localized: "Kumo on GitHub"), destination: AboutLinks.project)
                 }
 
                 GridRow {
-                    Text("Website")
+                    Text(String(localized: "Website"))
                         .foregroundStyle(.secondary)
-                    Link("usekumo.app", destination: AboutLinks.website)
+                    Link(String(localized: "usekumo.app"), destination: AboutLinks.website)
                 }
 
                 GridRow {
-                    Text("Releases")
+                    Text(String(localized: "Releases"))
                         .foregroundStyle(.secondary)
-                    Link("GitHub Releases", destination: AboutLinks.releases)
+                    Link(String(localized: "GitHub Releases"), destination: AboutLinks.releases)
                 }
 
                 GridRow {
-                    Text("Channel")
+                    Text(String(localized: "Channel"))
                         .foregroundStyle(.secondary)
-                    Link("Telegram", destination: AboutLinks.telegram)
+                    Link(String(localized: "Telegram"), destination: AboutLinks.telegram)
                 }
             }
             .font(.callout)
@@ -133,7 +133,7 @@ private struct AboutUpdateSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Updates")
+            Text(String(localized: "Updates"))
                 .font(.headline)
 
             HStack(spacing: 10) {
@@ -142,19 +142,19 @@ private struct AboutUpdateSection: View {
                         ProgressView()
                             .controlSize(.small)
                     } else {
-                        Text("Check for Updates")
+                        Text(String(localized: "Check for Updates"))
                     }
                 }
                 .disabled(isCheckingForUpdates || isDownloadingUpdate || isInstallingUpdate)
 
                 if let manifest = result?.update {
                     if manifest.canInstallAutomatically {
-                        Button("Download and Install") {
+                        Button(String(localized: "Download and Install")) {
                             installUpdate(manifest)
                         }
                         .disabled(isCheckingForUpdates || isDownloadingUpdate || isInstallingUpdate)
                     } else {
-                        Link("Open Download Page", destination: manifest.downloadURL)
+                        Link(String(localized: "Open Download Page"), destination: manifest.downloadURL)
                     }
                 }
             }
@@ -210,7 +210,7 @@ private struct AboutUpdateStatusView: View {
                         .lineLimit(4)
                 }
                 if !manifest.canInstallAutomatically {
-                    Link("Open Download Page", destination: manifest.downloadURL)
+                    Link(String(localized: "Open Download Page"), destination: manifest.downloadURL)
                         .controlSize(.small)
                 }
             } else {

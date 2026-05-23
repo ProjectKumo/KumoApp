@@ -10,7 +10,7 @@ struct SystemProxyView: View {
         KumoPage(title: "System Proxy") {
             Form {
                 Section {
-                    Toggle("Enable System Proxy", isOn: Binding {
+                    Toggle(String(localized: "Enable System Proxy"), isOn: Binding {
                         store.status.systemProxyEnabled
                     } set: { isEnabled in
                         store.setSystemProxyEnabled(isEnabled)
@@ -18,42 +18,42 @@ struct SystemProxyView: View {
                     TextField("Network Service", text: networkServiceBinding)
                     TextField("Host", text: hostBinding)
                     TextField("Port", value: portBinding, format: .number)
-                    Picker("Mode", selection: modeBinding) {
+                    Picker(String(localized: "Mode"), selection: modeBinding) {
                         ForEach(SystemProxyMode.allCases, id: \.self) { mode in
                             Text(mode.displayName).tag(mode)
                         }
                     }
-                    Text("System Proxy updates macOS proxy settings through networksetup. It does not add a VPN configuration; helper installation uses the administrator authorization prompt.")
+                    Text(String(localized: "System Proxy updates macOS proxy settings through networksetup. It does not add a VPN configuration; helper installation uses the administrator authorization prompt."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
                     HStack {
                         Spacer()
-                        Button("Reset") {
+                        Button(String(localized: "Reset")) {
                             resetSystemProxyDraft()
                         }
                         .disabled(!hasSystemProxyDraftChanges)
 
-                        Button("Apply") {
+                        Button(String(localized: "Apply")) {
                             applySystemProxyDraft()
                         }
                         .disabled(!hasSystemProxyDraftChanges)
                     }
                 } footer: {
-                    Text("Network service, host, port, mode, bypass, and PAC script changes are staged until you apply them.")
+                    Text(String(localized: "Network service, host, port, mode, bypass, and PAC script changes are staged until you apply them."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 if systemProxyDraft.mode == .manual {
-                    Section("Bypass") {
+                    Section(String(localized: "Bypass")) {
                         EditableStringList(
                             items: $systemProxyDraft.bypassList,
                             placeholder: "Domain, host, or CIDR",
                             monospaced: true,
                             accessibilityLabel: "Bypass entries"
                         )
-                        Button("Add Defaults") {
+                        Button(String(localized: "Add Defaults")) {
                             mergeBypassDefaults()
                         }
                     }
@@ -65,9 +65,9 @@ struct SystemProxyView: View {
                             .font(.system(.body, design: .monospaced))
                             .frame(minHeight: 200)
                     } header: {
-                        Text("PAC Script")
+                        Text(String(localized: "PAC Script"))
                     } footer: {
-                        Text("Kumo serves the PAC script from a local HTTP listener and points macOS at it via networksetup -setautoproxyurl. Enable System Proxy to (re)apply changes.")
+                        Text(String(localized: "Kumo serves the PAC script from a local HTTP listener and points macOS at it via networksetup -setautoproxyurl. Enable System Proxy to (re)apply changes."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

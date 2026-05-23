@@ -32,20 +32,20 @@ struct SubStoreFilesSection: View {
     private func list(selection: Binding<SubStoreStore.Selection?>) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Text("\(subStore.files.count) files")
+                Text(String(format: String(localized: "%@ files"), String(subStore.files.count)))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button { creatingNew = true } label: { Image(systemName: "plus") }
                     .buttonStyle(.borderless)
-                    .help("New file")
+                    .help(String(localized: "New file"))
                 Button {
                     Task { await subStore.refreshFiles() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Refresh files")
+                .help(String(localized: "Refresh files"))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -61,9 +61,9 @@ struct SubStoreFilesSection: View {
                     }
                     .tag(SubStoreStore.Selection.file(file.name))
                     .contextMenu {
-                        Button("Edit…") { editing = file }
+                        Button(String(localized: "Edit…")) { editing = file }
                         Divider()
-                        Button("Delete", role: .destructive) {
+                        Button(String(localized: "Delete"), role: .destructive) {
                             Task { await subStore.deleteFile(name: file.name) }
                         }
                     }
@@ -79,7 +79,7 @@ struct SubStoreFilesSection: View {
            let file = subStore.files.first(where: { $0.name == name }) {
             FileDetail(file: file, onEdit: { editing = file })
         } else {
-            ContentUnavailableView("Select a file", systemImage: "doc.text")
+            ContentUnavailableView(String(localized: "Select a file"), systemImage: "doc.text")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -99,10 +99,10 @@ private struct FileDetail: View {
                         .font(.title2.weight(.semibold))
                     Spacer()
                     Button(action: onEdit) {
-                        Label("Edit", systemImage: "pencil")
+                        Label(String(localized: "Edit"), systemImage: "pencil")
                     }
                     Button(role: .destructive) { deleting = true } label: {
-                        Label("Delete", systemImage: "trash")
+                        Label(String(localized: "Delete"), systemImage: "trash")
                     }
                 }
 
@@ -134,12 +134,12 @@ private struct FileDetail: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollEdgeEffectStyleIfAvailable()
-        .confirmationDialog("Delete \(file.resolvedDisplayName)?", isPresented: $deleting) {
-            Button("Delete Permanently", role: .destructive) {
+        .confirmationDialog(String(format: String(localized: "Delete %@?"), file.resolvedDisplayName), isPresented: $deleting) {
+            Button(String(localized: "Delete Permanently"), role: .destructive) {
                 Task { await subStore.deleteFile(name: file.name) }
                 deleting = false
             }
-            Button("Cancel", role: .cancel) { deleting = false }
+            Button(String(localized: "Cancel"), role: .cancel) { deleting = false }
         }
     }
 }
@@ -164,19 +164,19 @@ private struct FileEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("General") {
+                Section(String(localized: "General")) {
                     TextField("Name", text: $draft.name)
                     TextField("Display Name", text: $draft.displayName)
-                    TextField("Type", text: $draft.type, prompt: Text("e.g. mihomoProfile, snippet"))
+                    TextField("Type", text: $draft.type, prompt: Text(String(localized: "e.g. mihomoProfile, snippet")))
                 }
 
-                Picker("Source", selection: $draft.source) {
-                    Text("Remote").tag("remote")
-                    Text("Local").tag("local")
+                Picker(String(localized: "Source"), selection: $draft.source) {
+                    Text(String(localized: "Remote")).tag("remote")
+                    Text(String(localized: "Local")).tag("local")
                 }
 
                 if draft.source == "remote" {
-                    Section("URLs") {
+                    Section(String(localized: "URLs")) {
                         EditableStringList(
                             items: $draft.urls,
                             placeholder: "https://provider.example/file",
@@ -185,19 +185,19 @@ private struct FileEditorSheet: View {
                         )
                     }
 
-                    Section("Remote") {
-                        TextField("User-Agent", text: $draft.ua, prompt: Text("Optional"))
+                    Section(String(localized: "Remote")) {
+                        TextField("User-Agent", text: $draft.ua, prompt: Text(String(localized: "Optional")))
                     }
                 }
 
-                Section("Local Content") {
+                Section(String(localized: "Local Content")) {
                     TextEditor(text: $draft.content)
                         .font(.body.monospaced())
                         .frame(minHeight: 180)
                 }
 
-                Section("Behavior") {
-                    TextField("Proxy", text: $draft.proxy, prompt: Text("Optional"))
+                Section(String(localized: "Behavior")) {
+                    TextField("Proxy", text: $draft.proxy, prompt: Text(String(localized: "Optional")))
                 }
 
                 if let error {
@@ -211,7 +211,7 @@ private struct FileEditorSheet: View {
             .navigationTitle(original == nil ? "New File" : "Edit \(original?.resolvedDisplayName ?? "")")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(String(localized: "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -220,7 +220,7 @@ private struct FileEditorSheet: View {
                         if isSaving {
                             ProgressView().controlSize(.small)
                         } else {
-                            Text("Save")
+                            Text(String(localized: "Save"))
                         }
                     }
                     .disabled(isSaving || !draft.isValid)
@@ -308,7 +308,7 @@ struct SubStoreModulesSection: View {
     private func list(selection: Binding<SubStoreStore.Selection?>) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Text("\(subStore.modules.count) modules")
+                Text(String(format: String(localized: "%@ modules"), String(subStore.modules.count)))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -318,7 +318,7 @@ struct SubStoreModulesSection: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Refresh modules")
+                .help(String(localized: "Refresh modules"))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -337,9 +337,9 @@ struct SubStoreModulesSection: View {
                     }
                     .tag(SubStoreStore.Selection.module(module.name))
                     .contextMenu {
-                        Button("Edit…") { editing = module }
+                        Button(String(localized: "Edit…")) { editing = module }
                         Divider()
-                        Button("Delete", role: .destructive) {
+                        Button(String(localized: "Delete"), role: .destructive) {
                             Task { await subStore.deleteModule(name: module.name) }
                         }
                     }
@@ -355,7 +355,7 @@ struct SubStoreModulesSection: View {
            let module = subStore.modules.first(where: { $0.name == name }) {
             ModuleDetail(module: module, onEdit: { editing = module })
         } else {
-            ContentUnavailableView("Select a module", systemImage: "curlybraces")
+            ContentUnavailableView(String(localized: "Select a module"), systemImage: "curlybraces")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -373,9 +373,9 @@ private struct ModuleDetail: View {
                 Text(module.name)
                     .font(.title2.weight(.semibold))
                 Spacer()
-                Button(action: onEdit) { Label("Edit", systemImage: "pencil") }
+                Button(action: onEdit) { Label(String(localized: "Edit"), systemImage: "pencil") }
                 Button(role: .destructive) { deleting = true } label: {
-                    Label("Delete", systemImage: "trash")
+                    Label(String(localized: "Delete"), systemImage: "trash")
                 }
             }
             .padding(20)
@@ -390,12 +390,12 @@ private struct ModuleDetail: View {
             .background(Color(nsColor: .textBackgroundColor))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .confirmationDialog("Delete \(module.name)?", isPresented: $deleting) {
-            Button("Delete Permanently", role: .destructive) {
+        .confirmationDialog(String(format: String(localized: "Delete %@?"), module.name), isPresented: $deleting) {
+            Button(String(localized: "Delete Permanently"), role: .destructive) {
                 Task { await subStore.deleteModule(name: module.name) }
                 deleting = false
             }
-            Button("Cancel", role: .cancel) { deleting = false }
+            Button(String(localized: "Cancel"), role: .cancel) { deleting = false }
         }
     }
 }
@@ -428,10 +428,10 @@ private struct ModuleEditorSheet: View {
                         .padding(8)
                 }
             }
-            .navigationTitle("Edit Module: \(module.name)")
+            .navigationTitle(String(format: String(localized: "Edit Module: %@"), module.name))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(String(localized: "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -440,7 +440,7 @@ private struct ModuleEditorSheet: View {
                         if isSaving {
                             ProgressView().controlSize(.small)
                         } else {
-                            Text("Save")
+                            Text(String(localized: "Save"))
                         }
                     }
                     .disabled(isSaving)

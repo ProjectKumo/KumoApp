@@ -53,15 +53,15 @@ final class AppNotificationCoordinator {
     func registerCategories() {
         let startUpdateAction = UNNotificationAction(
             identifier: ActionID.startUpdate,
-            title: "Install Now"
+            title: String(localized: "Install Now")
         )
         let remindLaterAction = UNNotificationAction(
             identifier: ActionID.remindLater,
-            title: "Remind Me Later"
+            title: String(localized: "Remind Me Later")
         )
         let restartNowAction = UNNotificationAction(
             identifier: ActionID.restartNow,
-            title: "Restart Now"
+            title: String(localized: "Restart Now")
         )
 
         let updateAvailableCategory = UNNotificationCategory(
@@ -111,8 +111,8 @@ final class AppNotificationCoordinator {
     func postUpdateAvailable(manifest: AppUpdateManifest) {
         guard shouldNotifyForVersion(manifest.version) else { return }
         let content = UNMutableNotificationContent()
-        content.title = "Update Available"
-        content.body = "Kumo \(manifest.version) is ready to install."
+        content.title = String(localized: "Update Available")
+        content.body = String(format: String(localized: "Kumo %@ is ready to install."), manifest.version)
         content.sound = .default
         content.categoryIdentifier = CategoryID.updateAvailable
         content.userInfo = userInfo(for: manifest)
@@ -127,7 +127,7 @@ final class AppNotificationCoordinator {
         message: String
     ) {
         let content = UNMutableNotificationContent()
-        content.title = "Installing Update"
+        content.title = String(localized: "Installing Update")
         content.body = message
         content.sound = nil
         content.categoryIdentifier = CategoryID.updateProgress
@@ -140,8 +140,8 @@ final class AppNotificationCoordinator {
 
     func postRestartReady(manifest: AppUpdateManifest) {
         let content = UNMutableNotificationContent()
-        content.title = "Update Installed"
-        content.body = "Kumo \(manifest.version) is ready. Restart to finish."
+        content.title = String(localized: "Update Installed")
+        content.body = String(format: String(localized: "Kumo %@ is ready. Restart to finish."), manifest.version)
         content.sound = .default
         content.categoryIdentifier = CategoryID.restartReady
         content.userInfo = userInfo(for: manifest)
@@ -169,7 +169,7 @@ final class AppNotificationCoordinator {
     /// them via the Start/Stop toolbar button and the cards on Overview.
     func postCoreStartFailed(error: String) {
         let content = UNMutableNotificationContent()
-        content.title = "Kumo failed to start"
+        content.title = String(localized: "Kumo failed to start")
         content.body = trimmedReason(error)
         content.sound = .default
         content.categoryIdentifier = CategoryID.coreState
@@ -183,7 +183,7 @@ final class AppNotificationCoordinator {
     /// failed. Same rationale as `postCoreStartFailed(error:)`.
     func postCoreStopFailed(error: String) {
         let content = UNMutableNotificationContent()
-        content.title = "Kumo failed to stop"
+        content.title = String(localized: "Kumo failed to stop")
         content.body = trimmedReason(error)
         content.sound = .default
         content.categoryIdentifier = CategoryID.coreState
@@ -206,7 +206,7 @@ final class AppNotificationCoordinator {
 
     private func trimmedReason(_ error: String) -> String {
         let cleaned = error.trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.isEmpty ? "Check Kumo for details." : cleaned
+        return cleaned.isEmpty ? String(localized: "Check Kumo for details.") : cleaned
     }
 
     func snoozeReminder(for version: String, hours: Int = 6) {

@@ -324,7 +324,7 @@ private struct OnboardingStepIndicator: View {
             }
         }
         .animation(.snappy, value: currentStep)
-        .accessibilityLabel("Step \(currentStep.rawValue + 1) of \(OnboardingStep.allCases.count)")
+        .accessibilityLabel(String(format: String(localized: "Step %@ of %@"), String(currentStep.rawValue + 1), String(OnboardingStep.allCases.count)))
     }
 }
 
@@ -340,14 +340,14 @@ private struct OnboardingFooter: View {
     var body: some View {
         HStack(spacing: 10) {
             if step.previous != nil {
-                Button("Back", action: onBack)
+                Button(String(localized: "Back"), action: onBack)
                     .keyboardShortcut(.cancelAction)
             }
 
             Spacer()
 
             if step != .welcome, step != .done {
-                Button("Skip", action: onSkip)
+                Button(String(localized: "Skip"), action: onSkip)
             }
 
             Button(action: onPrimary) {
@@ -579,7 +579,7 @@ private struct SkillsStepView: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Installing selected agents...")
+                    Text(String(localized: "Installing selected agents..."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -707,7 +707,7 @@ private struct DoneStepView: View {
 
             Spacer(minLength: 0)
 
-            Text("Start Kumo's core from the toolbar to begin proxying traffic. Profiles, system proxy, and TUN are available from the sidebar.")
+            Text(String(localized: "Start Kumo's core from the toolbar to begin proxying traffic. Profiles, system proxy, and TUN are available from the sidebar."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

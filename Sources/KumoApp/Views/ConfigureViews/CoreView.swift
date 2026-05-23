@@ -21,59 +21,59 @@ struct CoreView: View {
 
                 Section {
                     TextField("Mixed Port", value: mixedPortBinding, format: .number)
-                    Picker("Log Level", selection: logLevelBinding) {
-                        Text("Silent").tag("silent")
-                        Text("Error").tag("error")
-                        Text("Warning").tag("warning")
-                        Text("Info").tag("info")
-                        Text("Debug").tag("debug")
+                    Picker(String(localized: "Log Level"), selection: logLevelBinding) {
+                        Text(String(localized: "Silent")).tag("silent")
+                        Text(String(localized: "Error")).tag("error")
+                        Text(String(localized: "Warning")).tag("warning")
+                        Text(String(localized: "Info")).tag("info")
+                        Text(String(localized: "Debug")).tag("debug")
                     }
-                    Toggle("Allow LAN", isOn: allowLANBinding)
-                    Toggle("IPv6", isOn: ipv6Binding)
+                    Toggle(String(localized: "Allow LAN"), isOn: allowLANBinding)
+                    Toggle(String(localized: "IPv6"), isOn: ipv6Binding)
                     ControllerSecretField(
                         currentSecret: store.status.endpoint.secret,
                         commit: { store.setControllerSecret($0) }
                     )
                     HStack {
                         Spacer()
-                        Button("Reset") {
+                        Button(String(localized: "Reset")) {
                             resetRuntimeDraft()
                         }
                         .disabled(!hasRuntimeDraftChanges || store.isLoading)
 
-                        Button("Apply") {
+                        Button(String(localized: "Apply")) {
                             applyRuntimeDraft()
                         }
                         .disabled(!hasRuntimeDraftChanges || store.isLoading)
                     }
                 } header: {
-                    Text("Runtime Settings")
+                    Text(String(localized: "Runtime Settings"))
                 } footer: {
-                    Text("Changes are staged locally until you apply them. Kumo-owned runtime keys are written through the shared controller layer.")
+                    Text(String(localized: "Changes are staged locally until you apply them. Kumo-owned runtime keys are written through the shared controller layer."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Core Binary") {
+                Section(String(localized: "Core Binary")) {
                     if store.coreCandidates.isEmpty {
                         CompactSettingRow(title: "No core found", detail: "Install mihomo or choose a binary.") {
                             HStack {
                                 installCoreButton
-                                Button("Choose") {
+                                Button(String(localized: "Choose")) {
                                     isChoosingCore = true
                                 }
                             }
                         }
                     } else {
-                        Picker("Selected Core", selection: corePathBinding) {
-                            Text("Auto").tag(String?.none)
+                        Picker(String(localized: "Selected Core"), selection: corePathBinding) {
+                            Text(String(localized: "Auto")).tag(String?.none)
                             ForEach(store.coreCandidates) { candidate in
-                                Text("\(candidate.name) · \(candidate.sourceDescription)")
+                                Text(String(format: String(localized: "%@ · %@"), candidate.name, candidate.sourceDescription))
                                     .tag(String?.some(candidate.path))
                             }
                         }
 
-                        Button("Choose File") {
+                        Button(String(localized: "Choose File")) {
                             isChoosingCore = true
                         }
 
@@ -190,11 +190,11 @@ struct CoreView: View {
                 ProgressView()
                     .controlSize(.small)
             } else {
-                Text("Install Latest")
+                Text(String(localized: "Install Latest"))
             }
         }
         .disabled(store.isInstallingCore)
-        .help("Download the latest Mihomo core for this Mac and store it in Kumo's Application Support directory.")
+        .help(String(localized: "Download the latest Mihomo core for this Mac and store it in Kumo's Application Support directory."))
     }
 
     private func shortPath(_ path: String) -> String {

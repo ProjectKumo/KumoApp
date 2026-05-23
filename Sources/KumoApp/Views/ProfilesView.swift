@@ -22,7 +22,7 @@ struct ProfilesView: View {
                         systemImage: "rectangle.stack.badge.plus",
                         message: "Use a subscription URL or local YAML."
                     ) {
-                        Button("Choose File") {
+                        Button(String(localized: "Choose File")) {
                             isImportingFile = true
                         }
                     }
@@ -55,8 +55,7 @@ struct ProfilesView: View {
                 editingProfile = nil
             }
         }
-        .confirmationDialog(
-            "Delete Profile?",
+        .confirmationDialog(String(localized: "Delete Profile?"),
             isPresented: Binding {
                 deletingProfile != nil
             } set: { isPresented in
@@ -66,14 +65,14 @@ struct ProfilesView: View {
             },
             presenting: deletingProfile
         ) { profile in
-            Button("Delete \(profile.name)", role: .destructive) {
+            Button(String(localized: "Delete \(profile.name)"), role: .destructive) {
                 Task {
                     await store.deleteProfile(profile)
                     deletingProfile = nil
                 }
             }
             .disabled(profile.id == "default")
-            Button("Cancel", role: .cancel) {
+            Button(String(localized: "Cancel"), role: .cancel) {
                 deletingProfile = nil
             }
         } message: { profile in
@@ -132,7 +131,7 @@ struct ProfilesView: View {
     }
 
     private var proxyImportToggle: some View {
-        Toggle("Use Kumo to fetch", isOn: $usesProxyForImport)
+        Toggle(String(localized: "Use Kumo to fetch"), isOn: $usesProxyForImport)
             .toggleStyle(.checkbox)
             .fixedSize()
     }
@@ -145,15 +144,15 @@ struct ProfilesView: View {
                 }
             }
             .labelStyle(.iconOnly)
-            .help("Paste subscription URL")
-            .accessibilityLabel("Paste subscription URL")
+            .help(String(localized: "Paste subscription URL"))
+            .accessibilityLabel(String(localized: "Paste subscription URL"))
 
-            Button("Import URL") {
+            Button(String(localized: "Import URL")) {
                 importRemoteProfile()
             }
             .disabled(remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isImportingProfile)
 
-            Button("Import File…") {
+            Button(String(localized: "Import File…")) {
                 isImportingFile = true
             }
 
@@ -163,7 +162,7 @@ struct ProfilesView: View {
 
     private var subStoreImportMenu: some View {
         Menu {
-            Button("Reload Items") {
+            Button(String(localized: "Reload Items")) {
                 Task { await store.loadSubStoreEntries() }
             }
             if store.subStoreEntries.isEmpty {
@@ -186,10 +185,10 @@ struct ProfilesView: View {
                 }
             }
         } label: {
-            Label("From Sub-Store", systemImage: "square.stack.3d.up")
+            Label(String(localized: "From Sub-Store"), systemImage: "square.stack.3d.up")
         }
         .menuStyle(.button)
-        .help("Import a profile from the local Sub-Store")
+        .help(String(localized: "Import a profile from the local Sub-Store"))
         .disabled(store.subStoreRuntimeStatus.backendURL == nil)
     }
 
@@ -242,7 +241,7 @@ private struct ProfileRow: View {
                             .help(profile.autoUpdate ? "Auto update enabled" : "Auto update disabled")
                     }
                     if profile.isSubStoreManaged {
-                        Text("Sub-Store")
+                        Text(String(localized: "Sub-Store"))
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 6)
@@ -267,44 +266,44 @@ private struct ProfileRow: View {
                     .foregroundStyle(.secondary)
             }
             if !profile.isCurrent {
-                Button("Use") {
+                Button(String(localized: "Use")) {
                     Task { await store.selectProfile(profile) }
                 }
                 .disabled(store.isLoading)
             }
             Menu {
-                Button("Edit") {
+                Button(String(localized: "Edit")) {
                     onEdit()
                 }
                 if let homeURL = profile.homeURL {
-                    Link("Open Home Page", destination: homeURL)
+                    Link(String(localized: "Open Home Page"), destination: homeURL)
                 }
                 Divider()
-                Button("Delete", role: .destructive) {
+                Button(String(localized: "Delete"), role: .destructive) {
                     onDelete()
                 }
                 .disabled(profile.id == "default")
             } label: {
-                Label("More", systemImage: "ellipsis.circle")
+                Label(String(localized: "More"), systemImage: "ellipsis.circle")
             }
             .menuStyle(.button)
             .buttonStyle(.borderless)
         }
         .padding(.vertical, 4)
         .contextMenu {
-            Button("Use Profile") {
+            Button(String(localized: "Use Profile")) {
                 Task { await store.selectProfile(profile) }
             }
             .disabled(profile.isCurrent)
-            Button("Edit Profile") {
+            Button(String(localized: "Edit Profile")) {
                 onEdit()
             }
             if profile.kind == .remote {
-                Button("Refresh Profile") {
+                Button(String(localized: "Refresh Profile")) {
                     Task { await store.refreshProfile(profile) }
                 }
             }
-            Button("Delete Profile", role: .destructive) {
+            Button(String(localized: "Delete Profile"), role: .destructive) {
                 onDelete()
             }
             .disabled(profile.id == "default")
@@ -360,22 +359,22 @@ private struct ProfileEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Edit Profile")
+            Text(String(localized: "Edit Profile"))
                 .font(.title2.weight(.semibold))
                 .padding(.horizontal)
                 .padding(.top)
 
             Form {
-                Section("Profile Info") {
+                Section(String(localized: "Profile Info")) {
                     TextField("Name", text: $draft.name)
                     if draft.kind == .remote {
                         TextField("Subscription URL", text: $draft.remoteURLString)
-                        Toggle("Auto Update", isOn: $draft.autoUpdate)
-                        Toggle("Use Proxy When Updating", isOn: $draft.useProxy)
+                        Toggle(String(localized: "Auto Update"), isOn: $draft.autoUpdate)
+                        Toggle(String(localized: "Use Proxy When Updating"), isOn: $draft.useProxy)
                     }
                 }
 
-                Section("YAML") {
+                Section(String(localized: "YAML")) {
                     TextEditor(text: $draft.rawYAML)
                         .font(.system(.body, design: .monospaced))
                         .frame(minHeight: 320)
@@ -385,7 +384,7 @@ private struct ProfileEditorSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) {
+                Button(String(localized: "Cancel"), role: .cancel) {
                     onCancel()
                 }
                 Button {
@@ -397,7 +396,7 @@ private struct ProfileEditorSheet: View {
                         ProgressView()
                             .controlSize(.small)
                     } else {
-                        Text("Save")
+                        Text(String(localized: "Save"))
                     }
                 }
                 .keyboardShortcut(.defaultAction)

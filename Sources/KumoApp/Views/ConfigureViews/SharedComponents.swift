@@ -16,7 +16,7 @@ struct ControllerSecretField: View {
                     hasChanges = draft != currentSecret
                 }
                 .onSubmit { applyIfNeeded() }
-            Button("Apply") {
+            Button(String(localized: "Apply")) {
                 applyIfNeeded()
             }
             .disabled(!hasChanges)

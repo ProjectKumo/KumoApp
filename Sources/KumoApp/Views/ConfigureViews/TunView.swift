@@ -11,7 +11,7 @@ struct TunView: View {
     var body: some View {
         KumoPage(title: "TUN") {
             Form {
-                Section("Status") {
+                Section(String(localized: "Status")) {
                     LabeledContent("Helper", value: helperState)
                     LabeledContent("TUN", value: store.tunStatus.isRunning ? "Running" : "Stopped")
                     if let message = store.serviceModeStatus.message {
@@ -20,20 +20,20 @@ struct TunView: View {
                             .foregroundStyle(.secondary)
                     }
                     HStack {
-                        Button("Install / Repair Service") {
+                        Button(String(localized: "Install / Repair Service")) {
                             Task { await store.installServiceMode() }
                         }
                         .disabled(store.isLoading)
-                        .help("Install or repair Kumo Helper with macOS administrator authorization.")
-                        Button("Uninstall Service") {
+                        .help(String(localized: "Install or repair Kumo Helper with macOS administrator authorization."))
+                        Button(String(localized: "Uninstall Service")) {
                             isConfirmingServiceUninstall = true
                         }
                         .disabled(!store.serviceModeStatus.isInstalled || store.isLoading)
                     }
                 }
 
-                Section("Runtime") {
-                    Toggle("Enable TUN", isOn: Binding {
+                Section(String(localized: "Runtime")) {
+                    Toggle(String(localized: "Enable TUN"), isOn: Binding {
                         currentTunSettings.isEnabled
                     } set: { isEnabled in
                         Task { await store.setTunEnabled(isEnabled) }
@@ -47,21 +47,21 @@ struct TunView: View {
                 }
 
                 Section {
-                    Picker("Stack", selection: $tunDraft.stack) {
-                        Text("Mixed").tag("mixed")
-                        Text("gVisor").tag("gvisor")
-                        Text("System").tag("system")
+                    Picker(String(localized: "Stack"), selection: $tunDraft.stack) {
+                        Text(String(localized: "Mixed")).tag("mixed")
+                        Text(String(localized: "gVisor")).tag("gvisor")
+                        Text(String(localized: "System")).tag("system")
                     }
                     .pickerStyle(.segmented)
-                    Toggle("Auto Route", isOn: $tunDraft.autoRoute)
-                    Toggle("Auto Detect Interface", isOn: $tunDraft.autoDetectInterface)
-                    Toggle("Strict Route", isOn: $tunDraft.strictRoute)
-                    Toggle("ICMP Forwarding", isOn: icmpForwardingBinding)
+                    Toggle(String(localized: "Auto Route"), isOn: $tunDraft.autoRoute)
+                    Toggle(String(localized: "Auto Detect Interface"), isOn: $tunDraft.autoDetectInterface)
+                    Toggle(String(localized: "Strict Route"), isOn: $tunDraft.strictRoute)
+                    Toggle(String(localized: "ICMP Forwarding"), isOn: icmpForwardingBinding)
                     TextField("MTU", value: $tunDraft.mtu, format: .number)
                 } header: {
-                    Text("Routing")
+                    Text(String(localized: "Routing"))
                 } footer: {
-                    Text("Routing changes are staged locally. Apply restarts the core when it is running so Mihomo reloads the generated TUN configuration.")
+                    Text(String(localized: "Routing changes are staged locally. Apply restarts the core when it is running so Mihomo reloads the generated TUN configuration."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -76,9 +76,9 @@ struct TunView: View {
                         accessibilityLabel: "DNS hijack targets"
                     )
                 } header: {
-                    Text("DNS Hijack")
+                    Text(String(localized: "DNS Hijack"))
                 } footer: {
-                    Text("Mihomo redirects DNS traffic destined for these hosts.")
+                    Text(String(localized: "Mihomo redirects DNS traffic destined for these hosts."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -93,9 +93,9 @@ struct TunView: View {
                         accessibilityLabel: "Excluded CIDR ranges"
                     )
                 } header: {
-                    Text("Route Exclude")
+                    Text(String(localized: "Route Exclude"))
                 } footer: {
-                    Text("CIDR ranges that bypass the TUN route table.")
+                    Text(String(localized: "CIDR ranges that bypass the TUN route table."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -108,27 +108,27 @@ struct TunView: View {
                     }
                     HStack {
                         Spacer()
-                        Button("Reset") {
+                        Button(String(localized: "Reset")) {
                             updateTunDraft(currentTunSettings)
                         }
                         .disabled(!hasTunDraftChanges || store.isLoading)
 
-                        Button("Apply") {
+                        Button(String(localized: "Apply")) {
                             applyTunDraft()
                         }
                         .disabled(!canApplyTunDraft)
                     }
                 } footer: {
-                    Text("TUN requires Kumo Helper or a privileged Kumo process so Mihomo can create the utun interface. This path does not use macOS VPN configuration prompts.")
+                    Text(String(localized: "TUN requires Kumo Helper or a privileged Kumo process so Mihomo can create the utun interface. This path does not use macOS VPN configuration prompts."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Profile") {
+                Section(String(localized: "Profile")) {
                     Button {
                         onNavigate(.profiles)
                     } label: {
-                        Label("Open Profile YAML", systemImage: "doc.text")
+                        Label(String(localized: "Open Profile YAML"), systemImage: "doc.text")
                     }
                 }
             }
@@ -146,17 +146,16 @@ struct TunView: View {
                 tunDraft.isEnabled = newValue.isEnabled
             }
         }
-        .confirmationDialog(
-            "Uninstall Kumo Helper?",
+        .confirmationDialog(String(localized: "Uninstall Kumo Helper?"),
             isPresented: $isConfirmingServiceUninstall,
             titleVisibility: .visible
         ) {
-            Button("Uninstall Service", role: .destructive) {
+            Button(String(localized: "Uninstall Service"), role: .destructive) {
                 Task { await store.uninstallServiceMode() }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(String(localized: "Cancel"), role: .cancel) {}
         } message: {
-            Text("This removes the privileged helper used for TUN and protected system integration. TUN will not be manageable until the service is installed again.")
+            Text(String(localized: "This removes the privileged helper used for TUN and protected system integration. TUN will not be manageable until the service is installed again."))
         }
     }
 
