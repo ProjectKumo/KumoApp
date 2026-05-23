@@ -105,19 +105,28 @@ git push origin "0.0.10"
 Use `gh release create` with both DMGs. Write release notes covering all
 commits since the previous tag.
 
+**Requirements:**
+- Release notes **must be written in English**.
+- Release notes **must not contain garbled characters or escaped newlines** (`\n` appearing as literals). Use `--notes-file` instead of `--notes` to avoid shell escaping issues.
+
 ```bash
+# Write release notes to a file first
+cat > /tmp/release-notes.md <<'EOF'
+## What's Changed
+
+### Features
+- Summarize each user-facing change.
+
+### Bug Fixes
+- Mention any bug fixes, especially user-reported issues.
+
+### Infrastructure
+- Internal refactors, dependency bumps, etc.
+EOF
+
 gh release create "0.0.10" \
   --title "Kumo 0.0.10" \
-  --notes "## What's New
-
-- Summarize each commit since the last release.
-- Call out user-facing changes first; internal refactors last.
-- If a commit fixes a bug users reported, mention it.
-
-## Downloads
-
-- Apple Silicon (M1/M2/M3): \`Kumo-macos-0.0.10-arm64.dmg\`
-- Intel: \`Kumo-macos-0.0.10-amd64.dmg\`" \
+  --notes-file /tmp/release-notes.md \
   --verify-tag \
   build/release/Kumo-macos-0.0.10-arm64.dmg \
   build/release/Kumo-macos-0.0.10-amd64.dmg
@@ -163,6 +172,9 @@ navigate to **About Kumo** and click **Check for Updates**.
 If the initial release notes were minimal, edit them on the GitHub release page
 with a fuller summary. The release notes are what users read; the manifest
 `releaseNotes` field only needs to point back to the release page.
+
+**Remember:** Release notes must always be in English and properly formatted
+(no literal `\n` or garbled text).
 
 ---
 
