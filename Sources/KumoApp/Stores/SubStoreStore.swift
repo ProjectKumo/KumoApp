@@ -78,7 +78,8 @@ final class SubStoreStore {
     var previewBySubscription: [String: SubStorePreviewResult] = [:]
     var previewByCollection: [String: SubStorePreviewResult] = [:]
 
-    var isLoading = false
+    private var loadingCount = 0
+    var isLoading: Bool { loadingCount > 0 }
     var isFetchingFlow: Set<String> = []
     var isPreviewing: Set<String> = []
     var errorMessage: String?
@@ -182,10 +183,16 @@ final class SubStoreStore {
         defer { isFetchingFlow.remove(name) }
         do {
             flowByName[name] = try await client().subscriptionFlow(name: name)
+        } catch let error as KumoError {
+            if case .controllerResponse(404, _) = error {
+                // Sub-Store backend returns 404 when no flow info is available.
+                flowByName[name] = nil
+            } else {
+                // Other errors (network, decode, etc.) should not silently fail.
+                errorMessage = describe(error)
+            }
         } catch {
-            // Sub-Store backend returns 404 / structured failure when no flow
-            // info is available; simply drop the cached value.
-            flowByName[name] = nil
+            errorMessage = describe(error)
         }
     }
 
@@ -215,8 +222,8 @@ final class SubStoreStore {
 
     func reorderSubscriptions(_ list: [SubStoreSubscription]) async {
         await perform {
-            try await self.client().replaceSubscriptions(list)
-            self.subscriptions = list
+            let sorted = try await self.client().sortSubscriptions(names: list.map(\.name))
+            self.subscriptions = sorted
         }
     }
 
@@ -259,8 +266,8 @@ final class SubStoreStore {
 
     func reorderCollections(_ list: [SubStoreCollection]) async {
         await perform {
-            try await self.client().replaceCollections(list)
-            self.collections = list
+            let sorted = try await self.client().sortCollections(names: list.map(\.name))
+            self.collections = sorted
         }
     }
 
@@ -411,6 +418,24 @@ final class SubStoreStore {
         }
     }
 
+    // MARK: - Parser
+
+    func parseProxies(data: String, platform: String) async -> String? {
+        var result: String?
+        await perform {
+            result = try await self.client().parseProxies(data: data, platform: platform).par_res
+        }
+        return result
+    }
+
+    func parseRules(data: String, platform: String) async -> String? {
+        var result: String?
+        await perform {
+            result = try await self.client().parseRules(data: data, platform: platform).par_res
+        }
+        return result
+    }
+
     // MARK: - Helpers
 
     func clearError() {
@@ -418,8 +443,8 @@ final class SubStoreStore {
     }
 
     private func perform(_ operation: () async throws -> Void) async {
-        isLoading = true
-        defer { isLoading = false }
+        loadingCount += 1
+        defer { loadingCount -= 1 }
         do {
             try await operation()
             errorMessage = nil

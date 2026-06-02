@@ -70,23 +70,35 @@ public struct SubStoreClient: Sendable {
         try await send("/api/collections", method: "PUT", body: collections)
     }
 
+    // MARK: - Sort
+
+    public func sortSubscriptions(names: [String]) async throws -> [SubStoreSubscription] {
+        try await send("/api/sort/subs", method: "POST", body: names, as: SubStoreSubscriptionsResponse.self).data
+    }
+
+    public func sortCollections(names: [String]) async throws -> [SubStoreCollection] {
+        try await send("/api/sort/collections", method: "POST", body: names, as: SubStoreCollectionsResponse.self).data
+    }
+
     // MARK: - Preview
 
     public func previewSubscription(_ subscription: SubStoreSubscription, target: String = "JSON") async throws -> SubStorePreviewResult {
-        try await send(
+        let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? target
+        return try await send(
             "/api/preview/sub",
             method: "POST",
-            query: "target=\(target)",
+            query: "target=\(encodedTarget)",
             body: subscription,
             as: SubStorePreviewResponse.self
         ).data
     }
 
     public func previewCollection(_ collection: SubStoreCollection, target: String = "JSON") async throws -> SubStorePreviewResult {
-        try await send(
+        let encodedTarget = target.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? target
+        return try await send(
             "/api/preview/collection",
             method: "POST",
-            query: "target=\(target)",
+            query: "target=\(encodedTarget)",
             body: collection,
             as: SubStorePreviewResponse.self
         ).data
@@ -220,6 +232,16 @@ public struct SubStoreClient: Sendable {
     public func logs(limit: Int = 100) async throws -> [SubStoreLogEntry] {
         let response = try await get("/api/logs?limit=\(limit)", as: SubStoreLogsResponse.self)
         return response.data
+    }
+
+    // MARK: - Parser
+
+    public func parseProxies(data: String, platform: String) async throws -> ParserResult {
+        try await send("/api/proxy/parse", method: "POST", body: ["data": data, "client": platform], as: SubStoreEnvelope<ParserResult>.self).data
+    }
+
+    public func parseRules(data: String, platform: String) async throws -> ParserResult {
+        try await send("/api/rule/parse", method: "POST", body: ["data": data, "client": platform], as: SubStoreEnvelope<ParserResult>.self).data
     }
 
     // MARK: - Path helpers
@@ -482,6 +504,16 @@ private func decodeCollection(_ value: JSONValue) -> SubStoreCollection? {
 private func decodeJSON<T: Decodable>(_ value: JSONValue, as type: T.Type) -> T? {
     guard let data = try? JSONEncoder.subStore.encode(value) else { return nil }
     return try? JSONDecoder.subStore.decode(T.self, from: data)
+}
+
+// MARK: - Parser result
+
+public struct ParserResult: Codable {
+    public var par_res: String
+
+    public init(par_res: String) {
+        self.par_res = par_res
+    }
 }
 
 // MARK: - Coder helpers

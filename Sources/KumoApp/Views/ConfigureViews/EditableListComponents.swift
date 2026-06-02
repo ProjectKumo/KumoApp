@@ -125,7 +125,7 @@ struct EditableStringList: View {
         // Defer focus assignment so SwiftUI has appended the row before
         // FocusState attempts to match a TextField id.
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(50))
+            try? await Task.sleep(for: .milliseconds(100))
             focusedRow = id
         }
     }
@@ -204,7 +204,7 @@ struct EditableIntList: View {
 
     private func focusRow(_ id: UUID) {
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(50))
+            try? await Task.sleep(for: .milliseconds(100))
             focusedRow = id
         }
     }

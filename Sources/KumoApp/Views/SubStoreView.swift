@@ -75,6 +75,7 @@ enum AdvancedScreen: String, Identifiable, CaseIterable {
     case artifacts
     case archives
     case tokens
+    case parser
     case settings
     case logs
 
@@ -87,6 +88,7 @@ enum AdvancedScreen: String, Identifiable, CaseIterable {
         case .artifacts: "Artifacts"
         case .archives: "Archives"
         case .tokens: "Share Tokens"
+        case .parser: "Parser"
         case .settings: "Server Settings"
         case .logs: "Backend Logs"
         }
@@ -99,6 +101,7 @@ enum AdvancedScreen: String, Identifiable, CaseIterable {
         case .artifacts: "shippingbox"
         case .archives: "archivebox"
         case .tokens: "key"
+        case .parser: "arrow.left.arrow.right"
         case .settings: "slider.horizontal.3"
         case .logs: "doc.text.magnifyingglass"
         }
@@ -353,6 +356,7 @@ private struct AdvancedScreenSheet: View {
         case .artifacts: SubStoreArtifactsSection()
         case .archives: SubStoreArchivesSection()
         case .tokens: SubStoreTokensSection()
+        case .parser: SubStoreParserSection()
         case .settings: SubStoreSettingsSection()
         case .logs: SubStoreLogsSection()
         }
@@ -365,6 +369,7 @@ private struct AdvancedScreenSheet: View {
         case .artifacts: await subStore.refreshArtifacts()
         case .archives: await subStore.refreshArchives()
         case .tokens: await subStore.refreshTokens()
+        case .parser: break
         case .settings: await subStore.refreshSettings()
         case .logs: await subStore.refreshLogs()
         }
@@ -375,8 +380,19 @@ private struct AdvancedScreenSheet: View {
 
 private struct SubscriptionsSection: View {
     @Environment(SubStoreStore.self) private var subStore
-    @State private var editingDraft: SubStoreSubscription?
-    @State private var creatingNew = false
+    @State private var sheet: SubscriptionSheet?
+
+    private enum SubscriptionSheet: Identifiable {
+        case new
+        case edit(SubStoreSubscription)
+
+        var id: String {
+            switch self {
+            case .new: return "new"
+            case .edit(let sub): return "edit-\(sub.name)"
+            }
+        }
+    }
 
     var body: some View {
         @Bindable var subStore = subStore
@@ -387,14 +403,16 @@ private struct SubscriptionsSection: View {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .sheet(isPresented: $creatingNew) {
-            SubscriptionEditorSheet(original: nil) { draft in
-                await subStore.saveSubscription(name: nil, draft: draft)
-            }
-        }
-        .sheet(item: $editingDraft) { draft in
-            SubscriptionEditorSheet(original: draft) { updated in
-                await subStore.saveSubscription(name: draft.name, draft: updated)
+        .sheet(item: $sheet) { mode in
+            switch mode {
+            case .new:
+                SubscriptionEditorSheet(original: nil) { draft in
+                    await subStore.saveSubscription(name: nil, draft: draft)
+                }
+            case .edit(let draft):
+                SubscriptionEditorSheet(original: draft) { updated in
+                    await subStore.saveSubscription(name: draft.name, draft: updated)
+                }
             }
         }
     }
@@ -407,7 +425,7 @@ private struct SubscriptionsSection: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    creatingNew = true
+                    sheet = .new
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -430,7 +448,7 @@ private struct SubscriptionsSection: View {
                         .tag(SubStoreStore.Selection.subscription(subscription.name))
                         .contextMenu {
                             Button(String(localized: "Edit…")) {
-                                editingDraft = subscription
+                                sheet = .edit(subscription)
                             }
                             Button(String(localized: "Refresh Flow")) {
                                 Task { await subStore.loadFlow(for: subscription.name) }
@@ -458,7 +476,7 @@ private struct SubscriptionsSection: View {
     private var detail: some View {
         if case .subscription(let name) = subStore.selection,
            let subscription = subStore.subscriptions.first(where: { $0.name == name }) {
-            SubscriptionDetail(subscription: subscription, onEdit: { editingDraft = subscription })
+            SubscriptionDetail(subscription: subscription, onEdit: { sheet = .edit(subscription) })
         } else {
             ContentUnavailableView(String(localized: "Select a subscription"), systemImage: "rectangle.stack")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -545,22 +563,7 @@ private struct SubscriptionDetail: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(subscription.resolvedDisplayName)
-                    .font(.title2.weight(.semibold))
-                Text(subscription.isLocal ? "Local" : "Remote")
-                    .font(.caption.weight(.medium))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .kumoSubtleBackground(in: .capsule)
-            }
-            if subscription.displayName != nil, subscription.displayName != subscription.name {
-                Text(subscription.name)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
+        SubscriptionDetailHeader(subscription: subscription)
     }
 
     private var actions: some View {
@@ -599,12 +602,12 @@ private struct SubscriptionDetail: View {
             Button {
                 Task {
                     importInProgress = true
+                    defer { importInProgress = false }
                     await appStore.importSubStoreProfile(
                         path: subscription.downloadPath,
                         name: subscription.resolvedDisplayName,
                         useProxy: false
                     )
-                    importInProgress = false
                 }
             } label: {
                 if importInProgress {
@@ -627,6 +630,55 @@ private struct SubscriptionDetail: View {
     }
 
     private var detailsCard: some View {
+        SubscriptionDetailInfoCard(subscription: subscription)
+    }
+
+    @ViewBuilder
+    private var preview: some View {
+        SubscriptionDetailPreview(subscription: subscription)
+    }
+
+    private var deletionBinding: Binding<Bool> {
+        Binding {
+            deleteConfirmation != nil
+        } set: { newValue in
+            if !newValue { deleteConfirmation = nil }
+        }
+    }
+}
+
+private struct SubscriptionDeletionDraft: Identifiable {
+    var name: String
+    var id: String { name }
+}
+
+private struct SubscriptionDetailHeader: View {
+    let subscription: SubStoreSubscription
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(subscription.resolvedDisplayName)
+                    .font(.title2.weight(.semibold))
+                Text(subscription.isLocal ? "Local" : "Remote")
+                    .font(.caption.weight(.medium))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .kumoSubtleBackground(in: .capsule)
+            }
+            if subscription.displayName != nil, subscription.displayName != subscription.name {
+                Text(subscription.name)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct SubscriptionDetailInfoCard: View {
+    let subscription: SubStoreSubscription
+
+    var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 6) {
                 LabeledRow(label: "Source", value: subscription.source ?? "remote")
@@ -654,9 +706,13 @@ private struct SubscriptionDetail: View {
             Label(String(localized: "Details"), systemImage: "info.circle")
         }
     }
+}
 
-    @ViewBuilder
-    private var preview: some View {
+private struct SubscriptionDetailPreview: View {
+    let subscription: SubStoreSubscription
+    @Environment(SubStoreStore.self) private var subStore
+
+    var body: some View {
         if let result = subStore.previewBySubscription[subscription.name] {
             GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
@@ -677,14 +733,6 @@ private struct SubscriptionDetail: View {
         }
     }
 
-    private var deletionBinding: Binding<Bool> {
-        Binding {
-            deleteConfirmation != nil
-        } set: { newValue in
-            if !newValue { deleteConfirmation = nil }
-        }
-    }
-
     private func previewSummary(from values: [JSONValue]) -> String? {
         guard !values.isEmpty else { return nil }
         let names = values.prefix(20).compactMap { value -> String? in
@@ -698,17 +746,23 @@ private struct SubscriptionDetail: View {
     }
 }
 
-private struct SubscriptionDeletionDraft: Identifiable {
-    var name: String
-    var id: String { name }
-}
-
 // MARK: - Collections
 
 private struct CollectionsSection: View {
     @Environment(SubStoreStore.self) private var subStore
-    @State private var editingDraft: SubStoreCollection?
-    @State private var creatingNew = false
+    @State private var sheet: CollectionSheet?
+
+    private enum CollectionSheet: Identifiable {
+        case new
+        case edit(SubStoreCollection)
+
+        var id: String {
+            switch self {
+            case .new: return "new"
+            case .edit(let col): return "edit-\(col.name)"
+            }
+        }
+    }
 
     var body: some View {
         @Bindable var subStore = subStore
@@ -719,20 +773,22 @@ private struct CollectionsSection: View {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .sheet(isPresented: $creatingNew) {
-            CollectionEditorSheet(
-                original: nil,
-                availableSubscriptions: subStore.subscriptions
-            ) { draft in
-                await subStore.saveCollection(name: nil, draft: draft)
-            }
-        }
-        .sheet(item: $editingDraft) { draft in
-            CollectionEditorSheet(
-                original: draft,
-                availableSubscriptions: subStore.subscriptions
-            ) { updated in
-                await subStore.saveCollection(name: draft.name, draft: updated)
+        .sheet(item: $sheet) { mode in
+            switch mode {
+            case .new:
+                CollectionEditorSheet(
+                    original: nil,
+                    availableSubscriptions: subStore.subscriptions
+                ) { draft in
+                    await subStore.saveCollection(name: nil, draft: draft)
+                }
+            case .edit(let draft):
+                CollectionEditorSheet(
+                    original: draft,
+                    availableSubscriptions: subStore.subscriptions
+                ) { updated in
+                    await subStore.saveCollection(name: draft.name, draft: updated)
+                }
             }
         }
     }
@@ -745,7 +801,7 @@ private struct CollectionsSection: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    creatingNew = true
+                    sheet = .new
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -767,7 +823,7 @@ private struct CollectionsSection: View {
                     CollectionRow(collection: collection)
                         .tag(SubStoreStore.Selection.collection(collection.name))
                         .contextMenu {
-                            Button(String(localized: "Edit…")) { editingDraft = collection }
+                            Button(String(localized: "Edit…")) { sheet = .edit(collection) }
                             Divider()
                             Button(String(localized: "Delete (Archive)"), role: .destructive) {
                                 Task { await subStore.deleteCollection(name: collection.name, archive: true) }
@@ -791,7 +847,7 @@ private struct CollectionsSection: View {
     private var detail: some View {
         if case .collection(let name) = subStore.selection,
            let collection = subStore.collections.first(where: { $0.name == name }) {
-            CollectionDetail(collection: collection, onEdit: { editingDraft = collection })
+            CollectionDetail(collection: collection, onEdit: { sheet = .edit(collection) })
         } else {
             ContentUnavailableView(String(localized: "Select a collection"), systemImage: "square.stack.3d.up")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -864,15 +920,7 @@ private struct CollectionDetail: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(collection.resolvedDisplayName)
-                .font(.title2.weight(.semibold))
-            if collection.displayName != nil, collection.displayName != collection.name {
-                Text(collection.name)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
+        CollectionDetailHeader(collection: collection)
     }
 
     private var actions: some View {
@@ -906,12 +954,12 @@ private struct CollectionDetail: View {
             Button {
                 Task {
                     importInProgress = true
+                    defer { importInProgress = false }
                     await appStore.importSubStoreProfile(
                         path: collection.downloadPath,
                         name: collection.resolvedDisplayName,
                         useProxy: false
                     )
-                    importInProgress = false
                 }
             } label: {
                 if importInProgress {
@@ -934,6 +982,48 @@ private struct CollectionDetail: View {
     }
 
     private var detailsCard: some View {
+        CollectionDetailInfoCard(collection: collection)
+    }
+
+    @ViewBuilder
+    private var preview: some View {
+        CollectionDetailPreview(collection: collection)
+    }
+
+    private var deletionBinding: Binding<Bool> {
+        Binding {
+            deleteConfirmation != nil
+        } set: { newValue in
+            if !newValue { deleteConfirmation = nil }
+        }
+    }
+}
+
+private struct CollectionDeletionDraft: Identifiable {
+    var name: String
+    var id: String { name }
+}
+
+private struct CollectionDetailHeader: View {
+    let collection: SubStoreCollection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(collection.resolvedDisplayName)
+                .font(.title2.weight(.semibold))
+            if collection.displayName != nil, collection.displayName != collection.name {
+                Text(collection.name)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct CollectionDetailInfoCard: View {
+    let collection: SubStoreCollection
+
+    var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 6) {
                 if !collection.subscriptions.isEmpty {
@@ -951,9 +1041,13 @@ private struct CollectionDetail: View {
             Label(String(localized: "Details"), systemImage: "info.circle")
         }
     }
+}
 
-    @ViewBuilder
-    private var preview: some View {
+private struct CollectionDetailPreview: View {
+    let collection: SubStoreCollection
+    @Environment(SubStoreStore.self) private var subStore
+
+    var body: some View {
         if let result = subStore.previewByCollection[collection.name] {
             GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
@@ -974,14 +1068,6 @@ private struct CollectionDetail: View {
         }
     }
 
-    private var deletionBinding: Binding<Bool> {
-        Binding {
-            deleteConfirmation != nil
-        } set: { newValue in
-            if !newValue { deleteConfirmation = nil }
-        }
-    }
-
     private func previewSummary(from values: [JSONValue]) -> String? {
         guard !values.isEmpty else { return nil }
         let names = values.prefix(20).compactMap { value -> String? in
@@ -993,11 +1079,6 @@ private struct CollectionDetail: View {
         }
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
-}
-
-private struct CollectionDeletionDraft: Identifiable {
-    var name: String
-    var id: String { name }
 }
 
 // MARK: - Reusable widgets

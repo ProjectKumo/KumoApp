@@ -9,6 +9,7 @@ import KumoCoreKit
 struct ProcessPipelineEditor: View {
     @Binding var pipeline: [JSONValue]
     @State private var addingType: String = OperatorCatalog.commonTypes.first ?? "Script Operator"
+    @State private var operatorIDs: [UUID] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -19,12 +20,12 @@ struct ProcessPipelineEditor: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(Array(pipeline.enumerated()), id: \.offset) { index, _ in
+                ForEach(Array(zip(operatorIDs, pipeline.indices)), id: \.0) { id, index in
                     ProcessOperatorRow(
                         operator: binding(for: index),
                         moveUp: index > 0 ? { swap(index, index - 1) } : nil,
                         moveDown: index < pipeline.count - 1 ? { swap(index, index + 1) } : nil,
-                        remove: { remove(index) }
+                        remove: { remove(at: index) }
                     )
                     .padding(.vertical, 4)
                     Divider()
@@ -43,8 +44,20 @@ struct ProcessPipelineEditor: View {
                         "type": .string(addingType),
                         "args": .object([:])
                     ]))
+                    operatorIDs.append(UUID())
                 }
             }
+        }
+        .onAppear { syncIDs() }
+        .onChange(of: pipeline.count) { syncIDs() }
+    }
+
+    private func syncIDs() {
+        while operatorIDs.count < pipeline.count {
+            operatorIDs.append(UUID())
+        }
+        while operatorIDs.count > pipeline.count {
+            operatorIDs.removeLast()
         }
     }
 
@@ -60,11 +73,13 @@ struct ProcessPipelineEditor: View {
     private func swap(_ a: Int, _ b: Int) {
         guard pipeline.indices.contains(a), pipeline.indices.contains(b) else { return }
         pipeline.swapAt(a, b)
+        operatorIDs.swapAt(a, b)
     }
 
-    private func remove(_ index: Int) {
+    private func remove(at index: Int) {
         guard pipeline.indices.contains(index) else { return }
         pipeline.remove(at: index)
+        operatorIDs.remove(at: index)
     }
 }
 

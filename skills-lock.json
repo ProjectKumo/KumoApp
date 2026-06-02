@@ -1,6 +1,24 @@
 {
   "version": 1,
   "skills": {
+    "add-component": {
+      "source": "signerlabs/shipswift-skills",
+      "sourceType": "github",
+      "skillPath": "skills/add-component/SKILL.md",
+      "computedHash": "1823842be385ebd1db195f86ee15a06a0b31a6dce96166ffabb72f1576a67bf6"
+    },
+    "build-feature": {
+      "source": "signerlabs/shipswift-skills",
+      "sourceType": "github",
+      "skillPath": "skills/build-feature/SKILL.md",
+      "computedHash": "ce555715708bda817470294a5aa96e9b2836c537b2b4d79a29527cb3b5a4bfbf"
+    },
+    "explore-recipes": {
+      "source": "signerlabs/shipswift-skills",
+      "sourceType": "github",
+      "skillPath": "skills/explore-recipes/SKILL.md",
+      "computedHash": "b9ef2589649fc87145a4e48b34406faf6a0eafeac2d7a18905c6312bd7e82959"
+    },
     "liquid-glass-design": {
       "source": "affaan-m/everything-claude-code",
       "sourceType": "github",

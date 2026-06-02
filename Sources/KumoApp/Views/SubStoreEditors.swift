@@ -11,6 +11,7 @@ struct SubscriptionEditorSheet: View {
     @State private var isSaving = false
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(original: SubStoreSubscription?, onSave: @escaping (SubStoreSubscription) async -> Bool) {
         self.original = original
@@ -21,67 +22,72 @@ struct SubscriptionEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(String(localized: "General")) {
+                Section {
                     TextField("Name", text: $draft.name)
-                    TextField("Display Name", text: $draft.displayName)
-                    TextField("Icon URL", text: $draft.icon)
                     Picker(String(localized: "Source"), selection: $draft.source) {
-                        Text(String(localized: "Remote")).tag(SubscriptionDraft.Source.remote)
+                        Text(String(localized: "Remote URL")).tag(SubscriptionDraft.Source.remote)
                         Text(String(localized: "Local")).tag(SubscriptionDraft.Source.local)
                     }
                     .pickerStyle(.segmented)
                 }
 
                 if draft.source == .remote {
-                    Section(String(localized: "Subscription URLs")) {
+                    Section(String(localized: "URLs")) {
                         EditableStringList(
                             items: $draft.urls,
-                            placeholder: "https://provider.example/subscription",
+                            placeholder: "https://example.com/sub",
                             monospaced: true,
                             accessibilityLabel: "Subscription URLs"
                         )
                     }
-
-                    Section(String(localized: "Remote")) {
-                        TextField("User-Agent", text: $draft.ua, prompt: Text(String(localized: "Optional")))
-                        Picker(String(localized: "Merge Sources"), selection: $draft.mergeSources) {
-                            ForEach(SubscriptionDraft.MergeMode.allCases) { mode in
-                                Text(mode.label).tag(mode)
-                            }
-                        }
-                        TextField("Subscription Userinfo", text: $draft.subUserinfo, prompt: Text(String(localized: "Optional")))
-                    }
                 }
 
                 if draft.source == .local || draft.mergeSources != .none {
-                    Section(String(localized: "Local Content")) {
+                    Section {
                         TextEditor(text: $draft.content)
                             .font(.body.monospaced())
                             .frame(minHeight: 160)
-                    }
-                }
-
-                Section(String(localized: "Behavior")) {
-                    TextField("Proxy (Clash node name)", text: $draft.proxy, prompt: Text(String(localized: "Optional")))
-                    Picker(String(localized: "Ignore Failed Remote"), selection: $draft.ignoreFailedRemoteSub) {
-                        ForEach(SubscriptionDraft.IgnoreMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
+                    } header: {
+                        Text(draft.source == .local ? "Nodes" : "Local Content")
+                    } footer: {
+                        if draft.source == .local {
+                            Text("Paste vmess://, ss://, or Clash YAML here.")
+                                .font(.caption)
                         }
                     }
                 }
 
-                Section(String(localized: "Tags")) {
-                    EditableStringList(
-                        items: $draft.tags,
-                        placeholder: "Tag",
-                        minHeight: 90,
-                        maxHeight: 160,
-                        accessibilityLabel: "Tags"
-                    )
-                }
-
                 Section {
-                    ProcessPipelineEditor(pipeline: $draft.process)
+                    DisclosureGroup(String(localized: "More Options")) {
+                        TextField("Display Name", text: $draft.displayName)
+                        TextField("Icon URL", text: $draft.icon)
+
+                        if draft.source == .remote {
+                            TextField("User-Agent", text: $draft.ua, prompt: Text(String(localized: "Optional")))
+                            Picker(String(localized: "Merge Sources"), selection: $draft.mergeSources) {
+                                ForEach(SubscriptionDraft.MergeMode.allCases) { mode in
+                                    Text(mode.label).tag(mode)
+                                }
+                            }
+                        }
+
+                        TextField("Proxy", text: $draft.proxy, prompt: Text(String(localized: "Optional")))
+                        Picker(String(localized: "Ignore Failed Remote"), selection: $draft.ignoreFailedRemoteSub) {
+                            ForEach(SubscriptionDraft.IgnoreMode.allCases) { mode in
+                                Text(mode.label).tag(mode)
+                            }
+                        }
+
+                        EditableStringList(
+                            items: $draft.tags,
+                            placeholder: "Tag",
+                            minHeight: 60,
+                            maxHeight: 120,
+                            accessibilityLabel: "Tags"
+                        )
+
+                        ProcessPipelineEditor(pipeline: $draft.process)
+                    }
                 }
 
                 if let error {
@@ -89,9 +95,13 @@ struct SubscriptionEditorSheet: View {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.red)
                     }
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
             .formStyle(.grouped)
+            .animation(reduceMotion ? .none : .snappy(duration: 0.3), value: draft.source)
+            .animation(reduceMotion ? .none : .snappy(duration: 0.3), value: draft.mergeSources)
+            .animation(reduceMotion ? .none : .snappy(duration: 0.25), value: error)
             .navigationTitle(original == nil ? "New Subscription" : "Edit \(original?.resolvedDisplayName ?? "")")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -111,7 +121,7 @@ struct SubscriptionEditorSheet: View {
                 }
             }
         }
-        .frame(minWidth: 560, minHeight: 600)
+        .frame(minWidth: 520, minHeight: 400)
     }
 
     private func save() async {
@@ -122,7 +132,7 @@ struct SubscriptionEditorSheet: View {
         if success {
             dismiss()
         } else {
-            error = "Save failed. Inspect Sub-Store logs for details."
+            error = String(localized: "Save failed. Inspect Sub-Store logs for details.")
         }
     }
 }
@@ -197,7 +207,11 @@ struct SubscriptionDraft {
     }
 
     var isValid: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasName = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if source == .remote {
+            return hasName && !urls.isEmpty
+        }
+        return hasName
     }
 
     var tagList: [String]? {
@@ -359,7 +373,7 @@ struct CollectionEditorSheet: View {
         if success {
             dismiss()
         } else {
-            error = "Save failed. Inspect Sub-Store logs for details."
+            error = String(localized: "Save failed. Inspect Sub-Store logs for details.")
         }
     }
 }
