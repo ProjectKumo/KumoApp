@@ -11,6 +11,7 @@ final class AppNotificationCoordinator {
         static let updateProgress = "UPDATE_PROGRESS"
         static let restartReady = "RESTART_READY"
         static let coreState = "CORE_STATE"
+        static let profileState = "PROFILE_STATE"
     }
 
     enum ActionID {
@@ -25,6 +26,8 @@ final class AppNotificationCoordinator {
         static let restartReady = "io.kumo.notification.update.restart"
         static let coreStartFailed = "io.kumo.notification.core.start-failed"
         static let coreStopFailed = "io.kumo.notification.core.stop-failed"
+        static let profileAutoUpdated = "io.kumo.notification.profile.auto-updated"
+        static let profileRefreshFailed = "io.kumo.notification.profile.refresh-failed"
     }
 
     enum UserInfoKey {
@@ -91,12 +94,19 @@ final class AppNotificationCoordinator {
             intentIdentifiers: [],
             options: []
         )
+        let profileStateCategory = UNNotificationCategory(
+            identifier: CategoryID.profileState,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
 
         center.setNotificationCategories([
             updateAvailableCategory,
             updateProgressCategory,
             restartReadyCategory,
-            coreStateCategory
+            coreStateCategory,
+            profileStateCategory
         ])
     }
 
@@ -202,6 +212,34 @@ final class AppNotificationCoordinator {
             RequestID.coreStartFailed,
             RequestID.coreStopFailed
         ])
+    }
+
+    func postProfilesAutoUpdated(count: Int, names: [String]) {
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "Profiles Updated")
+        if names.count == 1, let name = names.first {
+            content.body = String(format: String(localized: "%@ refreshed in the background."), name)
+        } else {
+            content.body = String(format: String(localized: "%d profiles refreshed in the background."), count)
+        }
+        content.sound = nil
+        content.categoryIdentifier = CategoryID.profileState
+        replaceNotification(
+            requestID: RequestID.profileAutoUpdated,
+            content: content
+        )
+    }
+
+    func postProfileRefreshFailed(profileName: String, error: String) {
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "Profile Update Failed")
+        content.body = String(format: String(localized: "%@: %@"), profileName, trimmedReason(error))
+        content.sound = .default
+        content.categoryIdentifier = CategoryID.profileState
+        replaceNotification(
+            requestID: RequestID.profileRefreshFailed,
+            content: content
+        )
     }
 
     private func trimmedReason(_ error: String) -> String {

@@ -177,6 +177,7 @@ private struct KumoRootView: View {
                     openWindow(id: "about")
                 }
                 store.startUpdatePolling()
+                store.startProfileUpdatePolling()
             }
     }
 }

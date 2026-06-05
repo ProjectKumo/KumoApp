@@ -54,6 +54,7 @@ final class KumoAppDelegate: NSObject, NSApplicationDelegate, UNUserNotification
 
     func applicationWillTerminate(_ notification: Notification) {
         KumoAppContext.shared.store?.stopUpdatePolling()
+        KumoAppContext.shared.store?.stopProfileUpdatePolling()
         dockBadgeTimer?.invalidate()
         dockBadgeTimer = nil
         statusItemController?.invalidate()

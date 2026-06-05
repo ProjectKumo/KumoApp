@@ -15,6 +15,7 @@ struct ProfilesView: View {
         KumoPage(title: "Profiles") {
             VStack(alignment: .leading, spacing: 14) {
                 importControls
+                profileUpdateStatus
 
                 if store.profiles.isEmpty {
                     KumoEmptyState(
@@ -102,6 +103,24 @@ struct ProfilesView: View {
         .onAppear {
             urlFieldFocused = true
         }
+    }
+
+    @ViewBuilder
+    private var profileUpdateStatus: some View {
+        if let message = store.profileUpdateStatusMessage {
+            Label(message, systemImage: profileUpdateStatusSymbolName)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .labelStyle(.titleAndIcon)
+                .transition(.opacity)
+        }
+    }
+
+    private var profileUpdateStatusSymbolName: String {
+        if !store.refreshingProfileIDs.isEmpty {
+            return "arrow.triangle.2.circlepath"
+        }
+        return store.profileUpdateStatusIsFailure ? "exclamationmark.triangle" : "checkmark.circle"
     }
 
     private var importControls: some View {
@@ -265,6 +284,24 @@ private struct ProfileRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if profile.kind == .remote {
+                Button {
+                    Task { await store.refreshProfile(profile) }
+                } label: {
+                    if isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label(String(localized: "Refresh Profile"), systemImage: "arrow.clockwise")
+                            .labelStyle(.iconOnly)
+                    }
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .disabled(isRefreshing)
+                .help(String(localized: "Refresh profile"))
+                .accessibilityLabel(String(localized: "Refresh profile"))
+            }
             if !profile.isCurrent {
                 Button(String(localized: "Use")) {
                     Task { await store.selectProfile(profile) }
@@ -302,12 +339,17 @@ private struct ProfileRow: View {
                 Button(String(localized: "Refresh Profile")) {
                     Task { await store.refreshProfile(profile) }
                 }
+                .disabled(isRefreshing)
             }
             Button(String(localized: "Delete Profile"), role: .destructive) {
                 onDelete()
             }
             .disabled(profile.id == "default")
         }
+    }
+
+    private var isRefreshing: Bool {
+        store.refreshingProfileIDs.contains(profile.id)
     }
 
     private var subtitle: String {

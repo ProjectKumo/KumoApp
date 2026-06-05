@@ -44,6 +44,9 @@ final class KumoAppStore {
     /// authorized state transitions.
     var showOnboarding = false
     var errorMessage: String?
+    var profileUpdateStatusMessage: String?
+    var profileUpdateStatusIsFailure = false
+    var refreshingProfileIDs: Set<String> = []
     var isLoading = false
     var isSwitchingMode = false
     var isImportingProfile = false
@@ -61,17 +64,25 @@ final class KumoAppStore {
     private let appNotificationCoordinator = AppNotificationCoordinator.shared
     private let proxyGeoLookup: ProxyGeoLookup
     private static let updatePollingIntervalNanoseconds: UInt64 = 5 * 60 * 1_000_000_000
+    private static let profileUpdatePollingIntervalNanoseconds: UInt64 = 60 * 1_000_000_000
     private var loadingTaskCount = 0
     private var trafficStreamTask: Task<Void, Never>?
     private var logStreamTask: Task<Void, Never>?
     private var lastNotifiedDownloadBucket: Int?
     private var proxyGeoTask: Task<Void, Never>?
     private var updatePollingTask: Task<Void, Never>?
+    private var profileUpdatePollingTask: Task<Void, Never>?
     private var isPollingForUpdates = false
+    private var lastProfileRefreshFailureNotifications: [String: Date] = [:]
 
     private enum AppUpdateCheckSource {
         case manual
         case polling
+    }
+
+    private enum ProfileRefreshSource {
+        case manual
+        case automatic
     }
 
     init() {
@@ -232,6 +243,7 @@ final class KumoAppStore {
 
     func prepareForTermination() async {
         stopUpdatePolling()
+        stopProfileUpdatePolling()
         stopTrafficStream()
         stopLogStream()
         proxyGeoTask?.cancel()
@@ -766,10 +778,31 @@ final class KumoAppStore {
     }
 
     func refreshProfile(_ profile: ProfileSummary) async {
-        await performLoadingTask { [self] in
+        guard beginProfileRefresh(profile.id) else { return }
+        profileUpdateStatusMessage = String(format: String(localized: "Refreshing %@..."), profile.name)
+        profileUpdateStatusIsFailure = false
+        beginLoading()
+        defer {
+            endLoading()
+            endProfileRefresh(profile.id)
+        }
+
+        do {
             _ = try await self.controller.refreshProfile(id: profile.id)
             self.refreshProfiles()
             try await self.reactivateCurrentProfileIfNeeded(profile.isCurrent, message: "Profile refreshed.")
+            self.profileUpdateStatusMessage = String(format: String(localized: "%@ updated."), profile.name)
+            self.profileUpdateStatusIsFailure = false
+            if !profile.isCurrent || self.status.state != .running {
+                self.status.message = self.profileUpdateStatusMessage
+            }
+            self.errorMessage = nil
+        } catch {
+            let message = displayMessage(for: error)
+            self.errorMessage = message
+            self.profileUpdateStatusMessage = String(format: String(localized: "%@ update failed."), profile.name)
+            self.profileUpdateStatusIsFailure = true
+            self.postProfileRefreshFailureIfNeeded(profileName: profile.name, profileID: profile.id, message: message, force: true)
         }
     }
 
@@ -1102,6 +1135,29 @@ final class KumoAppStore {
         updatePollingTask = nil
     }
 
+    func startProfileUpdatePolling() {
+        guard profileUpdatePollingTask == nil else { return }
+        profileUpdatePollingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: Self.profileUpdatePollingIntervalNanoseconds)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.refreshProfiles()
+                }
+                await self?.refreshDueProfiles(source: .automatic)
+            }
+        }
+    }
+
+    func stopProfileUpdatePolling() {
+        profileUpdatePollingTask?.cancel()
+        profileUpdatePollingTask = nil
+    }
+
     func checkForUpdate() async {
         await checkForUpdate(source: .manual)
     }
@@ -1293,18 +1349,65 @@ final class KumoAppStore {
         }
     }
 
-    private func refreshDueProfiles() async {
-        do {
-            let refreshed = try await controller.refreshDueProfiles()
-            guard !refreshed.isEmpty else {
-                return
+    private func refreshDueProfiles(source: ProfileRefreshSource = .automatic) async {
+        let now = Date()
+        let dueProfiles = profilesDueForRefresh(now: now)
+        guard !dueProfiles.isEmpty else { return }
+
+        let currentID = currentProfile?.id
+        var refreshedIDs = Set<String>()
+        var refreshedNames: [String] = []
+        var failures: [(profile: ProfileSummary, message: String)] = []
+
+        for profile in dueProfiles {
+            guard beginProfileRefresh(profile.id) else { continue }
+            do {
+                _ = try await controller.refreshProfile(id: profile.id)
+                refreshedIDs.insert(profile.id)
+                refreshedNames.append(profile.name)
+            } catch {
+                failures.append((profile, displayMessage(for: error)))
+            }
+            endProfileRefresh(profile.id)
+        }
+
+        if !refreshedIDs.isEmpty {
+            refreshProfiles()
+            do {
+                try await reactivateCurrentProfileIfNeeded(
+                    currentID.map { refreshedIDs.contains($0) } ?? false,
+                    message: "Profiles auto-updated."
+                )
+            } catch {
+                if let currentProfile = profiles.first(where: { $0.id == currentID }) {
+                    failures.append((currentProfile, displayMessage(for: error)))
+                } else {
+                    errorMessage = displayMessage(for: error)
+                }
             }
 
-            let refreshedCurrentProfile = refreshed.contains { $0.id == currentProfile?.id }
-            refreshProfiles()
-            try await reactivateCurrentProfileIfNeeded(refreshedCurrentProfile, message: "Profiles auto-updated.")
-        } catch {
-            errorMessage = displayMessage(for: error)
+            profileUpdateStatusMessage = profileRefreshSummary(names: refreshedNames)
+            profileUpdateStatusIsFailure = false
+            if source == .automatic {
+                appNotificationCoordinator.postProfilesAutoUpdated(
+                    count: refreshedNames.count,
+                    names: refreshedNames
+                )
+            }
+        }
+
+        if let firstFailure = failures.first {
+            errorMessage = firstFailure.message
+            profileUpdateStatusMessage = String(format: String(localized: "%@ update failed."), firstFailure.profile.name)
+            profileUpdateStatusIsFailure = true
+            postProfileRefreshFailureIfNeeded(
+                profileName: firstFailure.profile.name,
+                profileID: firstFailure.profile.id,
+                message: firstFailure.message,
+                force: source == .manual
+            )
+        } else if !refreshedIDs.isEmpty {
+            errorMessage = nil
         }
     }
 
@@ -1399,5 +1502,46 @@ final class KumoAppStore {
 
     private func displayMessage(for error: Error) -> String {
         (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+    }
+
+    private func profilesDueForRefresh(now: Date) -> [ProfileSummary] {
+        profiles.filter { profile in
+            guard profile.kind == .remote, profile.autoUpdate else { return false }
+            guard let interval = profile.updateIntervalSeconds, interval > 0 else { return false }
+            let updatedAt = profile.updatedAt ?? .distantPast
+            return now.timeIntervalSince(updatedAt) >= TimeInterval(interval)
+        }
+    }
+
+    private func beginProfileRefresh(_ id: String) -> Bool {
+        guard !refreshingProfileIDs.contains(id) else { return false }
+        refreshingProfileIDs.insert(id)
+        return true
+    }
+
+    private func endProfileRefresh(_ id: String) {
+        refreshingProfileIDs.remove(id)
+    }
+
+    private func profileRefreshSummary(names: [String]) -> String {
+        if names.count == 1, let name = names.first {
+            return String(format: String(localized: "%@ updated."), name)
+        }
+        return String(format: String(localized: "%d profiles updated."), names.count)
+    }
+
+    private func postProfileRefreshFailureIfNeeded(
+        profileName: String,
+        profileID: String,
+        message: String,
+        force: Bool = false
+    ) {
+        let now = Date()
+        let lastNotifiedAt = lastProfileRefreshFailureNotifications[profileID]
+        let shouldNotify = force || lastNotifiedAt.map { now.timeIntervalSince($0) >= 6 * 60 * 60 } ?? true
+        guard shouldNotify else { return }
+
+        lastProfileRefreshFailureNotifications[profileID] = now
+        appNotificationCoordinator.postProfileRefreshFailed(profileName: profileName, error: message)
     }
 }

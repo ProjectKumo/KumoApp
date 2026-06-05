@@ -461,6 +461,7 @@ private struct ProfileCard: View {
                 }
 
                 Divider().opacity(0.4)
+                profileUpdateStatus
                 footer
             } else {
                 emptyState
@@ -628,15 +629,33 @@ private struct ProfileCard: View {
             .formatted(date: .abbreviated, time: .omitted)
     }
 
+    @ViewBuilder
+    private var profileUpdateStatus: some View {
+        if let message = store.profileUpdateStatusMessage {
+            Label(message, systemImage: profileUpdateStatusSymbolName)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .labelStyle(.titleAndIcon)
+                .transition(.opacity)
+        }
+    }
+
     private var footer: some View {
         HStack {
-            Button(String(localized: "Refresh")) {
+            Button {
                 guard let profile = store.currentProfile else { return }
                 Task { await store.refreshProfile(profile) }
+            } label: {
+                if currentProfileRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Text(String(localized: "Refresh"))
+                }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(store.isLoading || store.currentProfile == nil)
+            .disabled(!canRefreshCurrentProfile || currentProfileRefreshing)
 
             Spacer()
 
@@ -649,6 +668,22 @@ private struct ProfileCard: View {
             }
             .buttonStyle(.borderless)
         }
+    }
+
+    private var canRefreshCurrentProfile: Bool {
+        store.currentProfile?.kind == .remote
+    }
+
+    private var profileUpdateStatusSymbolName: String {
+        if currentProfileRefreshing {
+            return "arrow.triangle.2.circlepath"
+        }
+        return store.profileUpdateStatusIsFailure ? "exclamationmark.triangle" : "checkmark.circle"
+    }
+
+    private var currentProfileRefreshing: Bool {
+        guard let id = store.currentProfile?.id else { return false }
+        return store.refreshingProfileIDs.contains(id)
     }
 
     private var emptyState: some View {

@@ -14,6 +14,15 @@ that case profile metadata records the original Sub-Store download path and
 refresh rebuilds the request against the current local backend URL with
 `target=ClashMeta` and `noCache=true`.
 
+Remote profiles can be refreshed manually from the Profiles list, the current
+profile card, or the CLI. The macOS app also keeps a lightweight in-process
+poller running while the UI is open. Once a remote profile's
+`profile-update-interval` has elapsed and `autoUpdate` is enabled, Kumo refreshes
+that profile in the background. If the refreshed profile is currently active and
+Mihomo is running, Kumo restarts the core so the generated runtime configuration
+uses the new YAML. Manual refreshes show inline progress; background refreshes
+surface system notifications for completed updates and throttled failure alerts.
+
 ## Default Profile
 
 If no default profile exists, `ProfileRepository` returns a minimal direct profile:
